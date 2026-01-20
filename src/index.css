@@ -2,95 +2,85 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* NodoCrisis - Emergency Coordination Design System
+   Dark theme optimized for 24/7 operations centers
+   Colors communicate state immediately */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Base dark theme - operations center feel */
+    --background: 222 47% 6%;
+    --foreground: 210 40% 96%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 222 47% 8%;
+    --card-foreground: 210 40% 96%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 222 47% 10%;
+    --popover-foreground: 210 40% 96%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Primary - Deep blue for main actions */
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 6%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Secondary - Muted slate */
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 96%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 217 33% 14%;
+    --muted-foreground: 215 20% 55%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 217 33% 20%;
+    --accent-foreground: 210 40% 96%;
 
-    --destructive: 0 84.2% 60.2%;
+    /* Semantic colors for crisis states */
+    
+    /* SMS/Citizen demand - Blue */
+    --demand-sms: 217 91% 60%;
+    --demand-sms-foreground: 222 47% 6%;
+    
+    /* Context/Admin demand - Orange */
+    --demand-context: 25 95% 53%;
+    --demand-context-foreground: 20 14% 4%;
+    
+    /* Critical gap - Red */
+    --gap-critical: 0 84% 60%;
+    --gap-critical-foreground: 0 0% 100%;
+    
+    /* Coverage/Success - Green */
+    --coverage: 142 71% 45%;
+    --coverage-foreground: 144 61% 8%;
+    
+    /* Warning - Amber */
+    --warning: 38 92% 50%;
+    --warning-foreground: 20 14% 4%;
+
+    --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 217 91% 60%;
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 98%;
+    /* Sidebar */
+    --sidebar-background: 222 47% 7%;
+    --sidebar-foreground: 210 40% 80%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 222 47% 6%;
+    --sidebar-accent: 217 33% 15%;
+    --sidebar-accent-foreground: 210 40% 96%;
+    --sidebar-border: 217 33% 14%;
+    --sidebar-ring: 217 91% 60%;
 
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Chart colors for data visualization */
+    --chart-1: 217 91% 60%;
+    --chart-2: 25 95% 53%;
+    --chart-3: 142 71% 45%;
+    --chart-4: 0 84% 60%;
+    --chart-5: 280 65% 60%;
   }
 }
 
@@ -100,6 +90,100 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  /* Custom scrollbar for operations feel */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-muted/30;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/30 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/50;
+  }
+}
+
+@layer components {
+  /* Status badges */
+  .status-critical {
+    @apply bg-gap-critical text-gap-critical-foreground;
+  }
+
+  .status-warning {
+    @apply bg-warning text-warning-foreground;
+  }
+
+  .status-covered {
+    @apply bg-coverage text-coverage-foreground;
+  }
+
+  .status-sms {
+    @apply bg-demand-sms text-demand-sms-foreground;
+  }
+
+  .status-context {
+    @apply bg-demand-context text-demand-context-foreground;
+  }
+
+  /* Glass effect for cards */
+  .glass {
+    @apply bg-card/80 backdrop-blur-sm border border-border/50;
+  }
+
+  /* Pulse animation for critical items */
+  .pulse-critical {
+    animation: pulse-critical 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-critical {
+    0%, 100% {
+      box-shadow: 0 0 0 0 hsl(var(--gap-critical) / 0.4);
+    }
+    50% {
+      box-shadow: 0 0 0 8px hsl(var(--gap-critical) / 0);
+    }
+  }
+
+  /* Glow effects for important elements */
+  .glow-primary {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
+  }
+
+  .glow-critical {
+    box-shadow: 0 0 20px hsl(var(--gap-critical) / 0.3);
+  }
+
+  /* Grid pattern background for dashboard */
+  .grid-pattern {
+    background-image: 
+      linear-gradient(to right, hsl(var(--border) / 0.3) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border) / 0.3) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* Monospace for data/numbers */
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer utilities {
+  /* Text gradients */
+  .text-gradient-primary {
+    @apply bg-gradient-to-r from-primary to-demand-sms bg-clip-text text-transparent;
+  }
+
+  .text-gradient-warning {
+    @apply bg-gradient-to-r from-demand-context to-warning bg-clip-text text-transparent;
   }
 }

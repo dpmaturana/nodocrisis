@@ -1,0 +1,143 @@
+// NodoCrisis Types
+// These types complement the auto-generated Supabase types
+
+export type AppRole = 'admin' | 'actor';
+
+export type NeedLevel = 'low' | 'medium' | 'high' | 'critical';
+
+export type DeploymentStatus = 'planned' | 'active' | 'completed' | 'cancelled';
+
+export type AvailabilityStatus = 'ready' | 'limited' | 'unavailable';
+
+export type SectorStatus = 'unresolved' | 'tentative' | 'resolved';
+
+export interface Profile {
+  id: string;
+  user_id: string;
+  email: string | null;
+  full_name: string | null;
+  organization_name: string | null;
+  organization_type: string | null;
+  phone: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Event {
+  id: string;
+  name: string;
+  description: string | null;
+  location: string | null;
+  status: string;
+  started_at: string;
+  ended_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CapacityType {
+  id: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  created_at: string;
+}
+
+export interface Sector {
+  id: string;
+  event_id: string;
+  canonical_name: string;
+  aliases: string[] | null;
+  latitude: number | null;
+  longitude: number | null;
+  status: SectorStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SectorNeedsSms {
+  id: string;
+  event_id: string;
+  sector_id: string;
+  capacity_type_id: string;
+  level: NeedLevel;
+  count: number;
+  evidence_text: string | null;
+  confidence_score: number | null;
+  created_at: string;
+}
+
+export interface SectorNeedsContext {
+  id: string;
+  event_id: string;
+  sector_id: string;
+  capacity_type_id: string;
+  level: NeedLevel;
+  source: string;
+  notes: string | null;
+  created_by: string | null;
+  expires_at: string | null;
+  created_at: string;
+}
+
+export interface ActorCapability {
+  id: string;
+  user_id: string;
+  capacity_type_id: string;
+  quantity: number | null;
+  unit: string | null;
+  availability: AvailabilityStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Deployment {
+  id: string;
+  event_id: string;
+  sector_id: string;
+  capacity_type_id: string;
+  actor_id: string;
+  status: DeploymentStatus;
+  notes: string | null;
+  verified: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SmsMessage {
+  id: string;
+  event_id: string | null;
+  phone_number: string;
+  message_text: string;
+  received_at: string;
+  processed: boolean;
+  extracted_need_type: string | null;
+  extracted_places: string[] | null;
+  confidence_score: number | null;
+  created_at: string;
+}
+
+// Computed types for gap analysis
+export interface SectorGap {
+  sector: Sector;
+  capacityType: CapacityType;
+  smsDemand: number;
+  contextDemand: number;
+  totalDemand: number;
+  coverage: number;
+  gap: number;
+  isUncovered: boolean;
+  isCritical: boolean;
+  maxLevel: NeedLevel;
+}
+
+export interface DashboardStats {
+  totalEvents: number;
+  activeEvents: number;
+  totalSectors: number;
+  criticalGaps: number;
+  activeDeployments: number;
+  registeredActors: number;
+}
