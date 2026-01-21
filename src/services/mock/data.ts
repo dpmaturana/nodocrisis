@@ -310,10 +310,8 @@ export const MOCK_SECTOR_CONTEXT: Record<string, SectorContext> = {
 export interface ActorInSector {
   id: string;
   name: string;
-  capacityType: CapacityType;
-  quantity: number;
-  unit: string;
-  status: "operating" | "confirmed";
+  capacity: string; // Simplified to string for Supabase compatibility
+  status: "operating" | "confirmed" | "interested" | "suspended" | "finished";
   notes?: string;
 }
 
@@ -333,9 +331,7 @@ export function getActorsInSector(sectorId: string): ActorInSector[] {
     return {
       id: d.id,
       name: actorNames[d.actor_id] || "Organización Anónima",
-      capacityType: capacityType!,
-      quantity: 2, // Mock quantity
-      unit: capacityType?.name === "Transporte" ? "vehículos" : "equipos",
+      capacity: capacityType?.name || "Capacidad",
       status: d.status as "operating" | "confirmed",
       notes: d.notes,
     };
