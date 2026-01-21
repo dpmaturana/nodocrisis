@@ -30,6 +30,7 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
   
   // Processing state
   const [processingState, setProcessingState] = useState<ProcessingState>("idle");
+  const [processingStatus, setProcessingStatus] = useState<string | null>(null);
   const [completedReport, setCompletedReport] = useState<FieldReport | null>(null);
   
   // Audio state
@@ -145,10 +146,12 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
 
   const resetForm = () => {
     setProcessingState("idle");
+    setProcessingStatus(null);
     setCompletedReport(null);
     setStatusOption(null);
     setTextNote("");
     clearAudio();
+    onReportSent(); // Notify parent to refresh data
   };
 
   const handleSubmit = async () => {
@@ -189,11 +192,11 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
           // Trigger transcription and wait for results
           await fieldReportService.triggerTranscription(report.id);
           
-          // Poll for status until completed
+          // Poll for status until completed, updating UI with intermediate status
           reportWithResults = await fieldReportService.pollStatus(
             report.id,
             (updatedReport) => {
-              // Could update UI with intermediate status if needed
+              setProcessingStatus(updatedReport.status);
             }
           );
         }
@@ -224,7 +227,8 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
           : "Tu actualización ha sido registrada.",
       });
       
-      onReportSent();
+      // Don't call onReportSent() here - let user review results first
+      // It will be called when they click "Enviar otro reporte"
     } catch (error: any) {
       setProcessingState("error");
       toast({
@@ -360,13 +364,21 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
         />
       </div>
 
-      {/* Processing State: Transcribing */}
+      {/* Processing State: Transcribing with detailed status */}
       {processingState === "transcribing" && (
         <div className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg border">
           <Loader2 className="w-5 h-5 animate-spin text-primary" />
           <div>
-            <p className="text-sm font-medium">Procesando audio...</p>
-            <p className="text-xs text-muted-foreground">Transcribiendo y extrayendo información</p>
+            <p className="text-sm font-medium">
+              {processingStatus === 'transcribing' && 'Transcribiendo audio...'}
+              {processingStatus === 'extracting' && 'Extrayendo información...'}
+              {(!processingStatus || processingStatus === 'pending') && 'Subiendo audio...'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {processingStatus === 'transcribing' && 'Convirtiendo voz a texto'}
+              {processingStatus === 'extracting' && 'Analizando contenido con IA'}
+              {(!processingStatus || processingStatus === 'pending') && 'Preparando transcripción'}
+            </p>
           </div>
         </div>
       )}
