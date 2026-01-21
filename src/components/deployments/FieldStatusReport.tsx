@@ -156,29 +156,47 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
     
     setProcessingState("sending");
     
+    // Helper to check if string is valid UUID
+    const isValidUUID = (str: string) => 
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+    
     try {
       let reportWithResults: FieldReport | null = null;
       
       // 1. If there's audio, create field report and trigger transcription
+      // Only attempt if we have valid UUIDs (not mock data)
       if (audioBlob) {
-        const report = await fieldReportService.createReport({
-          event_id: group.event.id,
-          sector_id: group.sector.id,
-          audio_file: audioBlob,
-        }, actorId);
+        const eventId = group.event.id;
+        const sectorId = group.sector.id;
         
-        setProcessingState("transcribing");
+        if (!isValidUUID(eventId) || !isValidUUID(sectorId)) {
+          // Skip audio upload for mock data - just show warning
+          console.warn("Skipping audio upload: mock IDs detected", { eventId, sectorId });
+          toast({
+            title: "Audio no guardado",
+            description: "Los reportes de audio solo funcionan con eventos reales, no con datos de prueba.",
+            variant: "default",
+          });
+        } else {
+          const report = await fieldReportService.createReport({
+            event_id: eventId,
+            sector_id: sectorId,
+            audio_file: audioBlob,
+          }, actorId);
         
-        // Trigger transcription and wait for results
-        await fieldReportService.triggerTranscription(report.id);
-        
-        // Poll for status until completed
-        reportWithResults = await fieldReportService.pollStatus(
-          report.id,
-          (updatedReport) => {
-            // Could update UI with intermediate status if needed
-          }
-        );
+          setProcessingState("transcribing");
+          
+          // Trigger transcription and wait for results
+          await fieldReportService.triggerTranscription(report.id);
+          
+          // Poll for status until completed
+          reportWithResults = await fieldReportService.pollStatus(
+            report.id,
+            (updatedReport) => {
+              // Could update UI with intermediate status if needed
+            }
+          );
+        }
       }
       
       // 2. Update deployment statuses based on selected option
