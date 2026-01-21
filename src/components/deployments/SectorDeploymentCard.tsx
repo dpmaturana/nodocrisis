@@ -197,12 +197,13 @@ export function SectorDeploymentCard({ group, actorId, onRefresh }: SectorDeploy
         )}
       </CardContent>
 
-      {/* Sector Detail Drawer */}
+      {/* Sector Detail Drawer - hide enroll since user is already deployed */}
       <SectorDetailDrawer
         sector={enrichedSector}
         open={isDrawerOpen}
         onOpenChange={setIsDrawerOpen}
         onEnroll={() => {}}
+        hideEnrollButton
       />
     </Card>
   );
