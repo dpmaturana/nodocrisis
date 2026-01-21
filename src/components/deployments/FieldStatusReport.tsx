@@ -4,6 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Mic, Square, Play, X, CheckCircle, AlertTriangle, Pause, Loader2, Send, RotateCcw } from "@/lib/icons";
+import { CompletedReportView } from "./CompletedReportView";
 import { cn } from "@/lib/utils";
 import { fieldReportService } from "@/services/fieldReportService";
 import { deploymentService } from "@/services/deploymentService";
@@ -385,76 +386,12 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
 
       {/* Completed State: Show Results */}
       {processingState === "completed" && completedReport && (
-        <div className="space-y-3 p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-900">
-          <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-            <CheckCircle className="w-5 h-5" />
-            <span className="font-medium">Reporte enviado y procesado</span>
-          </div>
-          
-          {/* Transcription */}
-          {completedReport.transcript && (
-            <div className="bg-background/50 rounded p-3">
-              <p className="text-xs text-muted-foreground mb-1">Transcripción:</p>
-              <p className="text-sm">{completedReport.transcript}</p>
-            </div>
-          )}
-          
-          {/* Extracted Data */}
-          {completedReport.extracted_data && (
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">Información detectada:</p>
-              
-              {/* Capability Types */}
-              {completedReport.extracted_data.capability_types?.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {completedReport.extracted_data.capability_types.map((type, i) => (
-                    <Badge key={i} variant="secondary">{type}</Badge>
-                  ))}
-                </div>
-              )}
-              
-              {/* Items with urgency */}
-              {completedReport.extracted_data.items?.length > 0 && (
-                <ul className="text-sm space-y-1">
-                  {completedReport.extracted_data.items.map((item, i) => (
-                    <li key={i} className="flex items-center gap-2 flex-wrap">
-                      <span>•</span>
-                      <span>
-                        {item.quantity && `${item.quantity} `}
-                        {item.name}
-                        {item.unit && ` (${item.unit})`}
-                      </span>
-                      <Badge 
-                        variant={item.urgency === 'crítica' ? 'destructive' : 'outline'} 
-                        className="text-xs"
-                      >
-                        {item.urgency}
-                      </Badge>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              
-              {/* Observations */}
-              {completedReport.extracted_data.observations && (
-                <p className="text-sm italic text-muted-foreground">
-                  "{completedReport.extracted_data.observations}"
-                </p>
-              )}
-            </div>
-          )}
-          
-          {/* Send Another Button */}
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={resetForm}
-            className="w-full gap-2"
-          >
-            <RotateCcw className="w-4 h-4" />
-            Enviar otro reporte
-          </Button>
-        </div>
+        <CompletedReportView 
+          completedReport={completedReport}
+          textNote={textNote}
+          sectorName={group.sector.canonical_name}
+          onReset={resetForm}
+        />
       )}
 
       {/* Completed without audio - simple success */}
