@@ -1,14 +1,17 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Mic, Square, Play, X, CheckCircle, AlertTriangle, Pause, Loader2, Send } from "@/lib/icons";
+import { Mic, Square, Play, X, CheckCircle, AlertTriangle, Pause, Loader2, Send, RotateCcw } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { fieldReportService } from "@/services/fieldReportService";
 import { deploymentService } from "@/services/deploymentService";
 import type { SectorDeploymentGroup } from "@/services/deploymentService";
+import type { FieldReport } from "@/types/fieldReport";
 
 type StatusOption = "working" | "insufficient" | "suspended" | null;
+type ProcessingState = "idle" | "sending" | "transcribing" | "completed" | "error";
 
 interface FieldStatusReportProps {
   group: SectorDeploymentGroup;
@@ -24,7 +27,10 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
   // Form state
   const [statusOption, setStatusOption] = useState<StatusOption>(null);
   const [textNote, setTextNote] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Processing state
+  const [processingState, setProcessingState] = useState<ProcessingState>("idle");
+  const [completedReport, setCompletedReport] = useState<FieldReport | null>(null);
   
   // Audio state
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -137,12 +143,22 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
     setIsPlaying(false);
   };
 
+  const resetForm = () => {
+    setProcessingState("idle");
+    setCompletedReport(null);
+    setStatusOption(null);
+    setTextNote("");
+    clearAudio();
+  };
+
   const handleSubmit = async () => {
     if (!statusOption) return;
     
-    setIsSubmitting(true);
+    setProcessingState("sending");
     
     try {
+      let reportWithResults: FieldReport | null = null;
+      
       // 1. If there's audio, create field report and trigger transcription
       if (audioBlob) {
         const report = await fieldReportService.createReport({
@@ -151,25 +167,37 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
           audio_file: audioBlob,
         }, actorId);
         
-        // Trigger transcription in background
-        fieldReportService.triggerTranscription(report.id).catch(console.error);
+        setProcessingState("transcribing");
+        
+        // Trigger transcription and wait for results
+        await fieldReportService.triggerTranscription(report.id);
+        
+        // Poll for status until completed
+        reportWithResults = await fieldReportService.pollStatus(
+          report.id,
+          (updatedReport) => {
+            // Could update UI with intermediate status if needed
+          }
+        );
       }
       
       // 2. Update deployment statuses based on selected option
       for (const deployment of group.deployments) {
         if (deployment.status === "operating" || deployment.status === "confirmed" || deployment.status === "interested") {
           if (statusOption === "suspended") {
-            // Handle suspension separately
             const noteToSave = textNote || "Operación suspendida";
             await deploymentService.updateStatusWithNote(deployment.id, "suspended", noteToSave);
           } else {
-            // Working or insufficient - keep/upgrade to operating
             const newStatus = deployment.status !== "operating" ? "operating" : "operating";
             const noteToSave = textNote || (statusOption === "insufficient" ? "Recursos insuficientes" : undefined);
             await deploymentService.updateStatusWithNote(deployment.id, newStatus, noteToSave);
           }
         }
       }
+      
+      // Set completed state with results
+      setProcessingState("completed");
+      setCompletedReport(reportWithResults);
       
       toast({
         title: "Reporte enviado",
@@ -178,24 +206,19 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
           : "Tu actualización ha sido registrada.",
       });
       
-      // Reset form
-      setStatusOption(null);
-      setTextNote("");
-      clearAudio();
-      
       onReportSent();
     } catch (error: any) {
+      setProcessingState("error");
       toast({
         title: "Error",
         description: error.message || "No se pudo enviar el reporte.",
         variant: "destructive",
       });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
-  const canSubmit = statusOption !== null && !isSubmitting;
+  const isProcessing = processingState === "sending" || processingState === "transcribing";
+  const canSubmit = statusOption !== null && !isProcessing;
 
   return (
     <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
@@ -319,19 +342,133 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
         />
       </div>
 
-      {/* Submit */}
-      <Button
-        onClick={handleSubmit}
-        disabled={!canSubmit}
-        className="w-full gap-2"
-      >
-        {isSubmitting ? (
+      {/* Processing State: Transcribing */}
+      {processingState === "transcribing" && (
+        <div className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg border">
+          <Loader2 className="w-5 h-5 animate-spin text-primary" />
+          <div>
+            <p className="text-sm font-medium">Procesando audio...</p>
+            <p className="text-xs text-muted-foreground">Transcribiendo y extrayendo información</p>
+          </div>
+        </div>
+      )}
+
+      {/* Completed State: Show Results */}
+      {processingState === "completed" && completedReport && (
+        <div className="space-y-3 p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-900">
+          <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+            <CheckCircle className="w-5 h-5" />
+            <span className="font-medium">Reporte enviado y procesado</span>
+          </div>
+          
+          {/* Transcription */}
+          {completedReport.transcript && (
+            <div className="bg-background/50 rounded p-3">
+              <p className="text-xs text-muted-foreground mb-1">Transcripción:</p>
+              <p className="text-sm">{completedReport.transcript}</p>
+            </div>
+          )}
+          
+          {/* Extracted Data */}
+          {completedReport.extracted_data && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Información detectada:</p>
+              
+              {/* Capability Types */}
+              {completedReport.extracted_data.capability_types?.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {completedReport.extracted_data.capability_types.map((type, i) => (
+                    <Badge key={i} variant="secondary">{type}</Badge>
+                  ))}
+                </div>
+              )}
+              
+              {/* Items with urgency */}
+              {completedReport.extracted_data.items?.length > 0 && (
+                <ul className="text-sm space-y-1">
+                  {completedReport.extracted_data.items.map((item, i) => (
+                    <li key={i} className="flex items-center gap-2 flex-wrap">
+                      <span>•</span>
+                      <span>
+                        {item.quantity && `${item.quantity} `}
+                        {item.name}
+                        {item.unit && ` (${item.unit})`}
+                      </span>
+                      <Badge 
+                        variant={item.urgency === 'crítica' ? 'destructive' : 'outline'} 
+                        className="text-xs"
+                      >
+                        {item.urgency}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              
+              {/* Observations */}
+              {completedReport.extracted_data.observations && (
+                <p className="text-sm italic text-muted-foreground">
+                  "{completedReport.extracted_data.observations}"
+                </p>
+              )}
+            </div>
+          )}
+          
+          {/* Send Another Button */}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={resetForm}
+            className="w-full gap-2"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Enviar otro reporte
+          </Button>
+        </div>
+      )}
+
+      {/* Completed without audio - simple success */}
+      {processingState === "completed" && !completedReport && (
+        <div className="space-y-3 p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-900">
+          <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+            <CheckCircle className="w-5 h-5" />
+            <span className="font-medium">Reporte enviado correctamente</span>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={resetForm}
+            className="w-full gap-2"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Enviar otro reporte
+          </Button>
+        </div>
+      )}
+
+      {/* Submit Button - Only show in idle state */}
+      {processingState === "idle" && (
+        <Button
+          onClick={handleSubmit}
+          disabled={!canSubmit}
+          className="w-full gap-2"
+        >
+          {isProcessing ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Send className="w-4 h-4" />
+          )}
+          Enviar reporte
+        </Button>
+      )}
+
+      {/* Sending State */}
+      {processingState === "sending" && (
+        <Button disabled className="w-full gap-2">
           <Loader2 className="w-4 h-4 animate-spin" />
-        ) : (
-          <Send className="w-4 h-4" />
-        )}
-        Enviar reporte
-      </Button>
+          Enviando...
+        </Button>
+      )}
     </div>
   );
 }
