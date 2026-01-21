@@ -6,10 +6,11 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { CapabilityRow } from "./CapabilityRow";
 import { FieldStatusReport } from "./FieldStatusReport";
 import { CapacityIcon } from "@/components/ui/CapacityIcon";
+import { SectorDetailDrawer } from "@/components/sectors/SectorDetailDrawer";
 import { useToast } from "@/hooks/use-toast";
 import { deploymentService, type SectorDeploymentGroup } from "@/services/deploymentService";
+import type { EnrichedSector } from "@/services/sectorService";
 import { MapPin, Activity, ChevronRight, Users, CheckCircle } from "@/lib/icons";
-import { cn } from "@/lib/utils";
 
 interface SectorDeploymentCardProps {
   group: SectorDeploymentGroup;
@@ -54,10 +55,24 @@ export function SectorDeploymentCard({ group, actorId, onRefresh }: SectorDeploy
   const { toast } = useToast();
   const [isMarkingOperating, setIsMarkingOperating] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const { sector, event, sectorState, sectorContext, deployments, operatingPhase, otherActors } = group;
   const stateConfig = sectorStateConfig[sectorState];
   const phase = phaseConfig[operatingPhase];
+
+  // Build EnrichedSector for the drawer
+  const enrichedSector: EnrichedSector = {
+    sector,
+    event,
+    state: sectorState,
+    context: sectorContext,
+    gaps: [],
+    relevantGaps: [],
+    bestMatchGaps: [],
+    actorsInSector: otherActors,
+    recentSignals: [],
+  };
 
   const handleMarkAsOperating = async () => {
     setIsMarkingOperating(true);
@@ -158,8 +173,7 @@ export function SectorDeploymentCard({ group, actorId, onRefresh }: SectorDeploy
             deployments={deployments}
             onMarkOperating={handleMarkAsOperating}
             isLoading={isMarkingOperating}
-            sectorId={sector.id}
-            eventId={event.id}
+            onOpenSectorContext={() => setIsDrawerOpen(true)}
           />
         )}
 
@@ -182,6 +196,14 @@ export function SectorDeploymentCard({ group, actorId, onRefresh }: SectorDeploy
           />
         )}
       </CardContent>
+
+      {/* Sector Detail Drawer */}
+      <SectorDetailDrawer
+        sector={enrichedSector}
+        open={isDrawerOpen}
+        onOpenChange={setIsDrawerOpen}
+        onEnroll={() => {}}
+      />
     </Card>
   );
 }
@@ -194,8 +216,7 @@ interface PreparingPhaseContentProps {
   deployments: SectorDeploymentGroup["deployments"];
   onMarkOperating: () => void;
   isLoading: boolean;
-  sectorId: string;
-  eventId: string;
+  onOpenSectorContext: () => void;
 }
 
 function PreparingPhaseContent({
@@ -204,8 +225,7 @@ function PreparingPhaseContent({
   deployments,
   onMarkOperating,
   isLoading,
-  sectorId,
-  eventId,
+  onOpenSectorContext,
 }: PreparingPhaseContentProps) {
   return (
     <>
@@ -277,11 +297,13 @@ function PreparingPhaseContent({
         >
           👉 Estamos operando
         </Button>
-        <Button variant="outline" asChild className="gap-2">
-          <Link to={`/sectors?event=${eventId}&sector=${sectorId}`}>
-            Ver contexto del sector
-            <ChevronRight className="w-4 h-4" />
-          </Link>
+        <Button 
+          variant="outline" 
+          className="gap-2"
+          onClick={onOpenSectorContext}
+        >
+          Ver contexto del sector
+          <ChevronRight className="w-4 h-4" />
         </Button>
       </div>
     </>
