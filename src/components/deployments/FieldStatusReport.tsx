@@ -8,8 +8,9 @@ import { CompletedReportView } from "./CompletedReportView";
 import { cn } from "@/lib/utils";
 import { fieldReportService } from "@/services/fieldReportService";
 import { deploymentService } from "@/services/deploymentService";
+import { supabase } from "@/integrations/supabase/client";
 import type { SectorDeploymentGroup } from "@/services/deploymentService";
-import type { FieldReport } from "@/types/fieldReport";
+import type { FieldReport, ExtractedData } from "@/types/fieldReport";
 
 type StatusOption = "working" | "insufficient" | "suspended" | null;
 type ProcessingState = "idle" | "sending" | "transcribing" | "completed" | "error";
@@ -204,39 +205,83 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
             text_note: textNote,
           }, actorId);
         }
-      } else if (audioBlob || textNote.trim()) {
-        // Mock data - create local mock report for visualization
-        console.warn("Using mock report visualization", { eventId, sectorId });
+      } else if (textNote.trim()) {
+        // Mock IDs but has text - use dry_run mode to still process with AI
+        console.warn("Using dry-run mode for AI extraction", { eventId, sectorId });
         
-        // Create a mock FieldReport for visualization
-        const mockReport: FieldReport = {
-          id: `mock-report-${Date.now()}`,
-          event_id: eventId,
-          sector_id: sectorId,
-          actor_id: actorId,
-          audio_url: '',
-          transcript: null,
-          text_note: textNote || null,
-          status: 'completed',
-          extracted_data: {
-            sector_mentioned: null,
-            capability_types: [],
-            items: [],
-            location_detail: null,
-            observations: textNote || 'Reporte de prueba sin procesar por IA.',
-            evidence_quotes: [],
-            confidence: 1,
-          },
-          error_message: null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
+        setProcessingState("transcribing");
+        setProcessingStatus("extracting");
         
-        reportWithResults = mockReport;
+        try {
+          // Call edge function in dry-run mode (no DB persistence)
+          const { data, error } = await supabase.functions.invoke('extract-text-report', {
+            body: { 
+              event_id: eventId,
+              sector_id: sectorId,
+              actor_id: actorId,
+              text_note: textNote,
+              dry_run: true,
+            },
+          });
+          
+          if (error) {
+            console.error('Dry-run extraction error:', error);
+            throw new Error(error.message);
+          }
+          
+          if (data?.success && data?.report) {
+            reportWithResults = {
+              id: data.report.id || `mock-${Date.now()}`,
+              event_id: eventId,
+              sector_id: sectorId,
+              actor_id: actorId,
+              audio_url: 'text-only',
+              transcript: null,
+              text_note: textNote,
+              status: 'completed',
+              extracted_data: data.extracted_data as ExtractedData,
+              error_message: null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            };
+          }
+        } catch (e) {
+          console.error('Dry-run failed, using fallback mock:', e);
+          // Fallback to empty mock if dry-run fails
+          reportWithResults = {
+            id: `mock-${Date.now()}`,
+            event_id: eventId,
+            sector_id: sectorId,
+            actor_id: actorId,
+            audio_url: 'text-only',
+            transcript: null,
+            text_note: textNote,
+            status: 'completed',
+            extracted_data: {
+              sector_mentioned: null,
+              capability_types: [],
+              items: [],
+              location_detail: null,
+              observations: textNote,
+              evidence_quotes: [],
+              confidence: 0.5,
+            },
+            error_message: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+        }
         
         toast({
           title: "Modo prueba",
-          description: "Visualización simulada. En producción se procesará con IA.",
+          description: "Procesado con IA pero sin persistir en base de datos.",
+        });
+      } else if (audioBlob) {
+        // Mock IDs with audio - can't process without real storage
+        console.warn("Audio requires real IDs for storage", { eventId, sectorId });
+        toast({
+          title: "Modo prueba",
+          description: "El audio requiere IDs reales para almacenamiento.",
           variant: "default",
         });
       }
