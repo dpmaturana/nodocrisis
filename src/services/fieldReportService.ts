@@ -67,6 +67,33 @@ export const fieldReportService = {
   },
 
   /**
+   * Create a text-only field report and process it with AI extraction
+   */
+  async createTextOnlyReport(params: {
+    event_id: string;
+    sector_id: string;
+    text_note: string;
+  }, actorId: string): Promise<FieldReport> {
+    const { data, error } = await supabase.functions.invoke('extract-text-report', {
+      body: { 
+        ...params, 
+        actor_id: actorId 
+      },
+    });
+
+    if (error) {
+      console.error('Text extraction error:', error);
+      throw new Error(`Text extraction failed: ${error.message}`);
+    }
+
+    if (!data.success || !data.report) {
+      throw new Error(data.error || 'Unknown error processing text report');
+    }
+
+    return toFieldReport(data.report);
+  },
+
+  /**
    * Trigger transcription via edge function
    */
   async triggerTranscription(reportId: string): Promise<{ success: boolean; transcript?: string; extracted_data?: ExtractedData }> {
