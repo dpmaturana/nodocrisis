@@ -44,6 +44,7 @@ const App = () => (
               
               {/* Admin routes */}
               <Route path="/admin/create-event" element={<CreateEventAI />} />
+              <Route path="/admin/situation-report/draft" element={<SituationReport />} />
               <Route path="/admin/situation-report/:reportId" element={<SituationReport />} />
               <Route path="/admin/coordination" element={<Coordination />} />
               <Route path="/admin/actors" element={<Dashboard />} />
