@@ -14,7 +14,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { situationReportService, MOCK_CAPACITY_TYPES } from "@/services";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,58 +51,39 @@ import { EVENT_TYPES } from "@/types/database";
 
 export default function SituationReport() {
   const { reportId } = useParams<{ reportId: string }>();
-  const { user, isAdmin, isLoading: authLoading } = useAuth();
+  const { isAdmin, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const [report, setReport] = useState<InitialSituationReport | null>(null);
-  const [capacityTypes, setCapacityTypes] = useState<CapacityType[]>([]);
+  const [capacityTypes] = useState<CapacityType[]>(MOCK_CAPACITY_TYPES);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
 
+  // Determine if we're in draft mode (from mock service) or fetching by ID
+  const isDraftMode = reportId === "draft" || !reportId;
+
   useEffect(() => {
-    if (!reportId || authLoading) return;
-    
-    const fetchData = async () => {
-      try {
-        const [reportRes, capacityRes] = await Promise.all([
-          supabase
-            .from("initial_situation_reports")
-            .select("*")
-            .eq("id", reportId)
-            .single(),
-          supabase.from("capacity_types").select("*").order("name"),
-        ]);
+    if (authLoading) return;
 
-        if (reportRes.error) throw reportRes.error;
-        if (capacityRes.error) throw capacityRes.error;
-
-        // Parse JSONB fields
-        const parsedReport: InitialSituationReport = {
-          ...reportRes.data,
-          suggested_sectors: (reportRes.data.suggested_sectors as unknown as SuggestedSector[]) || [],
-          suggested_capabilities: (reportRes.data.suggested_capabilities as unknown as SuggestedCapability[]) || [],
-          sources: (reportRes.data.sources as unknown as string[]) || [],
-        };
-
-        setReport(parsedReport);
-        setCapacityTypes(capacityRes.data || []);
-      } catch (error: any) {
-        console.error("Error fetching report:", error);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "No se pudo cargar el reporte.",
-        });
-        navigate("/admin/create-event");
-      } finally {
-        setIsLoading(false);
+    const loadReport = () => {
+      if (isDraftMode) {
+        // Load from mock service's current draft
+        const draft = situationReportService.getCurrentDraft();
+        if (draft) {
+          setReport(draft);
+        } else {
+          // No draft available, redirect to create
+          navigate("/admin/create-event");
+        }
       }
+      // Future: if reportId is a real ID, could fetch from backend
+      setIsLoading(false);
     };
 
-    fetchData();
-  }, [reportId, authLoading]);
+    loadReport();
+  }, [reportId, authLoading, isDraftMode, navigate]);
 
   if (authLoading || isLoading) {
     return (
@@ -137,8 +118,8 @@ export default function SituationReport() {
           Este reporte ya no puede ser editado.
         </p>
         {report.linked_event_id && (
-          <Button onClick={() => navigate(`/events/${report.linked_event_id}`)}>
-            Ver evento creado
+          <Button onClick={() => navigate(`/admin/event-dashboard`)}>
+            Ver dashboard del evento
           </Button>
         )}
       </div>
@@ -146,26 +127,20 @@ export default function SituationReport() {
   }
 
   const updateReport = (updates: Partial<InitialSituationReport>) => {
-    setReport((prev) => (prev ? { ...prev, ...updates } : prev));
+    setReport((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...updates };
+      // Also update in service
+      situationReportService.updateDraft(updates);
+      return updated;
+    });
   };
 
   const handleSaveDraft = async () => {
     if (!report) return;
     setIsSaving(true);
     try {
-      const { error } = await supabase
-        .from("initial_situation_reports")
-        .update({
-          event_name_suggested: report.event_name_suggested,
-          event_type: report.event_type,
-          summary: report.summary,
-          suggested_sectors: report.suggested_sectors as any,
-          suggested_capabilities: report.suggested_capabilities as any,
-        })
-        .eq("id", report.id);
-
-      if (error) throw error;
-
+      await situationReportService.saveDraft(report);
       toast({ title: "Borrador guardado" });
     } catch (error: any) {
       toast({
@@ -181,13 +156,7 @@ export default function SituationReport() {
   const handleDiscard = async () => {
     if (!report) return;
     try {
-      const { error } = await supabase
-        .from("initial_situation_reports")
-        .update({ status: "discarded" })
-        .eq("id", report.id);
-
-      if (error) throw error;
-
+      await situationReportService.discard();
       toast({ title: "Reporte descartado" });
       navigate("/admin/create-event");
     } catch (error: any) {
@@ -200,101 +169,19 @@ export default function SituationReport() {
   };
 
   const handleConfirm = async () => {
-    if (!report || !user) return;
+    if (!report) return;
     setIsConfirming(true);
 
     try {
-      // 1. Create event
-      const { data: event, error: eventError } = await supabase
-        .from("events")
-        .insert({
-          name: report.event_name_suggested || "Evento sin nombre",
-          type: report.event_type,
-          description: report.summary,
-          status: "active",
-          created_by: user.id,
-        })
-        .select()
-        .single();
-
-      if (eventError) throw eventError;
-
-      // 2. Create sectors (only included ones)
-      const sectorsToCreate = report.suggested_sectors
-        .filter((s) => s.include)
-        .map((s) => ({
-          event_id: event.id,
-          canonical_name: s.name,
-          source: "initial_report",
-          confidence: s.confidence,
-          status: "unresolved" as const,
-        }));
-
-      if (sectorsToCreate.length > 0) {
-        const { error: sectorsError } = await supabase
-          .from("sectors")
-          .insert(sectorsToCreate);
-        if (sectorsError) throw sectorsError;
-      }
-
-      // 3. Create event context needs (only included capabilities)
-      const capabilitiesToCreate = report.suggested_capabilities.filter(
-        (c) => c.include
-      );
-      
-      if (capabilitiesToCreate.length > 0) {
-        // Map capability names to IDs
-        const capabilityMap = new Map(
-          capacityTypes.map((ct) => [ct.name, ct.id])
-        );
-
-        const needsToCreate = capabilitiesToCreate
-          .map((c) => {
-            const capId = capabilityMap.get(c.capability_name);
-            if (!capId) return null;
-            return {
-              event_id: event.id,
-              capacity_type_id: capId,
-              priority: "high" as const,
-              source_type: "initial_report",
-              expires_at: new Date(
-                Date.now() + 24 * 60 * 60 * 1000
-              ).toISOString(),
-              created_by: user.id,
-            };
-          })
-          .filter(Boolean);
-
-        if (needsToCreate.length > 0) {
-          const { error: needsError } = await supabase
-            .from("event_context_needs")
-            .insert(needsToCreate as any);
-          if (needsError) throw needsError;
-        }
-      }
-
-      // 4. Update report status
-      const { error: updateError } = await supabase
-        .from("initial_situation_reports")
-        .update({
-          status: "confirmed",
-          linked_event_id: event.id,
-          event_name_suggested: report.event_name_suggested,
-          event_type: report.event_type,
-          summary: report.summary,
-          suggested_sectors: report.suggested_sectors as any,
-          suggested_capabilities: report.suggested_capabilities as any,
-        })
-        .eq("id", report.id);
-
-      if (updateError) throw updateError;
+      const { eventId } = await situationReportService.confirm(report);
 
       toast({
         title: "¡Coordinación activada!",
-        description: `Evento "${event.name}" creado exitosamente.`,
+        description: `Evento "${report.event_name_suggested}" creado exitosamente.`,
       });
 
-      navigate(`/events/${event.id}`);
+      // Navigate to mock event dashboard
+      navigate(`/admin/event-dashboard`);
     } catch (error: any) {
       console.error("Error confirming report:", error);
       toast({

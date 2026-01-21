@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Loader2, Sparkles, FileText } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { situationReportService } from "@/services";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function CreateEventAI() {
-  const { user, isAdmin, isLoading: authLoading } = useAuth();
+  const { isAdmin, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -44,48 +44,11 @@ export default function CreateEventAI() {
     setIsGenerating(true);
 
     try {
-      // 1. Create draft report in database
-      const { data: report, error: insertError } = await supabase
-        .from("initial_situation_reports")
-        .insert({
-          input_text: inputText.trim(),
-          status: "draft",
-          created_by: user?.id,
-        })
-        .select()
-        .single();
+      // Generate report using mock service (no backend calls)
+      await situationReportService.generate(inputText.trim());
 
-      if (insertError) throw insertError;
-
-      // 2. Call AI edge function
-      const { data: aiResponse, error: aiError } = await supabase.functions.invoke(
-        "generate-situation-report",
-        { body: { input_text: inputText.trim() } }
-      );
-
-      if (aiError) {
-        console.error("AI function error:", aiError);
-        throw new Error(aiError.message || "Error al generar propuesta");
-      }
-
-      // 3. Update report with AI response
-      const { error: updateError } = await supabase
-        .from("initial_situation_reports")
-        .update({
-          event_name_suggested: aiResponse.event_name_suggested,
-          event_type: aiResponse.event_type,
-          summary: aiResponse.summary,
-          suggested_sectors: aiResponse.suggested_sectors,
-          suggested_capabilities: aiResponse.suggested_capabilities,
-          sources: aiResponse.sources,
-          overall_confidence: aiResponse.overall_confidence,
-        })
-        .eq("id", report.id);
-
-      if (updateError) throw updateError;
-
-      // 4. Navigate to report editing page
-      navigate(`/admin/situation-report/${report.id}`);
+      // Navigate to draft editing page
+      navigate("/admin/situation-report/draft");
     } catch (error: any) {
       console.error("Error generating report:", error);
       toast({
