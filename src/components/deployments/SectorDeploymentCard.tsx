@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,16 @@ import { SectorDetailDrawer } from "@/components/sectors/SectorDetailDrawer";
 import { useToast } from "@/hooks/use-toast";
 import { deploymentService, type SectorDeploymentGroup } from "@/services/deploymentService";
 import type { EnrichedSector } from "@/services/sectorService";
+import type { SectorGap, Signal } from "@/types/database";
 import { MapPin, Activity, ChevronRight, Users, CheckCircle } from "@/lib/icons";
+import {
+  MOCK_SECTOR_CAPABILITY_MATRIX,
+  MOCK_CAPACITY_TYPES,
+  MOCK_DEPLOYMENTS,
+  MOCK_SIGNALS,
+  getCapabilitiesByActorId,
+  getSectorById,
+} from "@/services/mock/data";
 
 interface SectorDeploymentCardProps {
   group: SectorDeploymentGroup;
@@ -51,6 +60,63 @@ const phaseConfig = {
   },
 };
 
+// Helper to calculate sector gaps
+function calculateSectorGaps(sectorId: string, actorId: string): { gaps: SectorGap[]; relevantGaps: SectorGap[] } {
+  const matrix = MOCK_SECTOR_CAPABILITY_MATRIX[sectorId] || {};
+  const gaps: SectorGap[] = [];
+  const myCapabilities = getCapabilitiesByActorId(actorId);
+  const myCapabilityTypeIds = myCapabilities
+    .filter(c => c.availability !== "unavailable")
+    .map(c => c.capacity_type_id);
+
+  const sectorData = getSectorById(sectorId);
+  if (!sectorData) return { gaps: [], relevantGaps: [] };
+
+  MOCK_CAPACITY_TYPES.forEach(capacity => {
+    const level = matrix[capacity.id] || "unknown";
+    if (level === "unknown" || level === "covered") return;
+
+    const deployments = MOCK_DEPLOYMENTS.filter(
+      d => d.sector_id === sectorId && 
+           d.capacity_type_id === capacity.id &&
+           (d.status === "operating" || d.status === "confirmed")
+    );
+
+    const coverage = deployments.length;
+    const demand = level === "critical" ? 3 : level === "high" ? 2 : 1;
+    const gap = Math.max(0, demand - coverage);
+
+    if (gap > 0) {
+      gaps.push({
+        sector: sectorData,
+        capacityType: capacity,
+        smsDemand: 0,
+        contextDemand: demand,
+        totalDemand: demand,
+        coverage,
+        gap,
+        isUncovered: coverage === 0,
+        isCritical: level === "critical" || level === "high",
+        maxLevel: level as "low" | "medium" | "high" | "critical",
+      });
+    }
+  });
+
+  const relevantGaps = gaps.filter(g => 
+    myCapabilityTypeIds.includes(g.capacityType.id)
+  );
+
+  return { gaps, relevantGaps };
+}
+
+// Helper to get recent signals for a sector
+function getRecentSignals(sectorId: string): Signal[] {
+  return MOCK_SIGNALS
+    .filter(s => s.sector_id === sectorId)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 5);
+}
+
 export function SectorDeploymentCard({ group, actorId, onRefresh }: SectorDeploymentCardProps) {
   const { toast } = useToast();
   const [isMarkingOperating, setIsMarkingOperating] = useState(false);
@@ -61,17 +127,27 @@ export function SectorDeploymentCard({ group, actorId, onRefresh }: SectorDeploy
   const stateConfig = sectorStateConfig[sectorState];
   const phase = phaseConfig[operatingPhase];
 
+  // Calculate gaps and signals for the drawer
+  const { gaps, relevantGaps } = useMemo(
+    () => calculateSectorGaps(sector.id, actorId),
+    [sector.id, actorId]
+  );
+  const recentSignals = useMemo(
+    () => getRecentSignals(sector.id),
+    [sector.id]
+  );
+
   // Build EnrichedSector for the drawer
   const enrichedSector: EnrichedSector = {
     sector,
     event,
     state: sectorState,
     context: sectorContext,
-    gaps: [],
-    relevantGaps: [],
-    bestMatchGaps: [],
+    gaps,
+    relevantGaps,
+    bestMatchGaps: relevantGaps.slice(0, 2),
     actorsInSector: otherActors,
-    recentSignals: [],
+    recentSignals,
   };
 
   const handleMarkAsOperating = async () => {
