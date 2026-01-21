@@ -47,7 +47,7 @@ export const deploymentService = {
       sector_id: sectorId,
       capacity_type_id: capacityTypeId,
       actor_id: actorId,
-      status: "planned",
+      status: "interested", // PRD: starts as interested
       notes: notes || null,
       verified: false,
     });
@@ -60,6 +60,43 @@ export const deploymentService = {
 
   async getActiveCount(): Promise<number> {
     await simulateDelay(100);
-    return MOCK_DEPLOYMENTS.filter(d => d.status === "active").length;
+    // PRD: count "operating" status instead of legacy "active"
+    return MOCK_DEPLOYMENTS.filter(d => d.status === "operating").length;
+  },
+
+  async getOperatingCount(eventId: string): Promise<number> {
+    await simulateDelay(100);
+    return MOCK_DEPLOYMENTS.filter(d => 
+      d.event_id === eventId && 
+      d.status === "operating"
+    ).length;
+  },
+
+  async markAsOperating(
+    id: string, 
+    feedbackType: 'yes' | 'insufficient' | 'suspended',
+    notes?: string
+  ): Promise<void> {
+    await simulateDelay(200);
+    const deployment = MOCK_DEPLOYMENTS.find(d => d.id === id);
+    if (!deployment) return;
+
+    switch (feedbackType) {
+      case 'yes':
+        deployment.status = 'operating';
+        break;
+      case 'insufficient':
+        deployment.status = 'operating';
+        // In real impl, would also create a signal
+        break;
+      case 'suspended':
+        deployment.status = 'suspended';
+        break;
+    }
+
+    if (notes) {
+      deployment.notes = notes;
+    }
+    deployment.updated_at = new Date().toISOString();
   },
 };

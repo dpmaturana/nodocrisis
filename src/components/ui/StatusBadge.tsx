@@ -1,7 +1,12 @@
 import { cn } from "@/lib/utils";
-import { AlertTriangle, CheckCircle, Clock, XCircle } from "@/lib/icons";
+import { AlertTriangle, CheckCircle, Clock, XCircle, Eye, Check, Activity, Pause } from "@/lib/icons";
 
-type StatusType = "critical" | "warning" | "covered" | "sms" | "context" | "uncovered" | "pending";
+type StatusType = 
+  | "critical" | "warning" | "covered" | "sms" | "context" | "uncovered" | "pending"
+  // Gap states (PRD-aligned)
+  | "gap-critical" | "gap-partial" | "gap-active" | "gap-evaluating"
+  // Deployment states (PRD-aligned)
+  | "deploy-interested" | "deploy-confirmed" | "deploy-operating" | "deploy-suspended" | "deploy-finished";
 
 interface StatusBadgeProps {
   status: StatusType;
@@ -13,6 +18,7 @@ interface StatusBadgeProps {
 }
 
 const statusConfig: Record<StatusType, { bg: string; text: string; icon: React.ElementType }> = {
+  // Legacy statuses
   critical: {
     bg: "bg-gap-critical/20",
     text: "text-gap-critical",
@@ -47,6 +53,53 @@ const statusConfig: Record<StatusType, { bg: string; text: string; icon: React.E
     bg: "bg-muted",
     text: "text-muted-foreground",
     icon: Clock,
+  },
+  // Gap states (PRD-aligned)
+  "gap-critical": {
+    bg: "bg-gap-critical/20",
+    text: "text-gap-critical",
+    icon: XCircle,
+  },
+  "gap-partial": {
+    bg: "bg-warning/20",
+    text: "text-warning",
+    icon: AlertTriangle,
+  },
+  "gap-active": {
+    bg: "bg-coverage/20",
+    text: "text-coverage",
+    icon: CheckCircle,
+  },
+  "gap-evaluating": {
+    bg: "bg-muted",
+    text: "text-muted-foreground",
+    icon: Clock,
+  },
+  // Deployment states (PRD-aligned)
+  "deploy-interested": {
+    bg: "bg-blue-500/20",
+    text: "text-blue-400",
+    icon: Eye,
+  },
+  "deploy-confirmed": {
+    bg: "bg-yellow-500/20",
+    text: "text-yellow-400",
+    icon: Check,
+  },
+  "deploy-operating": {
+    bg: "bg-coverage/20",
+    text: "text-coverage",
+    icon: Activity,
+  },
+  "deploy-suspended": {
+    bg: "bg-muted",
+    text: "text-muted-foreground",
+    icon: Pause,
+  },
+  "deploy-finished": {
+    bg: "bg-muted/50",
+    text: "text-muted-foreground",
+    icon: CheckCircle,
   },
 };
 
