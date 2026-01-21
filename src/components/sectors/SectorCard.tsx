@@ -1,9 +1,8 @@
-import { MapPin, ArrowRight, Users, AlertCircle, AlertTriangle } from "lucide-react";
+import { MapPin, ArrowRight, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CapacityIcon } from "@/components/ui/CapacityIcon";
-import { cn } from "@/lib/utils";
 import type { EnrichedSector } from "@/services/sectorService";
 
 interface SectorCardProps {
@@ -12,20 +11,12 @@ interface SectorCardProps {
   onEnroll: () => void;
 }
 
-const gapStateConfig = {
-  critical: {
-    label: "Crítica",
-    bgClass: "bg-gap-critical/20",
-    textClass: "text-gap-critical",
-    Icon: AlertCircle,
-  },
-  partial: {
-    label: "Parcial",
-    bgClass: "bg-warning/20",
-    textClass: "text-warning",
-    Icon: AlertTriangle,
-  },
-};
+function getDemandLabel(gap: EnrichedSector["gaps"][0]): string {
+  const demand = gap.totalDemand;
+  if (demand >= 3) return "Alta";
+  if (demand >= 2) return "Media";
+  return "Baja";
+}
 
 function getCoverageLabel(gap: EnrichedSector["gaps"][0]): string {
   if (gap.coverage === 0) return "Ninguna";
@@ -35,7 +26,7 @@ function getCoverageLabel(gap: EnrichedSector["gaps"][0]): string {
 
 export function SectorCard({ sector, onViewDetails, onEnroll }: SectorCardProps) {
   const { sector: sectorData, event, state, context, bestMatchGaps } = sector;
-  
+
   const stateConfig = {
     critical: {
       label: "Sector crítico",
@@ -63,7 +54,7 @@ export function SectorCard({ sector, onViewDetails, onEnroll }: SectorCardProps)
   const config = stateConfig[state];
 
   return (
-    <Card 
+    <Card
       className={`${config.borderClass} ${config.bgClass} hover:shadow-md transition-shadow cursor-pointer`}
       onClick={onViewDetails}
     >
@@ -85,13 +76,11 @@ export function SectorCard({ sector, onViewDetails, onEnroll }: SectorCardProps)
           </Badge>
         </div>
       </CardHeader>
-      
+
       <CardContent className="space-y-4">
         {/* Context Key Points */}
         <div>
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-            Contexto clave
-          </h4>
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Contexto clave</h4>
           <ul className="space-y-1">
             {context.keyPoints.slice(0, 3).map((point, idx) => (
               <li key={idx} className="flex items-center gap-2 text-sm">
@@ -106,43 +95,28 @@ export function SectorCard({ sector, onViewDetails, onEnroll }: SectorCardProps)
         {bestMatchGaps.length > 0 && (
           <div>
             <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-              Donde puedes aportar mejor
+              Capacidades que puedes aportar
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {bestMatchGaps.slice(0, 2).map((gap) => (
-                <div 
+                <div
                   key={gap.capacityType.id}
-                  className={cn(
-                    "p-3 rounded-lg border",
-                    gap.isCritical 
-                      ? "border-gap-critical/50 bg-gap-critical/5" 
-                      : "border-warning/50 bg-warning/5"
-                  )}
+                  className={`p-3 rounded-lg border ${
+                    gap.isCritical ? "border-gap-critical/50 bg-gap-critical/5" : "border-warning/50 bg-warning/5"
+                  }`}
                 >
                   <div className="flex items-center gap-2 mb-2">
-                    <CapacityIcon 
-                      name={gap.capacityType.name} 
-                      icon={gap.capacityType.icon} 
-                      size="sm" 
-                    />
+                    <CapacityIcon name={gap.capacityType.name} icon={gap.capacityType.icon} size="sm" />
                     <span className="font-medium text-sm">{gap.capacityType.name}</span>
-                    {(() => {
-                      const config = gapStateConfig[gap.isCritical ? "critical" : "partial"];
-                      const IconComponent = config.Icon;
-                      return (
-                        <span className={cn(
-                          "ml-auto flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium",
-                          config.bgClass,
-                          config.textClass
-                        )}>
-                          <IconComponent className="w-3 h-3" />
-                          {config.label}
-                        </span>
-                      );
-                    })()}
+                    <span className="ml-auto">{gap.isCritical ? "🔴" : "🟠"}</span>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    <span className="text-foreground">Cobertura:</span> {getCoverageLabel(gap)}
+                  <div className="grid grid-cols-2 gap-x-4 text-xs text-muted-foreground">
+                    <div>
+                      <span className="text-foreground">Demanda:</span> {getDemandLabel(gap)}
+                    </div>
+                    <div>
+                      <span className="text-foreground">Cobertura:</span> {getCoverageLabel(gap)}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -151,11 +125,8 @@ export function SectorCard({ sector, onViewDetails, onEnroll }: SectorCardProps)
         )}
 
         {/* CTAs */}
-        <div 
-          className="flex flex-col sm:flex-row gap-2 pt-2"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Button 
+        <div className="flex flex-col sm:flex-row gap-2 pt-2" onClick={(e) => e.stopPropagation()}>
+          <Button
             className="flex-1"
             onClick={(e) => {
               e.stopPropagation();
@@ -165,8 +136,8 @@ export function SectorCard({ sector, onViewDetails, onEnroll }: SectorCardProps)
             <Users className="w-4 h-4 mr-2" />
             Inscribirme en este sector
           </Button>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={(e) => {
               e.stopPropagation();
               onViewDetails();
