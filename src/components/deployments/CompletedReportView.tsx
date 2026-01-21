@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
-import { CheckCircle, Mic, Users, Droplet, Utensils, HeartPulse, Home, RotateCcw } from "@/lib/icons";
+import { CheckCircle, Mic, Users, Droplet, Utensils, HeartPulse, Home, RotateCcw, Truck } from "@/lib/icons";
 import { MessageSquare, Package } from "lucide-react";
-import { StatusBadge, type StatusType } from "@/components/ui/StatusBadge";
+import { cn } from "@/lib/utils";
 import type { FieldReport } from "@/types/fieldReport";
 
 interface CompletedReportViewProps {
@@ -17,6 +17,7 @@ const getCapabilityIcon = (capType: string) => {
   if (lower.includes('alimento')) return <Utensils className="w-4 h-4 text-orange-500" />;
   if (lower.includes('salud')) return <HeartPulse className="w-4 h-4 text-red-500" />;
   if (lower.includes('albergue')) return <Home className="w-4 h-4 text-purple-500" />;
+  if (lower.includes('transporte')) return <Truck className="w-4 h-4 text-cyan-500" />;
   return <Package className="w-4 h-4 text-muted-foreground" />;
 };
 
@@ -27,72 +28,80 @@ export function CompletedReportView({
   onReset 
 }: CompletedReportViewProps) {
   
-  const getGapStatus = (capType: string): StatusType => {
+  const getGapStatus = (capType: string): 'critical' | 'partial' | 'active' => {
     const items = completedReport?.extracted_data?.items || [];
     const related = items.find(i => 
       i.name.toLowerCase().includes(capType.toLowerCase()) ||
       capType.toLowerCase().includes(i.name.toLowerCase().split(' ')[0])
     );
-    if (related?.urgency === 'crítica') return 'gap-critical';
-    if (related?.urgency === 'alta') return 'gap-partial';
-    return 'gap-active';
+    if (related?.urgency === 'crítica') return 'critical';
+    if (related?.urgency === 'alta') return 'partial';
+    return 'active';
   };
 
   return (
-    <div className="space-y-3 p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-900">
-      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+    <div className="space-y-3 p-4 bg-coverage/10 rounded-lg border border-coverage/30">
+      <div className="flex items-center gap-2 text-coverage">
         <CheckCircle className="w-5 h-5" />
         <span className="font-medium">Reporte enviado y procesado</span>
       </div>
       
       {/* Text Note - Exact */}
       {textNote && (
-        <div className="bg-background/50 rounded p-3">
+        <div className="bg-card rounded-lg p-3 border border-border">
           <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
             <MessageSquare className="w-3 h-3" />
             Tu nota:
           </p>
-          <p className="text-sm">{textNote}</p>
+          <p className="text-sm text-foreground">{textNote}</p>
         </div>
       )}
       
       {/* Transcription - Exact */}
       {completedReport.transcript && (
-        <div className="bg-background/50 rounded p-3">
+        <div className="bg-card rounded-lg p-3 border border-border">
           <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
             <Mic className="w-3 h-3" />
             Transcripción:
           </p>
-          <p className="text-sm">{completedReport.transcript}</p>
+          <p className="text-sm text-foreground">{completedReport.transcript}</p>
         </div>
       )}
       
-      {/* Signals Registered with Gap Status */}
+      {/* Signals Registered with Gap Status - colored dots */}
       {completedReport.extracted_data?.capability_types?.length > 0 && (
-        <div className="space-y-2 pt-2 border-t">
+        <div className="space-y-2 pt-2 border-t border-border">
           <p className="text-xs text-muted-foreground">Señales registradas:</p>
           <div className="space-y-1.5">
-            {completedReport.extracted_data.capability_types.map((capType, i) => (
-              <div key={i} className="flex items-center justify-between p-2 bg-muted/30 rounded">
-                <div className="flex items-center gap-2">
-                  {getCapabilityIcon(capType)}
-                  <span className="text-sm font-medium capitalize">{capType}</span>
+            {completedReport.extracted_data.capability_types.map((capType, i) => {
+              const gapStatus = getGapStatus(capType);
+              return (
+                <div key={i} className="flex items-center justify-between p-2 bg-card rounded-lg border border-border">
+                  <div className="flex items-center gap-2">
+                    {getCapabilityIcon(capType)}
+                    <span className="text-sm font-medium capitalize text-foreground">{capType}</span>
+                  </div>
+                  <div className={cn(
+                    "w-2.5 h-2.5 rounded-full",
+                    gapStatus === 'critical' && "bg-gap-critical",
+                    gapStatus === 'partial' && "bg-warning",
+                    gapStatus === 'active' && "bg-coverage"
+                  )} />
                 </div>
-                <StatusBadge status={getGapStatus(capType)} size="sm" />
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
       
       {/* Public Summary - What others will see */}
       {completedReport.extracted_data?.observations && (
-        <div className="bg-blue-50 dark:bg-blue-950/20 rounded p-3 border border-blue-200 dark:border-blue-900">
-          <p className="text-xs text-blue-600 dark:text-blue-400 mb-1 flex items-center gap-1">
+        <div className="bg-demand-sms/10 rounded-lg p-3 border border-demand-sms/30">
+          <p className="text-xs text-demand-sms mb-1 flex items-center gap-1">
             <Users className="w-3 h-3" />
             Lo que verán otros actores:
           </p>
-          <p className="text-sm">{completedReport.extracted_data.observations}</p>
+          <p className="text-sm text-foreground">{completedReport.extracted_data.observations}</p>
         </div>
       )}
       

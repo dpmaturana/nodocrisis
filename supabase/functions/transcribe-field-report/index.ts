@@ -6,9 +6,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const EXTRACTION_PROMPT = `Eres un asistente de emergencias que analiza transcripciones de reportes de campo.
+const EXTRACTION_PROMPT = `Eres un asistente de emergencias que analiza reportes de campo (pueden incluir nota escrita y/o transcripción de audio).
 
-Extrae la siguiente información estructurada del texto:
+Extrae la siguiente información estructurada combinando TODAS las fuentes de información:
 
 1. sector_mentioned: Nombre del sector o ubicación mencionada (string o null)
 2. capability_types: Array de tipos de capacidad detectados. Valores válidos: "agua", "alimentos", "albergue", "salud", "transporte", "comunicaciones", "rescate", "logística"
@@ -19,9 +19,11 @@ Extrae la siguiente información estructurada del texto:
    - state: estado actual ("disponible", "necesario", "en_camino", "agotado")
    - urgency: nivel de urgencia ("baja", "media", "alta", "crítica")
 4. location_detail: Descripción más específica de la ubicación dentro del sector
-5. observations: Observaciones generales del reporte
-6. evidence_quotes: Array de citas textuales relevantes del transcript
+5. observations: Resumen breve (1-2 oraciones) de la situación que será visible para otros actores. DEBE capturar la esencia del reporte de forma clara y accionable, combinando la información de la nota escrita y la transcripción.
+6. evidence_quotes: Array de citas textuales relevantes
 7. confidence: Nivel de confianza en la extracción (0.0 a 1.0)
+
+IMPORTANTE: Analiza TANTO la nota escrita como la transcripción de audio. Extrae capability_types de AMBAS fuentes.
 
 Responde SOLO con JSON válido, sin markdown ni explicaciones.`;
 
@@ -181,7 +183,17 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    console.log('Calling LLM for extraction...');
+    // Combine text_note and transcript for LLM analysis
+    const textNote = report.text_note || '';
+    const combinedInput = [
+      textNote ? `Nota escrita del operador: "${textNote}"` : null,
+      transcript ? `Transcripción de audio: "${transcript}"` : null,
+    ].filter(Boolean).join('\n\n');
+
+    console.log('Calling LLM for extraction with combined input...');
+    console.log('Text note:', textNote);
+    console.log('Transcript:', transcript);
+    
     const extractResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -192,7 +204,7 @@ serve(async (req) => {
         model: 'google/gemini-2.5-flash',
         messages: [
           { role: 'system', content: EXTRACTION_PROMPT },
-          { role: 'user', content: `Transcripción del reporte de campo:\n\n"${transcript}"` }
+          { role: 'user', content: `Reporte de campo:\n\n${combinedInput}` }
         ],
         temperature: 0.2,
       }),
