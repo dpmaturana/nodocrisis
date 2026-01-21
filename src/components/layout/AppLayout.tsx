@@ -1,5 +1,5 @@
 import { Outlet, Navigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useMockAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { AppSidebar } from "./AppSidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 
