@@ -699,7 +699,12 @@ export type Database = {
     Enums: {
       app_role: "admin" | "actor"
       availability_status: "ready" | "limited" | "unavailable"
-      deployment_status: "planned" | "active" | "completed" | "cancelled"
+      deployment_status:
+        | "interested"
+        | "confirmed"
+        | "operating"
+        | "suspended"
+        | "finished"
       event_priority: "low" | "medium" | "high" | "critical"
       need_level: "low" | "medium" | "high" | "critical"
       report_status: "draft" | "confirmed" | "discarded"
@@ -833,7 +838,13 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "actor"],
       availability_status: ["ready", "limited", "unavailable"],
-      deployment_status: ["planned", "active", "completed", "cancelled"],
+      deployment_status: [
+        "interested",
+        "confirmed",
+        "operating",
+        "suspended",
+        "finished",
+      ],
       event_priority: ["low", "medium", "high", "critical"],
       need_level: ["low", "medium", "high", "critical"],
       report_status: ["draft", "confirmed", "discarded"],

@@ -1,16 +1,4 @@
-import { simulateDelay } from "./mock/delay";
-import { 
-  MOCK_DEPLOYMENTS,
-  MOCK_EVENTS,
-  MOCK_SECTORS,
-  MOCK_CAPACITY_TYPES,
-  getDeploymentsByActorId,
-  getEventById,
-  getSectorById,
-  getCapacityTypeById,
-  addDeployment,
-  updateDeploymentStatus,
-} from "./mock/data";
+import { supabase } from "@/integrations/supabase/client";
 import type { Deployment, DeploymentStatus, Event, Sector, CapacityType } from "@/types/database";
 
 export interface DeploymentWithDetails extends Deployment {
@@ -21,17 +9,37 @@ export interface DeploymentWithDetails extends Deployment {
 
 export const deploymentService = {
   async getMyDeployments(actorId: string): Promise<DeploymentWithDetails[]> {
-    await simulateDelay(200);
-    const deployments = getDeploymentsByActorId(actorId);
-    
-    return deployments.map(d => ({
-      ...d,
-      event: getEventById(d.event_id),
-      sector: getSectorById(d.sector_id),
-      capacity_type: getCapacityTypeById(d.capacity_type_id),
-    })).sort((a, b) => 
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
+    const { data, error } = await supabase
+      .from("deployments")
+      .select(`
+        *,
+        events (*),
+        sectors (*),
+        capacity_types (*)
+      `)
+      .eq("actor_id", actorId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching deployments:", error);
+      throw error;
+    }
+
+    return (data || []).map((d: any) => ({
+      id: d.id,
+      event_id: d.event_id,
+      sector_id: d.sector_id,
+      capacity_type_id: d.capacity_type_id,
+      actor_id: d.actor_id,
+      status: d.status as DeploymentStatus,
+      notes: d.notes,
+      verified: d.verified,
+      created_at: d.created_at,
+      updated_at: d.updated_at,
+      event: d.events as Event | undefined,
+      sector: d.sectors as Sector | undefined,
+      capacity_type: d.capacity_types as CapacityType | undefined,
+    }));
   },
 
   async enroll(
@@ -41,62 +49,102 @@ export const deploymentService = {
     capacityTypeId: string,
     notes?: string
   ): Promise<Deployment> {
-    await simulateDelay(300);
-    return addDeployment({
-      event_id: eventId,
-      sector_id: sectorId,
-      capacity_type_id: capacityTypeId,
-      actor_id: actorId,
-      status: "interested", // PRD: starts as interested
-      notes: notes || null,
-      verified: false,
-    });
+    const { data, error } = await supabase
+      .from("deployments")
+      .insert({
+        event_id: eventId,
+        sector_id: sectorId,
+        capacity_type_id: capacityTypeId,
+        actor_id: actorId,
+        status: "interested",
+        notes: notes || null,
+        verified: false,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error creating deployment:", error);
+      throw error;
+    }
+
+    return {
+      ...data,
+      status: data.status as DeploymentStatus,
+    };
   },
 
   async updateStatus(id: string, status: DeploymentStatus): Promise<void> {
-    await simulateDelay(200);
-    updateDeploymentStatus(id, status);
+    const { error } = await supabase
+      .from("deployments")
+      .update({ status })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error updating deployment status:", error);
+      throw error;
+    }
   },
 
   async getActiveCount(): Promise<number> {
-    await simulateDelay(100);
-    // PRD: count "operating" status instead of legacy "active"
-    return MOCK_DEPLOYMENTS.filter(d => d.status === "operating").length;
+    const { count, error } = await supabase
+      .from("deployments")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "operating");
+
+    if (error) {
+      console.error("Error counting active deployments:", error);
+      return 0;
+    }
+
+    return count || 0;
   },
 
   async getOperatingCount(eventId: string): Promise<number> {
-    await simulateDelay(100);
-    return MOCK_DEPLOYMENTS.filter(d => 
-      d.event_id === eventId && 
-      d.status === "operating"
-    ).length;
+    const { count, error } = await supabase
+      .from("deployments")
+      .select("*", { count: "exact", head: true })
+      .eq("event_id", eventId)
+      .eq("status", "operating");
+
+    if (error) {
+      console.error("Error counting operating deployments:", error);
+      return 0;
+    }
+
+    return count || 0;
   },
 
   async markAsOperating(
-    id: string, 
-    feedbackType: 'yes' | 'insufficient' | 'suspended',
+    id: string,
+    feedbackType: "yes" | "insufficient" | "suspended",
     notes?: string
   ): Promise<void> {
-    await simulateDelay(200);
-    const deployment = MOCK_DEPLOYMENTS.find(d => d.id === id);
-    if (!deployment) return;
+    let status: DeploymentStatus;
 
     switch (feedbackType) {
-      case 'yes':
-        deployment.status = 'operating';
+      case "yes":
+      case "insufficient":
+        status = "operating";
         break;
-      case 'insufficient':
-        deployment.status = 'operating';
-        // In real impl, would also create a signal
-        break;
-      case 'suspended':
-        deployment.status = 'suspended';
+      case "suspended":
+        status = "suspended";
         break;
     }
 
+    const updateData: { status: DeploymentStatus; notes?: string } = { status };
     if (notes) {
-      deployment.notes = notes;
+      updateData.notes = notes;
     }
-    deployment.updated_at = new Date().toISOString();
+
+    const { error } = await supabase
+      .from("deployments")
+      .update(updateData)
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error marking deployment as operating:", error);
+      throw error;
+    }
   },
 };
