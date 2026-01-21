@@ -143,6 +143,57 @@ export type Database = {
           },
         ]
       }
+      event_context_needs: {
+        Row: {
+          capacity_type_id: string
+          created_at: string
+          created_by: string | null
+          event_id: string
+          expires_at: string | null
+          id: string
+          notes: string | null
+          priority: Database["public"]["Enums"]["event_priority"]
+          source_type: string
+        }
+        Insert: {
+          capacity_type_id: string
+          created_at?: string
+          created_by?: string | null
+          event_id: string
+          expires_at?: string | null
+          id?: string
+          notes?: string | null
+          priority?: Database["public"]["Enums"]["event_priority"]
+          source_type: string
+        }
+        Update: {
+          capacity_type_id?: string
+          created_at?: string
+          created_by?: string | null
+          event_id?: string
+          expires_at?: string | null
+          id?: string
+          notes?: string | null
+          priority?: Database["public"]["Enums"]["event_priority"]
+          source_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_context_needs_capacity_type_id_fkey"
+            columns: ["capacity_type_id"]
+            isOneToOne: false
+            referencedRelation: "capacity_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_context_needs_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           created_at: string
@@ -154,6 +205,7 @@ export type Database = {
           name: string
           started_at: string
           status: string
+          type: string | null
           updated_at: string
         }
         Insert: {
@@ -166,6 +218,7 @@ export type Database = {
           name: string
           started_at?: string
           status?: string
+          type?: string | null
           updated_at?: string
         }
         Update: {
@@ -178,9 +231,69 @@ export type Database = {
           name?: string
           started_at?: string
           status?: string
+          type?: string | null
           updated_at?: string
         }
         Relationships: []
+      }
+      initial_situation_reports: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          event_name_suggested: string | null
+          event_type: string | null
+          id: string
+          input_text: string
+          linked_event_id: string | null
+          overall_confidence: number | null
+          sources: Json | null
+          status: Database["public"]["Enums"]["report_status"]
+          suggested_capabilities: Json | null
+          suggested_sectors: Json | null
+          summary: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          event_name_suggested?: string | null
+          event_type?: string | null
+          id?: string
+          input_text: string
+          linked_event_id?: string | null
+          overall_confidence?: number | null
+          sources?: Json | null
+          status?: Database["public"]["Enums"]["report_status"]
+          suggested_capabilities?: Json | null
+          suggested_sectors?: Json | null
+          summary?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          event_name_suggested?: string | null
+          event_type?: string | null
+          id?: string
+          input_text?: string
+          linked_event_id?: string | null
+          overall_confidence?: number | null
+          sources?: Json | null
+          status?: Database["public"]["Enums"]["report_status"]
+          suggested_capabilities?: Json | null
+          suggested_sectors?: Json | null
+          summary?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "initial_situation_reports_linked_event_id_fkey"
+            columns: ["linked_event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -341,33 +454,39 @@ export type Database = {
         Row: {
           aliases: string[] | null
           canonical_name: string
+          confidence: number | null
           created_at: string
           event_id: string
           id: string
           latitude: number | null
           longitude: number | null
+          source: string | null
           status: Database["public"]["Enums"]["sector_status"]
           updated_at: string
         }
         Insert: {
           aliases?: string[] | null
           canonical_name: string
+          confidence?: number | null
           created_at?: string
           event_id: string
           id?: string
           latitude?: number | null
           longitude?: number | null
+          source?: string | null
           status?: Database["public"]["Enums"]["sector_status"]
           updated_at?: string
         }
         Update: {
           aliases?: string[] | null
           canonical_name?: string
+          confidence?: number | null
           created_at?: string
           event_id?: string
           id?: string
           latitude?: number | null
           longitude?: number | null
+          source?: string | null
           status?: Database["public"]["Enums"]["sector_status"]
           updated_at?: string
         }
@@ -463,7 +582,9 @@ export type Database = {
       app_role: "admin" | "actor"
       availability_status: "ready" | "limited" | "unavailable"
       deployment_status: "planned" | "active" | "completed" | "cancelled"
+      event_priority: "low" | "medium" | "high" | "critical"
       need_level: "low" | "medium" | "high" | "critical"
+      report_status: "draft" | "confirmed" | "discarded"
       sector_status: "unresolved" | "tentative" | "resolved"
     }
     CompositeTypes: {
@@ -595,7 +716,9 @@ export const Constants = {
       app_role: ["admin", "actor"],
       availability_status: ["ready", "limited", "unavailable"],
       deployment_status: ["planned", "active", "completed", "cancelled"],
+      event_priority: ["low", "medium", "high", "critical"],
       need_level: ["low", "medium", "high", "critical"],
+      report_status: ["draft", "confirmed", "discarded"],
       sector_status: ["unresolved", "tentative", "resolved"],
     },
   },

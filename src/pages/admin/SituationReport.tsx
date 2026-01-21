@@ -1,0 +1,567 @@
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import {
+  AlertTriangle,
+  Check,
+  Clock,
+  Loader2,
+  MapPin,
+  Plus,
+  Save,
+  Trash2,
+  Sparkles,
+} from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { InlineEditable } from "@/components/reports/InlineEditable";
+import { SuggestedSectorCard } from "@/components/reports/SuggestedSectorCard";
+import { CapabilityToggleList } from "@/components/reports/CapabilityToggleList";
+import type {
+  InitialSituationReport,
+  SuggestedSector,
+  SuggestedCapability,
+  CapacityType,
+} from "@/types/database";
+import { EVENT_TYPES } from "@/types/database";
+
+export default function SituationReport() {
+  const { reportId } = useParams<{ reportId: string }>();
+  const { user, isAdmin, isLoading: authLoading } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const [report, setReport] = useState<InitialSituationReport | null>(null);
+  const [capacityTypes, setCapacityTypes] = useState<CapacityType[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+
+  useEffect(() => {
+    if (!reportId || authLoading) return;
+    
+    const fetchData = async () => {
+      try {
+        const [reportRes, capacityRes] = await Promise.all([
+          supabase
+            .from("initial_situation_reports")
+            .select("*")
+            .eq("id", reportId)
+            .single(),
+          supabase.from("capacity_types").select("*").order("name"),
+        ]);
+
+        if (reportRes.error) throw reportRes.error;
+        if (capacityRes.error) throw capacityRes.error;
+
+        // Parse JSONB fields
+        const parsedReport: InitialSituationReport = {
+          ...reportRes.data,
+          suggested_sectors: (reportRes.data.suggested_sectors as unknown as SuggestedSector[]) || [],
+          suggested_capabilities: (reportRes.data.suggested_capabilities as unknown as SuggestedCapability[]) || [],
+          sources: (reportRes.data.sources as unknown as string[]) || [],
+        };
+
+        setReport(parsedReport);
+        setCapacityTypes(capacityRes.data || []);
+      } catch (error: any) {
+        console.error("Error fetching report:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No se pudo cargar el reporte.",
+        });
+        navigate("/admin/create-event");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [reportId, authLoading]);
+
+  if (authLoading || isLoading) {
+    return (
+      <div className="container max-w-4xl py-8 space-y-6">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-48 w-full" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    navigate("/dashboard");
+    return null;
+  }
+
+  if (!report) {
+    return (
+      <div className="container max-w-4xl py-12 text-center">
+        <p className="text-muted-foreground">Reporte no encontrado.</p>
+      </div>
+    );
+  }
+
+  if (report.status !== "draft") {
+    return (
+      <div className="container max-w-4xl py-12 text-center space-y-4">
+        <Badge variant="secondary" className="text-base px-4 py-1">
+          {report.status === "confirmed" ? "Confirmado" : "Descartado"}
+        </Badge>
+        <p className="text-muted-foreground">
+          Este reporte ya no puede ser editado.
+        </p>
+        {report.linked_event_id && (
+          <Button onClick={() => navigate(`/events/${report.linked_event_id}`)}>
+            Ver evento creado
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  const updateReport = (updates: Partial<InitialSituationReport>) => {
+    setReport((prev) => (prev ? { ...prev, ...updates } : prev));
+  };
+
+  const handleSaveDraft = async () => {
+    if (!report) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from("initial_situation_reports")
+        .update({
+          event_name_suggested: report.event_name_suggested,
+          event_type: report.event_type,
+          summary: report.summary,
+          suggested_sectors: report.suggested_sectors as any,
+          suggested_capabilities: report.suggested_capabilities as any,
+        })
+        .eq("id", report.id);
+
+      if (error) throw error;
+
+      toast({ title: "Borrador guardado" });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error al guardar",
+        description: error.message,
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDiscard = async () => {
+    if (!report) return;
+    try {
+      const { error } = await supabase
+        .from("initial_situation_reports")
+        .update({ status: "discarded" })
+        .eq("id", report.id);
+
+      if (error) throw error;
+
+      toast({ title: "Reporte descartado" });
+      navigate("/admin/create-event");
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (!report || !user) return;
+    setIsConfirming(true);
+
+    try {
+      // 1. Create event
+      const { data: event, error: eventError } = await supabase
+        .from("events")
+        .insert({
+          name: report.event_name_suggested || "Evento sin nombre",
+          type: report.event_type,
+          description: report.summary,
+          status: "active",
+          created_by: user.id,
+        })
+        .select()
+        .single();
+
+      if (eventError) throw eventError;
+
+      // 2. Create sectors (only included ones)
+      const sectorsToCreate = report.suggested_sectors
+        .filter((s) => s.include)
+        .map((s) => ({
+          event_id: event.id,
+          canonical_name: s.name,
+          source: "initial_report",
+          confidence: s.confidence,
+          status: "unresolved" as const,
+        }));
+
+      if (sectorsToCreate.length > 0) {
+        const { error: sectorsError } = await supabase
+          .from("sectors")
+          .insert(sectorsToCreate);
+        if (sectorsError) throw sectorsError;
+      }
+
+      // 3. Create event context needs (only included capabilities)
+      const capabilitiesToCreate = report.suggested_capabilities.filter(
+        (c) => c.include
+      );
+      
+      if (capabilitiesToCreate.length > 0) {
+        // Map capability names to IDs
+        const capabilityMap = new Map(
+          capacityTypes.map((ct) => [ct.name, ct.id])
+        );
+
+        const needsToCreate = capabilitiesToCreate
+          .map((c) => {
+            const capId = capabilityMap.get(c.capability_name);
+            if (!capId) return null;
+            return {
+              event_id: event.id,
+              capacity_type_id: capId,
+              priority: "high" as const,
+              source_type: "initial_report",
+              expires_at: new Date(
+                Date.now() + 24 * 60 * 60 * 1000
+              ).toISOString(),
+              created_by: user.id,
+            };
+          })
+          .filter(Boolean);
+
+        if (needsToCreate.length > 0) {
+          const { error: needsError } = await supabase
+            .from("event_context_needs")
+            .insert(needsToCreate as any);
+          if (needsError) throw needsError;
+        }
+      }
+
+      // 4. Update report status
+      const { error: updateError } = await supabase
+        .from("initial_situation_reports")
+        .update({
+          status: "confirmed",
+          linked_event_id: event.id,
+          event_name_suggested: report.event_name_suggested,
+          event_type: report.event_type,
+          summary: report.summary,
+          suggested_sectors: report.suggested_sectors as any,
+          suggested_capabilities: report.suggested_capabilities as any,
+        })
+        .eq("id", report.id);
+
+      if (updateError) throw updateError;
+
+      toast({
+        title: "¡Coordinación activada!",
+        description: `Evento "${event.name}" creado exitosamente.`,
+      });
+
+      navigate(`/events/${event.id}`);
+    } catch (error: any) {
+      console.error("Error confirming report:", error);
+      toast({
+        variant: "destructive",
+        title: "Error al confirmar",
+        description: error.message,
+      });
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
+  // Sector handlers
+  const handleUpdateSector = (index: number, sector: SuggestedSector) => {
+    const updated = [...report.suggested_sectors];
+    updated[index] = sector;
+    updateReport({ suggested_sectors: updated });
+  };
+
+  const handleRemoveSector = (index: number) => {
+    const updated = report.suggested_sectors.filter((_, i) => i !== index);
+    updateReport({ suggested_sectors: updated });
+  };
+
+  const handleDuplicateSector = (sector: SuggestedSector) => {
+    updateReport({
+      suggested_sectors: [
+        ...report.suggested_sectors,
+        { ...sector, name: `${sector.name} (copia)`, confidence: 1 },
+      ],
+    });
+  };
+
+  const handleAddSector = () => {
+    updateReport({
+      suggested_sectors: [
+        ...report.suggested_sectors,
+        {
+          name: "Nuevo sector",
+          description: "",
+          confidence: 1,
+          include: true,
+        },
+      ],
+    });
+  };
+
+  const confidencePercent = report.overall_confidence
+    ? Math.round(report.overall_confidence * 100)
+    : 0;
+
+  const includedSectorsCount = report.suggested_sectors.filter((s) => s.include).length;
+  const includedCapabilitiesCount = report.suggested_capabilities.filter((c) => c.include).length;
+
+  return (
+    <div className="container max-w-4xl py-8">
+      {/* Header */}
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-2">
+          <Badge variant="outline" className="gap-1">
+            <Clock className="h-3 w-3" />
+            Borrador
+          </Badge>
+          <span className="text-sm text-muted-foreground">
+            Generado: {format(new Date(report.created_at), "d MMM yyyy, HH:mm", { locale: es })}
+          </span>
+          {report.overall_confidence && (
+            <Badge variant="secondary" className="font-mono">
+              Confianza: {confidencePercent}%
+            </Badge>
+          )}
+        </div>
+        <h1 className="text-2xl font-bold">Reporte de Situación Inicial</h1>
+      </div>
+
+      {/* Event Details */}
+      <Card className="mb-6 glass">
+        <CardHeader>
+          <CardTitle className="text-lg">Evento Sugerido</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <label className="text-sm font-medium text-muted-foreground">
+              Nombre del evento
+            </label>
+            <InlineEditable
+              value={report.event_name_suggested || ""}
+              onChange={(v) => updateReport({ event_name_suggested: v })}
+              placeholder="Ingresa el nombre del evento..."
+              className="text-xl font-semibold mt-1"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-muted-foreground">
+              Tipo de emergencia
+            </label>
+            <Select
+              value={report.event_type || ""}
+              onValueChange={(v) => updateReport({ event_type: v })}
+            >
+              <SelectTrigger className="mt-1 w-full max-w-xs">
+                <SelectValue placeholder="Seleccionar tipo..." />
+              </SelectTrigger>
+              <SelectContent>
+                {EVENT_TYPES.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>
+                    {type.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-muted-foreground">
+              Resumen de la situación
+            </label>
+            <InlineEditable
+              value={report.summary || ""}
+              onChange={(v) => updateReport({ summary: v })}
+              placeholder="Describe la situación..."
+              multiline
+              className="text-foreground mt-1"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Sectors */}
+      <Card className="mb-6 glass">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MapPin className="h-5 w-5 text-primary" />
+            <CardTitle className="text-lg">
+              Sectores Operativos Sugeridos
+            </CardTitle>
+            <Badge variant="secondary">{includedSectorsCount} incluidos</Badge>
+          </div>
+          <Button size="sm" variant="outline" onClick={handleAddSector}>
+            <Plus className="h-4 w-4 mr-1" />
+            Agregar
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {report.suggested_sectors.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              No hay sectores sugeridos. Agrega uno manualmente.
+            </p>
+          ) : (
+            report.suggested_sectors.map((sector, index) => (
+              <SuggestedSectorCard
+                key={index}
+                sector={sector}
+                index={index}
+                onUpdate={handleUpdateSector}
+                onRemove={handleRemoveSector}
+                onDuplicate={handleDuplicateSector}
+              />
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Capabilities */}
+      <Card className="mb-6 glass">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            <CardTitle className="text-lg">
+              Capacidades Críticas (Nivel Evento)
+            </CardTitle>
+            <Badge variant="secondary">{includedCapabilitiesCount} incluidas</Badge>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            Estas capacidades se requieren para el evento completo. Después podrás asignar prioridades por sector.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <CapabilityToggleList
+            capabilities={report.suggested_capabilities}
+            allCapacityTypes={capacityTypes}
+            onUpdate={(caps) => updateReport({ suggested_capabilities: caps })}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Warning notice */}
+      <Card className="mb-6 border-warning/50 bg-warning/5">
+        <CardContent className="flex items-start gap-3 pt-6">
+          <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium">Esta es una propuesta generada por IA</p>
+            <p className="text-sm text-muted-foreground">
+              Revisa la información antes de confirmar. Al activar la coordinación se crearán el evento, los sectores y las necesidades en el sistema.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Actions */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <Button
+          size="lg"
+          className="flex-1 gap-2"
+          onClick={handleConfirm}
+          disabled={isConfirming || isSaving}
+        >
+          {isConfirming ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Creando evento...
+            </>
+          ) : (
+            <>
+              <Check className="h-4 w-4" />
+              Confirmar y Activar Coordinación
+            </>
+          )}
+        </Button>
+
+        <Button
+          variant="outline"
+          size="lg"
+          onClick={handleSaveDraft}
+          disabled={isSaving || isConfirming}
+          className="gap-2"
+        >
+          {isSaving ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Save className="h-4 w-4" />
+          )}
+          Guardar Borrador
+        </Button>
+
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="lg"
+              className="text-destructive hover:text-destructive gap-2"
+              disabled={isConfirming || isSaving}
+            >
+              <Trash2 className="h-4 w-4" />
+              Descartar
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Descartar reporte?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta acción no se puede deshacer. El reporte será marcado como descartado.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDiscard}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Descartar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </div>
+  );
+}

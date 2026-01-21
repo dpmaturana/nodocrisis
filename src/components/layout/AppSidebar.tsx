@@ -8,6 +8,7 @@ import {
   Building2,
   LogOut,
   MapPin,
+  Plus,
   Settings,
   Shield,
   Users,
@@ -77,6 +78,7 @@ export function AppSidebar() {
             <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               Administración
             </p>
+            <SidebarLink to="/admin/create-event" icon={Plus} label="Nueva Emergencia" />
             <SidebarLink to="/admin/coordination" icon={Shield} label="Coordinación" />
             <SidebarLink to="/admin/actors" icon={Users} label="Actores" />
             <SidebarLink to="/admin/settings" icon={Settings} label="Configuración" />

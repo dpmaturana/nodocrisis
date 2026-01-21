@@ -11,6 +11,10 @@ export type AvailabilityStatus = 'ready' | 'limited' | 'unavailable';
 
 export type SectorStatus = 'unresolved' | 'tentative' | 'resolved';
 
+export type ReportStatus = 'draft' | 'confirmed' | 'discarded';
+
+export type EventPriority = 'low' | 'medium' | 'high' | 'critical';
+
 export interface Profile {
   id: string;
   user_id: string;
@@ -26,6 +30,7 @@ export interface Profile {
 export interface Event {
   id: string;
   name: string;
+  type: string | null;
   description: string | null;
   location: string | null;
   status: string;
@@ -52,6 +57,8 @@ export interface Sector {
   latitude: number | null;
   longitude: number | null;
   status: SectorStatus;
+  source: string | null;
+  confidence: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -119,6 +126,49 @@ export interface SmsMessage {
   created_at: string;
 }
 
+// New types for AI-first flow
+export interface SuggestedSector {
+  name: string;
+  description: string;
+  confidence: number;
+  include: boolean;
+}
+
+export interface SuggestedCapability {
+  capability_name: string;
+  confidence: number;
+  include: boolean;
+}
+
+export interface InitialSituationReport {
+  id: string;
+  created_by: string | null;
+  status: ReportStatus;
+  input_text: string;
+  event_name_suggested: string | null;
+  event_type: string | null;
+  summary: string | null;
+  suggested_sectors: SuggestedSector[];
+  suggested_capabilities: SuggestedCapability[];
+  sources: string[];
+  overall_confidence: number | null;
+  linked_event_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EventContextNeed {
+  id: string;
+  event_id: string;
+  capacity_type_id: string;
+  priority: EventPriority;
+  source_type: string;
+  notes: string | null;
+  expires_at: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
 // Computed types for gap analysis
 export interface SectorGap {
   sector: Sector;
@@ -141,3 +191,17 @@ export interface DashboardStats {
   activeDeployments: number;
   registeredActors: number;
 }
+
+// Event types for dropdown
+export const EVENT_TYPES = [
+  { value: 'incendio_forestal', label: 'Incendio Forestal' },
+  { value: 'inundacion', label: 'Inundación' },
+  { value: 'terremoto', label: 'Terremoto' },
+  { value: 'tsunami', label: 'Tsunami' },
+  { value: 'aluvion', label: 'Aluvión' },
+  { value: 'sequia', label: 'Sequía' },
+  { value: 'temporal', label: 'Temporal' },
+  { value: 'accidente_masivo', label: 'Accidente Masivo' },
+  { value: 'emergencia_sanitaria', label: 'Emergencia Sanitaria' },
+  { value: 'otro', label: 'Otro' },
+] as const;

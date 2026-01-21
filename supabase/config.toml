@@ -1,1 +1,4 @@
 project_id = "nvjbstcifphohmveiexf"
+
+[functions.generate-situation-report]
+verify_jwt = true

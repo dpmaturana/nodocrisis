@@ -14,6 +14,8 @@ import Sectors from "./pages/Sectors";
 import MyCapabilities from "./pages/MyCapabilities";
 import MyDeployments from "./pages/MyDeployments";
 import Coordination from "./pages/admin/Coordination";
+import CreateEventAI from "./pages/admin/CreateEventAI";
+import SituationReport from "./pages/admin/SituationReport";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -41,6 +43,8 @@ const App = () => (
               <Route path="/my-deployments" element={<MyDeployments />} />
               
               {/* Admin routes */}
+              <Route path="/admin/create-event" element={<CreateEventAI />} />
+              <Route path="/admin/situation-report/:reportId" element={<SituationReport />} />
               <Route path="/admin/coordination" element={<Coordination />} />
               <Route path="/admin/actors" element={<Dashboard />} />
               <Route path="/admin/settings" element={<Dashboard />} />
