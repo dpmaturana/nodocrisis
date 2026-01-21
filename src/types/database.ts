@@ -5,7 +5,18 @@ export type AppRole = 'admin' | 'actor';
 
 export type NeedLevel = 'low' | 'medium' | 'high' | 'critical';
 
-export type DeploymentStatus = 'planned' | 'active' | 'completed' | 'cancelled';
+// PRD-aligned deployment lifecycle
+export type DeploymentStatus = 'interested' | 'confirmed' | 'operating' | 'suspended' | 'finished';
+
+// PRD-aligned gap states
+export type GapState = 'evaluating' | 'critical' | 'partial' | 'active';
+
+// Event phase for dashboard header
+export type EventPhase = 'stable' | 'unstable' | 'critical';
+
+// Signal types for gap evidence
+export type SignalType = 'sms' | 'field_report' | 'actor_report' | 'news' | 'social' | 'official' | 'context';
+export type SignalLevel = 'event' | 'sector';
 
 export type AvailabilityStatus = 'ready' | 'limited' | 'unavailable';
 
@@ -169,7 +180,31 @@ export interface EventContextNeed {
   created_at: string;
 }
 
-// Computed types for gap analysis
+// Gap entity (PRD-aligned)
+export interface Gap {
+  id: string;
+  event_id: string;
+  sector_id: string;
+  capacity_type_id: string;
+  state: GapState;
+  last_updated_at: string;
+  signal_count: number;
+}
+
+// Signal entity for gap evidence
+export interface Signal {
+  id: string;
+  event_id: string;
+  sector_id: string | null;
+  signal_type: SignalType;
+  level: SignalLevel;
+  content: string;
+  source: string;
+  confidence: number;
+  created_at: string;
+}
+
+// Computed types for gap analysis (legacy, kept for compatibility)
 export interface SectorGap {
   sector: Sector;
   capacityType: CapacityType;

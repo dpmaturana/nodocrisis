@@ -7,6 +7,8 @@ export { sectorService } from "./sectorService";
 export { deploymentService } from "./deploymentService";
 export { capabilityService } from "./capabilityService";
 export { matrixService } from "./matrixService";
+export { gapService } from "./gapService";
+export type { GapWithDetails, GapCounts } from "./gapService";
 export type { NeedLevelExtended } from "./matrixService";
 
 // Re-export mock data for components that need direct access
