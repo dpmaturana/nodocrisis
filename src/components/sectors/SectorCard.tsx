@@ -1,8 +1,9 @@
-import { MapPin, ArrowRight, Users } from "lucide-react";
+import { MapPin, ArrowRight, Users, AlertCircle, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CapacityIcon } from "@/components/ui/CapacityIcon";
+import { cn } from "@/lib/utils";
 import type { EnrichedSector } from "@/services/sectorService";
 
 interface SectorCardProps {
@@ -11,12 +12,20 @@ interface SectorCardProps {
   onEnroll: () => void;
 }
 
-function getDemandLabel(gap: EnrichedSector["gaps"][0]): string {
-  const demand = gap.totalDemand;
-  if (demand >= 3) return "Alta";
-  if (demand >= 2) return "Media";
-  return "Baja";
-}
+const gapStateConfig = {
+  critical: {
+    label: "Crítica",
+    bgClass: "bg-gap-critical/20",
+    textClass: "text-gap-critical",
+    Icon: AlertCircle,
+  },
+  partial: {
+    label: "Parcial",
+    bgClass: "bg-warning/20",
+    textClass: "text-warning",
+    Icon: AlertTriangle,
+  },
+};
 
 function getCoverageLabel(gap: EnrichedSector["gaps"][0]): string {
   if (gap.coverage === 0) return "Ninguna";
@@ -103,11 +112,12 @@ export function SectorCard({ sector, onViewDetails, onEnroll }: SectorCardProps)
               {bestMatchGaps.slice(0, 2).map((gap) => (
                 <div 
                   key={gap.capacityType.id}
-                  className={`p-3 rounded-lg border ${
+                  className={cn(
+                    "p-3 rounded-lg border",
                     gap.isCritical 
                       ? "border-gap-critical/50 bg-gap-critical/5" 
                       : "border-warning/50 bg-warning/5"
-                  }`}
+                  )}
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <CapacityIcon 
@@ -116,17 +126,23 @@ export function SectorCard({ sector, onViewDetails, onEnroll }: SectorCardProps)
                       size="sm" 
                     />
                     <span className="font-medium text-sm">{gap.capacityType.name}</span>
-                    <span className="ml-auto">
-                      {gap.isCritical ? "🔴" : "🟠"}
-                    </span>
+                    {(() => {
+                      const config = gapStateConfig[gap.isCritical ? "critical" : "partial"];
+                      const IconComponent = config.Icon;
+                      return (
+                        <span className={cn(
+                          "ml-auto flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium",
+                          config.bgClass,
+                          config.textClass
+                        )}>
+                          <IconComponent className="w-3 h-3" />
+                          {config.label}
+                        </span>
+                      );
+                    })()}
                   </div>
-                  <div className="grid grid-cols-2 gap-x-4 text-xs text-muted-foreground">
-                    <div>
-                      <span className="text-foreground">Demanda:</span> {getDemandLabel(gap)}
-                    </div>
-                    <div>
-                      <span className="text-foreground">Cobertura:</span> {getCoverageLabel(gap)}
-                    </div>
+                  <div className="text-xs text-muted-foreground">
+                    <span className="text-foreground">Cobertura:</span> {getCoverageLabel(gap)}
                   </div>
                 </div>
               ))}
