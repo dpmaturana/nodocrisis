@@ -293,115 +293,120 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
         </p>
       </div>
 
-      {/* Status Options - Required */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium">
-          ¿Cómo va tu operación? <span className="text-destructive">*</span>
-        </label>
-        <div className="grid grid-cols-3 gap-2">
-          <StatusButton
-            selected={statusOption === "working"}
-            onClick={() => setStatusOption("working")}
-            icon={<CheckCircle className="w-5 h-5" />}
-            label="Funciona"
-            sublabel="por ahora"
-            variant="success"
-          />
-          <StatusButton
-            selected={statusOption === "insufficient"}
-            onClick={() => setStatusOption("insufficient")}
-            icon={<AlertTriangle className="w-5 h-5" />}
-            label="No alcanza"
-            sublabel=""
-            variant="warning"
-          />
-          <StatusButton
-            selected={statusOption === "suspended"}
-            onClick={() => setStatusOption("suspended")}
-            icon={<Pause className="w-5 h-5" />}
-            label="Tuvimos que"
-            sublabel="suspender"
-            variant="muted"
-          />
-        </div>
-      </div>
+      {/* Solo mostrar controles de edición en estado idle */}
+      {processingState === "idle" && (
+        <>
+          {/* Status Options - Required */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">
+              ¿Cómo va tu operación? <span className="text-destructive">*</span>
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              <StatusButton
+                selected={statusOption === "working"}
+                onClick={() => setStatusOption("working")}
+                icon={<CheckCircle className="w-5 h-5" />}
+                label="Funciona"
+                sublabel="por ahora"
+                variant="success"
+              />
+              <StatusButton
+                selected={statusOption === "insufficient"}
+                onClick={() => setStatusOption("insufficient")}
+                icon={<AlertTriangle className="w-5 h-5" />}
+                label="No alcanza"
+                sublabel=""
+                variant="warning"
+              />
+              <StatusButton
+                selected={statusOption === "suspended"}
+                onClick={() => setStatusOption("suspended")}
+                icon={<Pause className="w-5 h-5" />}
+                label="Tuvimos que"
+                sublabel="suspender"
+                variant="muted"
+              />
+            </div>
+          </div>
 
-      {/* Audio Recording - Optional */}
-      <div className="space-y-2">
-        <label className="text-sm text-muted-foreground">
-          🎙️ Agregar audio (opcional)
-        </label>
-        <div className="flex items-center gap-2">
-          {!audioBlob && !isRecording && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={startRecording}
-              className="gap-2"
-            >
-              <Mic className="w-4 h-4 text-destructive" />
-              Grabar
-            </Button>
-          )}
-          
-          {isRecording && (
-            <>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={stopRecording}
-                className="gap-2"
-              >
-                <Square className="w-4 h-4" />
-                {formatTime(recordingSeconds)}
-              </Button>
-              <span className="text-xs text-muted-foreground animate-pulse">
-                Grabando...
-              </span>
-            </>
-          )}
-          
-          {audioBlob && !isRecording && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={isPlaying ? stopPlaying : playAudio}
-                className="gap-2"
-              >
-                {isPlaying ? (
-                  <Square className="w-4 h-4" />
-                ) : (
-                  <Play className="w-4 h-4" />
-                )}
-                {formatTime(recordingSeconds)}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearAudio}
-                className="h-8 w-8 p-0"
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
+          {/* Audio Recording - Optional */}
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">
+              🎙️ Agregar audio (opcional)
+            </label>
+            <div className="flex items-center gap-2">
+              {!audioBlob && !isRecording && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={startRecording}
+                  className="gap-2"
+                >
+                  <Mic className="w-4 h-4 text-destructive" />
+                  Grabar
+                </Button>
+              )}
+              
+              {isRecording && (
+                <>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={stopRecording}
+                    className="gap-2"
+                  >
+                    <Square className="w-4 h-4" />
+                    {formatTime(recordingSeconds)}
+                  </Button>
+                  <span className="text-xs text-muted-foreground animate-pulse">
+                    Grabando...
+                  </span>
+                </>
+              )}
+              
+              {audioBlob && !isRecording && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={isPlaying ? stopPlaying : playAudio}
+                    className="gap-2"
+                  >
+                    {isPlaying ? (
+                      <Square className="w-4 h-4" />
+                    ) : (
+                      <Play className="w-4 h-4" />
+                    )}
+                    {formatTime(recordingSeconds)}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearAudio}
+                    className="h-8 w-8 p-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
 
-      {/* Text Note - Optional */}
-      <div className="space-y-2">
-        <label className="text-sm text-muted-foreground">
-          💬 Agregar nota (opcional)
-        </label>
-        <Textarea
-          placeholder="Ej: Llegamos hace 1 hora, falta agua..."
-          value={textNote}
-          onChange={(e) => setTextNote(e.target.value)}
-          rows={2}
-          className="resize-none"
-        />
-      </div>
+          {/* Text Note - Optional */}
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">
+              💬 Agregar nota (opcional)
+            </label>
+            <Textarea
+              placeholder="Ej: Llegamos hace 1 hora, falta agua..."
+              value={textNote}
+              onChange={(e) => setTextNote(e.target.value)}
+              rows={2}
+              className="resize-none"
+            />
+          </div>
+        </>
+      )}
 
       {/* Processing State: Transcribing with detailed status */}
       {processingState === "transcribing" && (
