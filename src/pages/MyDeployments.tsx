@@ -6,12 +6,15 @@ import type { DeploymentWithDetails } from "@/services/deploymentService";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { CapacityIcon } from "@/components/ui/CapacityIcon";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Activity, ChevronRight, MapPin, Users } from "@/lib/icons";
+import { Activity, ChevronRight, ChevronDown, MapPin, Users, Mic } from "@/lib/icons";
+import { AudioRecorder } from "@/components/field/AudioRecorder";
 import type { DeploymentStatus } from "@/types/database";
+import type { FieldReport } from "@/types/fieldReport";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -139,6 +142,7 @@ export default function MyDeployments() {
                 onUpdateStatus={handleUpdateStatus}
                 statusLabels={statusLabels}
                 statusVariants={statusVariants}
+                actorId={user?.id || ""}
               />
             ))}
           </div>
@@ -159,6 +163,7 @@ export default function MyDeployments() {
                 onUpdateStatus={handleUpdateStatus}
                 statusLabels={statusLabels}
                 statusVariants={statusVariants}
+                actorId={user?.id || ""}
               />
             ))}
           </div>
@@ -173,15 +178,30 @@ function DeploymentCard({
   onUpdateStatus,
   statusLabels,
   statusVariants,
+  actorId,
 }: {
   deployment: DeploymentWithDetails;
   onUpdateStatus: (id: string, status: DeploymentStatus) => void;
   statusLabels: Record<DeploymentStatus, string>;
   statusVariants: Record<DeploymentStatus, "warning" | "covered" | "pending" | "critical">;
+  actorId: string;
 }) {
+  const [isReportOpen, setIsReportOpen] = useState(false);
+  const { toast } = useToast();
+  
   const isActive = deployment.status === "operating" || 
                    deployment.status === "confirmed" || 
                    deployment.status === "interested";
+  
+  const isOperating = deployment.status === "operating";
+
+  const handleReportCreated = (report: FieldReport) => {
+    toast({
+      title: "Reporte enviado",
+      description: "Tu observación ha sido procesada y registrada.",
+    });
+    setIsReportOpen(false);
+  };
 
   return (
     <Card className={isActive ? "" : "opacity-70"}>
@@ -244,6 +264,31 @@ function DeploymentCard({
             </Button>
           </div>
         </div>
+        
+        {/* Field Report Section - Only for operating deployments */}
+        {isOperating && (
+          <Collapsible open={isReportOpen} onOpenChange={setIsReportOpen}>
+            <CollapsibleTrigger asChild>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full mt-4 gap-2"
+              >
+                <Mic className="w-4 h-4" />
+                Reportar desde Terreno
+                <ChevronDown className={`w-4 h-4 ml-auto transition-transform ${isReportOpen ? 'rotate-180' : ''}`} />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-4">
+              <AudioRecorder
+                eventId={deployment.event_id}
+                sectorId={deployment.sector_id}
+                actorId={actorId}
+                onReportCreated={handleReportCreated}
+              />
+            </CollapsibleContent>
+          </Collapsible>
+        )}
       </CardContent>
     </Card>
   );

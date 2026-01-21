@@ -35,6 +35,7 @@ import {
   Eye,
   Check,
   Pause,
+  Mic,
   type LucideIcon,
 } from "lucide-react";
 
@@ -100,4 +101,5 @@ export {
   Eye,
   Check,
   Pause,
+  Mic,
 };
