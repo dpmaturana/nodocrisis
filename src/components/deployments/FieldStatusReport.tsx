@@ -186,6 +186,7 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
             event_id: eventId,
             sector_id: sectorId,
             audio_file: audioBlob,
+            text_note: textNote || undefined,
           }, actorId);
         
           setProcessingState("transcribing");
