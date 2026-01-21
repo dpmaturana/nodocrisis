@@ -200,7 +200,6 @@ function DeploymentCard({
       title: "Reporte enviado",
       description: "Tu observación ha sido procesada y registrada.",
     });
-    setIsReportOpen(false);
   };
 
   return (
