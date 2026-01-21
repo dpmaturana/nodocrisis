@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useActorMode } from "@/hooks/useActorMode";
 import { sectorService, capabilityService } from "@/services";
@@ -29,6 +29,8 @@ export default function Sectors() {
   const [enrollingSector, setEnrollingSector] = useState<EnrichedSector | null>(null);
   const [otherSectorsOpen, setOtherSectorsOpen] = useState(false);
 
+  const navigate = useNavigate();
+  
   // Show back button for actors in operation mode
   const showBackButton = isActor && !isAdmin && isOperating;
 
@@ -54,10 +56,9 @@ export default function Sectors() {
     fetchData();
   }, [user]);
 
-  const handleRefresh = async () => {
-    if (!user) return;
-    const enrichedSectors = await sectorService.getEnrichedSectors(user.id);
-    setSectors(enrichedSectors);
+  const handleEnrollmentSuccess = () => {
+    // Navigate to Mode B (Operation) after successful enrollment
+    navigate("/my-deployments");
   };
 
   // Separate by relevance to user's capabilities
@@ -207,7 +208,7 @@ export default function Sectors() {
           userId={user.id}
           open={!!enrollingSector}
           onOpenChange={(open) => !open && setEnrollingSector(null)}
-          onSuccess={handleRefresh}
+          onSuccess={handleEnrollmentSuccess}
         />
       )}
     </div>
