@@ -4,6 +4,7 @@
 export { situationReportService } from "./situationReportService";
 export { eventService } from "./eventService";
 export { sectorService } from "./sectorService";
+export type { EnrichedSector, RecommendedSector } from "./sectorService";
 export { deploymentService } from "./deploymentService";
 export { capabilityService } from "./capabilityService";
 export { matrixService } from "./matrixService";
