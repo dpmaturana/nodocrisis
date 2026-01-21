@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, Navigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { useMockAuth } from "@/hooks/useMockAuth";
+import { eventService } from "@/services";
+import { MOCK_EVENTS, MOCK_SECTORS, addEvent, addSector, MOCK_SECTOR_CAPABILITY_MATRIX, updateMatrixCell } from "@/services/mock/data";
+import type { NeedLevelExtended } from "@/services/mock/data";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +18,7 @@ import { Activity, MapPin, Plus, Shield } from "@/lib/icons";
 import type { Event, Sector, CapacityType, NeedLevel } from "@/types/database";
 
 export default function Coordination() {
-  const { isAdmin, isLoading: authLoading } = useAuth();
+  const { isAdmin, isLoading: authLoading } = useMockAuth();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
   const preselectedEventId = searchParams.get("event");
@@ -48,13 +50,13 @@ export default function Coordination() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [eventsRes, capacitiesRes] = await Promise.all([
-          supabase.from("events").select("*").order("created_at", { ascending: false }),
-          supabase.from("capacity_types").select("*"),
+        const [eventsData, capacitiesData] = await Promise.all([
+          eventService.getAll(),
+          eventService.getCapacityTypes(),
         ]);
 
-        setEvents(eventsRes.data || []);
-        setCapacityTypes(capacitiesRes.data || []);
+        setEvents(eventsData);
+        setCapacityTypes(capacitiesData);
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
@@ -66,20 +68,11 @@ export default function Coordination() {
   }, []);
 
   useEffect(() => {
-    const fetchSectors = async () => {
-      if (!selectedEventForDemand && !selectedEventForSector) return;
-
-      const eventId = selectedEventForDemand || selectedEventForSector;
-      const { data } = await supabase
-        .from("sectors")
-        .select("*")
-        .eq("event_id", eventId)
-        .order("canonical_name");
-
-      setSectors(data || []);
-    };
-
-    fetchSectors();
+    const eventId = selectedEventForDemand || selectedEventForSector;
+    if (eventId) {
+      const eventSectors = MOCK_SECTORS.filter(s => s.event_id === eventId);
+      setSectors(eventSectors);
+    }
   }, [selectedEventForDemand, selectedEventForSector]);
 
   const handleCreateEvent = async () => {
@@ -87,14 +80,16 @@ export default function Coordination() {
 
     setIsSaving(true);
     try {
-      const { error } = await supabase.from("events").insert({
+      const newEvent = addEvent({
         name: newEventName.trim(),
+        type: null,
         location: newEventLocation.trim() || null,
         description: newEventDescription.trim() || null,
         status: "active",
+        started_at: new Date().toISOString(),
+        ended_at: null,
+        created_by: null,
       });
-
-      if (error) throw error;
 
       toast({
         title: "Evento creado",
@@ -105,9 +100,7 @@ export default function Coordination() {
       setNewEventName("");
       setNewEventLocation("");
       setNewEventDescription("");
-
-      const { data } = await supabase.from("events").select("*").order("created_at", { ascending: false });
-      setEvents(data || []);
+      setEvents([...MOCK_EVENTS]);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -129,14 +122,16 @@ export default function Coordination() {
         .map((a) => a.trim())
         .filter((a) => a);
 
-      const { error } = await supabase.from("sectors").insert({
+      addSector({
         event_id: selectedEventForSector,
         canonical_name: newSectorName.trim(),
         aliases: aliases.length > 0 ? aliases : null,
         status: "unresolved",
+        source: "manual",
+        confidence: 1,
+        latitude: null,
+        longitude: null,
       });
-
-      if (error) throw error;
 
       toast({
         title: "Sector creado",
@@ -148,12 +143,8 @@ export default function Coordination() {
       setSectorAliases("");
 
       // Refresh sectors
-      const { data } = await supabase
-        .from("sectors")
-        .select("*")
-        .eq("event_id", selectedEventForSector)
-        .order("canonical_name");
-      setSectors(data || []);
+      const eventSectors = MOCK_SECTORS.filter(s => s.event_id === selectedEventForSector);
+      setSectors(eventSectors);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -170,16 +161,14 @@ export default function Coordination() {
 
     setIsSaving(true);
     try {
-      const { error } = await supabase.from("sector_needs_context").insert({
-        event_id: selectedEventForDemand,
-        sector_id: selectedSector,
-        capacity_type_id: selectedCapacity,
-        level: demandLevel,
-        source: demandSource.trim(),
-        notes: demandNotes.trim() || null,
-      });
-
-      if (error) throw error;
+      // Update the matrix with the demand level
+      const levelMap: Record<NeedLevel, NeedLevelExtended> = {
+        low: "low",
+        medium: "medium",
+        high: "high",
+        critical: "critical",
+      };
+      updateMatrixCell(selectedSector, selectedCapacity, levelMap[demandLevel]);
 
       toast({
         title: "Demanda agregada",

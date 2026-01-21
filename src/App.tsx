@@ -3,9 +3,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "@/hooks/useAuth";
+import { MockAuthProvider } from "@/hooks/useMockAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
-import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Events from "./pages/Events";
 import EventDetail from "./pages/EventDetail";
@@ -16,22 +15,20 @@ import MyDeployments from "./pages/MyDeployments";
 import Coordination from "./pages/admin/Coordination";
 import CreateEventAI from "./pages/admin/CreateEventAI";
 import SituationReport from "./pages/admin/SituationReport";
+import EventDashboard from "./pages/admin/EventDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
+    <MockAuthProvider>
       <TooltipProvider>
         <Toaster />
         <Sonner />
         <BrowserRouter>
           <Routes>
-            {/* Public routes */}
-            <Route path="/auth" element={<Auth />} />
-            
-            {/* Protected routes with layout */}
+            {/* All routes now protected with mock auth - no login needed */}
             <Route element={<AppLayout />}>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
@@ -46,9 +43,14 @@ const App = () => (
               <Route path="/admin/create-event" element={<CreateEventAI />} />
               <Route path="/admin/situation-report/draft" element={<SituationReport />} />
               <Route path="/admin/situation-report/:reportId" element={<SituationReport />} />
+              <Route path="/admin/event-dashboard" element={<EventDashboard />} />
+              <Route path="/admin/event-dashboard/:eventId" element={<EventDashboard />} />
               <Route path="/admin/coordination" element={<Coordination />} />
               <Route path="/admin/actors" element={<Dashboard />} />
               <Route path="/admin/settings" element={<Dashboard />} />
+              
+              {/* Redirect old auth route */}
+              <Route path="/auth" element={<Navigate to="/dashboard" replace />} />
             </Route>
 
             {/* Catch-all */}
@@ -56,7 +58,7 @@ const App = () => (
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
-    </AuthProvider>
+    </MockAuthProvider>
   </QueryClientProvider>
 );
 

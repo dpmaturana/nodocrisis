@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { useMockAuth } from "@/hooks/useMockAuth";
+import { eventService } from "@/services";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -17,17 +17,13 @@ import {
   Plus,
   Users,
 } from "@/lib/icons";
-import type { Event, Sector, CapacityType, SectorGap, NeedLevel } from "@/types/database";
+import type { Event, Sector, CapacityType, SectorGap } from "@/types/database";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
-interface SectorWithGaps extends Sector {
-  gaps: SectorGap[];
-}
-
 export default function EventDetail() {
   const { eventId } = useParams<{ eventId: string }>();
-  const { isAdmin } = useAuth();
+  const { isAdmin } = useMockAuth();
   const [event, setEvent] = useState<Event | null>(null);
   const [sectors, setSectors] = useState<Sector[]>([]);
   const [capacityTypes, setCapacityTypes] = useState<CapacityType[]>([]);
@@ -39,91 +35,17 @@ export default function EventDetail() {
 
     const fetchEventData = async () => {
       try {
-        // Fetch event
-        const { data: eventData, error: eventError } = await supabase
-          .from("events")
-          .select("*")
-          .eq("id", eventId)
-          .single();
-
-        if (eventError) throw eventError;
-        setEvent(eventData);
-
-        // Fetch sectors for this event
-        const { data: sectorsData } = await supabase
-          .from("sectors")
-          .select("*")
-          .eq("event_id", eventId)
-          .order("canonical_name");
-
-        setSectors(sectorsData || []);
-
-        // Fetch capacity types
-        const { data: capacitiesData } = await supabase
-          .from("capacity_types")
-          .select("*");
-
-        setCapacityTypes(capacitiesData || []);
-
-        // Fetch demands and coverage to calculate gaps
-        const [smsNeedsRes, contextNeedsRes, deploymentsRes] = await Promise.all([
-          supabase.from("sector_needs_sms").select("*").eq("event_id", eventId),
-          supabase.from("sector_needs_context").select("*").eq("event_id", eventId),
-          supabase.from("deployments").select("*").eq("event_id", eventId).in("status", ["planned", "active"]),
+        const [eventData, sectorsData, capacitiesData, gaps] = await Promise.all([
+          eventService.getById(eventId),
+          eventService.getSectorsForEvent(eventId),
+          eventService.getCapacityTypes(),
+          eventService.getGapsForEvent(eventId),
         ]);
 
-        // Calculate gaps per sector and capacity
-        const gapMap = new Map<string, Map<string, SectorGap>>();
-
-        (sectorsData || []).forEach((sector) => {
-          const sectorGaps = new Map<string, SectorGap>();
-
-          (capacitiesData || []).forEach((capacity) => {
-            const smsNeeds = (smsNeedsRes.data || []).filter(
-              (n) => n.sector_id === sector.id && n.capacity_type_id === capacity.id
-            );
-            const contextNeeds = (contextNeedsRes.data || []).filter(
-              (n) => n.sector_id === sector.id && n.capacity_type_id === capacity.id
-            );
-            const deployments = (deploymentsRes.data || []).filter(
-              (d) => d.sector_id === sector.id && d.capacity_type_id === capacity.id
-            );
-
-            const smsDemand = smsNeeds.reduce((sum, n) => sum + n.count, 0);
-            const contextDemand = contextNeeds.length;
-            const totalDemand = smsDemand + contextDemand;
-            const coverage = deployments.length;
-            const gap = Math.max(0, totalDemand - coverage);
-
-            // Determine max level
-            const allLevels = [...smsNeeds.map((n) => n.level), ...contextNeeds.map((n) => n.level)];
-            const levelOrder: NeedLevel[] = ["low", "medium", "high", "critical"];
-            const maxLevel = allLevels.reduce((max, level) => {
-              return levelOrder.indexOf(level as NeedLevel) > levelOrder.indexOf(max) ? (level as NeedLevel) : max;
-            }, "low" as NeedLevel);
-
-            if (totalDemand > 0 || coverage > 0) {
-              sectorGaps.set(capacity.id, {
-                sector,
-                capacityType: capacity,
-                smsDemand,
-                contextDemand,
-                totalDemand,
-                coverage,
-                gap,
-                isUncovered: coverage === 0 && totalDemand > 0,
-                isCritical: maxLevel === "critical" || maxLevel === "high",
-                maxLevel,
-              });
-            }
-          });
-
-          if (sectorGaps.size > 0) {
-            gapMap.set(sector.id, sectorGaps);
-          }
-        });
-
-        setGapData(gapMap);
+        setEvent(eventData);
+        setSectors(sectorsData);
+        setCapacityTypes(capacitiesData);
+        setGapData(gaps);
       } catch (error) {
         console.error("Error fetching event data:", error);
       } finally {
@@ -214,6 +136,11 @@ export default function EventDetail() {
               <Link to={`/admin/coordination?event=${eventId}`}>
                 <Plus className="w-4 h-4 mr-2" />
                 Agregar Demanda
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link to={`/admin/event-dashboard/${eventId}`}>
+                Ver Matriz
               </Link>
             </Button>
           </div>

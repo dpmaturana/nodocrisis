@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useMockAuth } from "@/hooks/useMockAuth";
+import { deploymentService } from "@/services";
+import type { DeploymentWithDetails } from "@/services/deploymentService";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CapacityIcon } from "@/components/ui/CapacityIcon";
@@ -10,18 +11,12 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Activity, ChevronRight, MapPin, Users } from "@/lib/icons";
-import type { Deployment, DeploymentStatus, Event, Sector, CapacityType } from "@/types/database";
+import type { DeploymentStatus } from "@/types/database";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
-interface DeploymentWithDetails extends Deployment {
-  event?: Event;
-  sector?: Sector;
-  capacity_type?: CapacityType;
-}
-
 export default function MyDeployments() {
-  const { user } = useAuth();
+  const { user } = useMockAuth();
   const { toast } = useToast();
   const [deployments, setDeployments] = useState<DeploymentWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -31,22 +26,8 @@ export default function MyDeployments() {
       if (!user) return;
 
       try {
-        const { data, error } = await supabase
-          .from("deployments")
-          .select("*, events(*), sectors(*), capacity_types(*)")
-          .eq("actor_id", user.id)
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
-
-        setDeployments(
-          (data || []).map((d: any) => ({
-            ...d,
-            event: d.events,
-            sector: d.sectors,
-            capacity_type: d.capacity_types,
-          }))
-        );
+        const data = await deploymentService.getMyDeployments(user.id);
+        setDeployments(data);
       } catch (error) {
         console.error("Error fetching deployments:", error);
       } finally {
@@ -59,13 +40,7 @@ export default function MyDeployments() {
 
   const handleUpdateStatus = async (id: string, newStatus: DeploymentStatus) => {
     try {
-      const { error } = await supabase
-        .from("deployments")
-        .update({ status: newStatus })
-        .eq("id", id);
-
-      if (error) throw error;
-
+      await deploymentService.updateStatus(id, newStatus);
       setDeployments(deployments.map((d) => (d.id === id ? { ...d, status: newStatus } : d)));
 
       toast({
