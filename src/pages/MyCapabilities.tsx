@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { useMockAuth } from "@/hooks/useMockAuth";
+import { capabilityService } from "@/services";
+import type { CapabilityWithType } from "@/services/capabilityService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,16 +10,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { CapacityIcon } from "@/components/ui/CapacityIcon";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Building2, Plus, Trash2 } from "@/lib/icons";
-import type { ActorCapability, AvailabilityStatus, CapacityType } from "@/types/database";
+import type { AvailabilityStatus, CapacityType } from "@/types/database";
 
 export default function MyCapabilities() {
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, profile } = useMockAuth();
   const { toast } = useToast();
-  const [capabilities, setCapabilities] = useState<(ActorCapability & { capacity_type?: CapacityType })[]>([]);
+  const [capabilities, setCapabilities] = useState<CapabilityWithType[]>([]);
   const [capacityTypes, setCapacityTypes] = useState<CapacityType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -31,40 +31,24 @@ export default function MyCapabilities() {
   const [availability, setAvailability] = useState<AvailabilityStatus>("ready");
   const [notes, setNotes] = useState("");
 
-  // Profile form state
-  const [orgName, setOrgName] = useState("");
-  const [orgType, setOrgType] = useState("");
-  const [phone, setPhone] = useState("");
-  const [fullName, setFullName] = useState("");
+  // Profile form state (read-only in mock)
+  const orgName = profile?.organization_name || "";
+  const orgType = profile?.organization_type || "";
+  const phone = profile?.phone || "";
+  const fullName = profile?.full_name || "";
 
   useEffect(() => {
     const fetchData = async () => {
       if (!user) return;
 
       try {
-        const [capabilitiesRes, typesRes] = await Promise.all([
-          supabase
-            .from("actor_capabilities")
-            .select("*, capacity_types(*)")
-            .eq("user_id", user.id),
-          supabase.from("capacity_types").select("*"),
+        const [caps, types] = await Promise.all([
+          capabilityService.getByActor(user.id),
+          capabilityService.getCapacityTypes(),
         ]);
 
-        setCapabilities(
-          (capabilitiesRes.data || []).map((c: any) => ({
-            ...c,
-            capacity_type: c.capacity_types,
-          }))
-        );
-        setCapacityTypes(typesRes.data || []);
-
-        // Set profile form values
-        if (profile) {
-          setOrgName(profile.organization_name || "");
-          setOrgType(profile.organization_type || "");
-          setPhone(profile.phone || "");
-          setFullName(profile.full_name || "");
-        }
+        setCapabilities(caps);
+        setCapacityTypes(types);
       } catch (error) {
         console.error("Error fetching capabilities:", error);
       } finally {
@@ -73,7 +57,7 @@ export default function MyCapabilities() {
     };
 
     fetchData();
-  }, [user, profile]);
+  }, [user]);
 
   const handleAddCapability = async () => {
     if (!user || !selectedCapacity) return;
@@ -81,16 +65,14 @@ export default function MyCapabilities() {
     setIsSaving(true);
 
     try {
-      const { error } = await supabase.from("actor_capabilities").insert({
+      await capabilityService.add({
         user_id: user.id,
         capacity_type_id: selectedCapacity,
-        quantity: quantity ? parseInt(quantity) : null,
-        unit: unit || null,
+        quantity: quantity ? parseInt(quantity) : undefined,
+        unit: unit || undefined,
         availability,
-        notes: notes || null,
+        notes: notes || undefined,
       });
-
-      if (error) throw error;
 
       toast({
         title: "Capacidad agregada",
@@ -106,17 +88,8 @@ export default function MyCapabilities() {
       setIsDialogOpen(false);
 
       // Refresh list
-      const { data } = await supabase
-        .from("actor_capabilities")
-        .select("*, capacity_types(*)")
-        .eq("user_id", user.id);
-
-      setCapabilities(
-        (data || []).map((c: any) => ({
-          ...c,
-          capacity_type: c.capacity_types,
-        }))
-      );
+      const caps = await capabilityService.getByActor(user.id);
+      setCapabilities(caps);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -128,47 +101,9 @@ export default function MyCapabilities() {
     }
   };
 
-  const handleUpdateProfile = async () => {
-    if (!user) return;
-
-    setIsSaving(true);
-
-    try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          organization_name: orgName,
-          organization_type: orgType,
-          phone,
-          full_name: fullName,
-        })
-        .eq("user_id", user.id);
-
-      if (error) throw error;
-
-      await refreshProfile();
-
-      toast({
-        title: "Perfil actualizado",
-        description: "Tu información ha sido guardada.",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "No se pudo actualizar el perfil",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const handleDeleteCapability = async (id: string) => {
     try {
-      const { error } = await supabase.from("actor_capabilities").delete().eq("id", id);
-
-      if (error) throw error;
-
+      await capabilityService.delete(id);
       setCapabilities(capabilities.filter((c) => c.id !== id));
 
       toast({
@@ -186,13 +121,7 @@ export default function MyCapabilities() {
 
   const handleUpdateAvailability = async (id: string, newAvailability: AvailabilityStatus) => {
     try {
-      const { error } = await supabase
-        .from("actor_capabilities")
-        .update({ availability: newAvailability })
-        .eq("id", id);
-
-      if (error) throw error;
-
+      await capabilityService.updateAvailability(id, newAvailability);
       setCapabilities(
         capabilities.map((c) => (c.id === id ? { ...c, availability: newAvailability } : c))
       );
@@ -249,51 +178,24 @@ export default function MyCapabilities() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="fullName">Nombre de contacto</Label>
-              <Input
-                id="fullName"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Juan Pérez"
-              />
+              <Label>Nombre de contacto</Label>
+              <Input value={fullName} disabled className="bg-muted" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="orgName">Nombre de la organización</Label>
-              <Input
-                id="orgName"
-                value={orgName}
-                onChange={(e) => setOrgName(e.target.value)}
-                placeholder="Mi ONG"
-              />
+              <Label>Nombre de la organización</Label>
+              <Input value={orgName} disabled className="bg-muted" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="orgType">Tipo de organización</Label>
-              <Select value={orgType} onValueChange={setOrgType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ong">ONG</SelectItem>
-                  <SelectItem value="empresa">Empresa</SelectItem>
-                  <SelectItem value="municipio">Municipio</SelectItem>
-                  <SelectItem value="colectivo">Colectivo</SelectItem>
-                  <SelectItem value="individual">Individual</SelectItem>
-                  <SelectItem value="otro">Otro</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Tipo de organización</Label>
+              <Input value={orgType} disabled className="bg-muted" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phone">Teléfono</Label>
-              <Input
-                id="phone"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+56 9 1234 5678"
-              />
+              <Label>Teléfono</Label>
+              <Input value={phone} disabled className="bg-muted" />
             </div>
-            <Button onClick={handleUpdateProfile} className="w-full" disabled={isSaving}>
-              {isSaving ? "Guardando..." : "Guardar Cambios"}
-            </Button>
+            <p className="text-xs text-muted-foreground">
+              (Perfil de demostración - datos mock)
+            </p>
           </CardContent>
         </Card>
 

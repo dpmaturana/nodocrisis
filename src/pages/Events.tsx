@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { eventService } from "@/services";
+import { useMockAuth } from "@/hooks/useMockAuth";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -13,7 +13,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
 export default function Events() {
-  const { isAdmin } = useAuth();
+  const { isAdmin } = useMockAuth();
   const [events, setEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -21,13 +21,8 @@ export default function Events() {
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const { data, error } = await supabase
-          .from("events")
-          .select("*")
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
-        setEvents(data || []);
+        const data = await eventService.getAll();
+        setEvents(data);
       } catch (error) {
         console.error("Error fetching events:", error);
       } finally {
@@ -75,7 +70,7 @@ export default function Events() {
         </div>
         {isAdmin && (
           <Button asChild>
-            <Link to="/events/new">
+            <Link to="/admin/create-event">
               <Plus className="w-4 h-4 mr-2" />
               Nuevo Evento
             </Link>
@@ -110,7 +105,7 @@ export default function Events() {
         ) : (
           <div className="grid gap-4">
             {activeEvents.map((event) => (
-              <EventCard key={event.id} event={event} />
+              <EventCard key={event.id} event={event} isAdmin={isAdmin} />
             ))}
           </div>
         )}
@@ -124,7 +119,7 @@ export default function Events() {
           </h2>
           <div className="grid gap-4">
             {closedEvents.map((event) => (
-              <EventCard key={event.id} event={event} />
+              <EventCard key={event.id} event={event} isAdmin={isAdmin} />
             ))}
           </div>
         </div>
@@ -133,12 +128,15 @@ export default function Events() {
   );
 }
 
-function EventCard({ event }: { event: Event }) {
+function EventCard({ event, isAdmin }: { event: Event; isAdmin: boolean }) {
   const isActive = event.status === "active";
+  const linkTo = isAdmin && isActive 
+    ? `/admin/event-dashboard/${event.id}` 
+    : `/events/${event.id}`;
 
   return (
     <Link
-      to={`/events/${event.id}`}
+      to={linkTo}
       className="block group"
     >
       <Card className={`transition-all hover:border-primary/50 ${isActive ? "" : "opacity-70"}`}>

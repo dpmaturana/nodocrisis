@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { useMockAuth } from "@/hooks/useMockAuth";
+import { sectorService, deploymentService } from "@/services";
+import type { RecommendedSector } from "@/services/sectorService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,22 +12,12 @@ import { CapacityIcon } from "@/components/ui/CapacityIcon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle, CheckCircle, Filter, MapPin, Plus, Search, Users } from "@/lib/icons";
-import type { Event, Sector, CapacityType, ActorCapability, SectorGap, NeedLevel } from "@/types/database";
-
-interface RecommendedSector {
-  sector: Sector;
-  event: Event;
-  gaps: SectorGap[];
-  relevantGaps: SectorGap[]; // Only gaps matching user's capabilities
-}
+import type { Event, SectorGap } from "@/types/database";
 
 export default function Sectors() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin } = useMockAuth();
   const { toast } = useToast();
   const [events, setEvents] = useState<Event[]>([]);
-  const [sectors, setSectors] = useState<Sector[]>([]);
-  const [capacityTypes, setCapacityTypes] = useState<CapacityType[]>([]);
-  const [myCapabilities, setMyCapabilities] = useState<ActorCapability[]>([]);
   const [recommendedSectors, setRecommendedSectors] = useState<RecommendedSector[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -35,107 +26,16 @@ export default function Sectors() {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!user) return;
+      
       try {
-        // Fetch all necessary data
-        const [eventsRes, capacitiesRes, capabilitiesRes] = await Promise.all([
-          supabase.from("events").select("*").eq("status", "active"),
-          supabase.from("capacity_types").select("*"),
-          user
-            ? supabase.from("actor_capabilities").select("*").eq("user_id", user.id)
-            : Promise.resolve({ data: [] }),
+        const [activeEvents, recommended] = await Promise.all([
+          sectorService.getActiveEvents(),
+          sectorService.getRecommended(user.id),
         ]);
 
-        setEvents(eventsRes.data || []);
-        setCapacityTypes(capacitiesRes.data || []);
-        setMyCapabilities(capabilitiesRes.data || []);
-
-        // For each active event, fetch sectors and calculate gaps
-        const allRecommended: RecommendedSector[] = [];
-
-        for (const event of eventsRes.data || []) {
-          const [sectorsRes, smsNeedsRes, contextNeedsRes, deploymentsRes] = await Promise.all([
-            supabase.from("sectors").select("*").eq("event_id", event.id),
-            supabase.from("sector_needs_sms").select("*").eq("event_id", event.id),
-            supabase.from("sector_needs_context").select("*").eq("event_id", event.id),
-            supabase.from("deployments").select("*").eq("event_id", event.id).in("status", ["planned", "active"]),
-          ]);
-
-          for (const sector of sectorsRes.data || []) {
-            const gaps: SectorGap[] = [];
-
-            for (const capacity of capacitiesRes.data || []) {
-              const smsNeeds = (smsNeedsRes.data || []).filter(
-                (n) => n.sector_id === sector.id && n.capacity_type_id === capacity.id
-              );
-              const contextNeeds = (contextNeedsRes.data || []).filter(
-                (n) => n.sector_id === sector.id && n.capacity_type_id === capacity.id
-              );
-              const deployments = (deploymentsRes.data || []).filter(
-                (d) => d.sector_id === sector.id && d.capacity_type_id === capacity.id
-              );
-
-              const smsDemand = smsNeeds.reduce((sum, n) => sum + n.count, 0);
-              const contextDemand = contextNeeds.length;
-              const totalDemand = smsDemand + contextDemand;
-              const coverage = deployments.length;
-              const gap = Math.max(0, totalDemand - coverage);
-
-              if (totalDemand > 0 && gap > 0) {
-                const allLevels = [...smsNeeds.map((n) => n.level), ...contextNeeds.map((n) => n.level)];
-                const levelOrder: NeedLevel[] = ["low", "medium", "high", "critical"];
-                const maxLevel = allLevels.reduce((max, level) => {
-                  return levelOrder.indexOf(level as NeedLevel) > levelOrder.indexOf(max)
-                    ? (level as NeedLevel)
-                    : max;
-                }, "low" as NeedLevel);
-
-                gaps.push({
-                  sector,
-                  capacityType: capacity,
-                  smsDemand,
-                  contextDemand,
-                  totalDemand,
-                  coverage,
-                  gap,
-                  isUncovered: coverage === 0,
-                  isCritical: maxLevel === "critical" || maxLevel === "high",
-                  maxLevel,
-                });
-              }
-            }
-
-            if (gaps.length > 0) {
-              // Filter gaps to those matching user's capabilities
-              const myCapabilityIds = (capabilitiesRes.data || [])
-                .filter((c) => c.availability !== "unavailable")
-                .map((c) => c.capacity_type_id);
-
-              const relevantGaps = gaps.filter((g) => myCapabilityIds.includes(g.capacityType.id));
-
-              allRecommended.push({
-                sector,
-                event,
-                gaps,
-                relevantGaps,
-              });
-            }
-          }
-        }
-
-        // Sort by urgency (critical first, then by gap size)
-        allRecommended.sort((a, b) => {
-          const aMaxCritical = a.gaps.some((g) => g.isCritical);
-          const bMaxCritical = b.gaps.some((g) => g.isCritical);
-          if (aMaxCritical && !bMaxCritical) return -1;
-          if (!aMaxCritical && bMaxCritical) return 1;
-
-          const aMaxGap = Math.max(...a.gaps.map((g) => g.gap));
-          const bMaxGap = Math.max(...b.gaps.map((g) => g.gap));
-          return bMaxGap - aMaxGap;
-        });
-
-        setRecommendedSectors(allRecommended);
-        setSectors(allRecommended.map((r) => r.sector));
+        setEvents(activeEvents);
+        setRecommendedSectors(recommended);
       } catch (error) {
         console.error("Error fetching sectors:", error);
       } finally {
@@ -152,23 +52,16 @@ export default function Sectors() {
     setIsDeploying(`${sectorId}-${capacityTypeId}`);
 
     try {
-      const { error } = await supabase.from("deployments").insert({
-        event_id: eventId,
-        sector_id: sectorId,
-        capacity_type_id: capacityTypeId,
-        actor_id: user.id,
-        status: "planned",
-      });
-
-      if (error) throw error;
+      await deploymentService.enroll(user.id, eventId, sectorId, capacityTypeId);
 
       toast({
         title: "Inscripción exitosa",
         description: "Te has inscrito en este sector. Tu despliegue está marcado como 'planificado'.",
       });
 
-      // Refresh data
-      window.location.reload();
+      // Refresh recommendations
+      const recommended = await sectorService.getRecommended(user.id);
+      setRecommendedSectors(recommended);
     } catch (error: any) {
       toast({
         title: "Error al inscribirse",
@@ -242,12 +135,12 @@ export default function Sectors() {
       </div>
 
       {/* My Capabilities Summary */}
-      {!isAdmin && myCapabilities.length === 0 && (
+      {!isAdmin && relevantSectors.length === 0 && otherSectors.length > 0 && (
         <Card className="border-warning/50 bg-warning/5">
           <CardContent className="flex items-center gap-4 py-4">
             <AlertTriangle className="w-8 h-8 text-warning" />
             <div className="flex-1">
-              <p className="font-medium">No tienes capacidades registradas</p>
+              <p className="font-medium">No tienes capacidades que coincidan</p>
               <p className="text-sm text-muted-foreground">
                 Agrega tus capacidades para ver sectores recomendados específicos para ti.
               </p>
@@ -369,60 +262,14 @@ function SectorCard({
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           {displayGaps.map((gap) => (
-            <div
+            <GapCard
               key={gap.capacityType.id}
-              className={`p-3 rounded-lg border ${
-                gap.isCritical
-                  ? "border-gap-critical/50 bg-gap-critical/5"
-                  : "border-border bg-card"
-              }`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <CapacityIcon
-                  name={gap.capacityType.name}
-                  icon={gap.capacityType.icon}
-                  size="sm"
-                  showLabel
-                />
-                {gap.isCritical && (
-                  <AlertTriangle className="w-4 h-4 text-gap-critical" />
-                )}
-              </div>
-              <div className="space-y-1 text-sm mb-3">
-                <div className="flex justify-between">
-                  <span className="text-demand-sms">SMS:</span>
-                  <span className="font-mono">{gap.smsDemand}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-demand-context">Contexto:</span>
-                  <span className="font-mono">{gap.contextDemand}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-coverage">Cobertura:</span>
-                  <span className="font-mono">{gap.coverage}</span>
-                </div>
-                <div className="flex justify-between font-semibold pt-1 border-t border-border/50">
-                  <span>Brecha:</span>
-                  <span className="font-mono text-gap-critical">{gap.gap}</span>
-                </div>
-              </div>
-              <Button
-                size="sm"
-                className="w-full"
-                variant={gap.isCritical ? "destructive" : "default"}
-                onClick={() => onDeploy(sector.id, event.id, gap.capacityType.id)}
-                disabled={isDeploying === `${sector.id}-${gap.capacityType.id}`}
-              >
-                {isDeploying === `${sector.id}-${gap.capacityType.id}` ? (
-                  "Inscribiendo..."
-                ) : (
-                  <>
-                    <Users className="w-4 h-4 mr-1" />
-                    Inscribirme
-                  </>
-                )}
-              </Button>
-            </div>
+              gap={gap}
+              sectorId={sector.id}
+              eventId={event.id}
+              onDeploy={onDeploy}
+              isDeploying={isDeploying}
+            />
           ))}
         </div>
         {gaps.length > displayGaps.length && (
@@ -432,5 +279,71 @@ function SectorCard({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function GapCard({
+  gap,
+  sectorId,
+  eventId,
+  onDeploy,
+  isDeploying,
+}: {
+  gap: SectorGap;
+  sectorId: string;
+  eventId: string;
+  onDeploy: (sectorId: string, eventId: string, capacityTypeId: string) => void;
+  isDeploying: string | null;
+}) {
+  return (
+    <div
+      className={`p-3 rounded-lg border ${
+        gap.isCritical
+          ? "border-gap-critical/50 bg-gap-critical/5"
+          : "border-border bg-card"
+      }`}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <CapacityIcon
+          name={gap.capacityType.name}
+          icon={gap.capacityType.icon}
+          size="sm"
+          showLabel
+        />
+        {gap.isCritical && (
+          <AlertTriangle className="w-4 h-4 text-gap-critical" />
+        )}
+      </div>
+      <div className="space-y-1 text-sm mb-3">
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Demanda:</span>
+          <span className="font-mono">{gap.totalDemand}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-coverage">Cobertura:</span>
+          <span className="font-mono">{gap.coverage}</span>
+        </div>
+        <div className="flex justify-between font-semibold pt-1 border-t border-border/50">
+          <span>Brecha:</span>
+          <span className="font-mono text-gap-critical">{gap.gap}</span>
+        </div>
+      </div>
+      <Button
+        size="sm"
+        className="w-full"
+        variant={gap.isCritical ? "destructive" : "default"}
+        onClick={() => onDeploy(sectorId, eventId, gap.capacityType.id)}
+        disabled={isDeploying === `${sectorId}-${gap.capacityType.id}`}
+      >
+        {isDeploying === `${sectorId}-${gap.capacityType.id}` ? (
+          "Inscribiendo..."
+        ) : (
+          <>
+            <Users className="w-4 h-4 mr-1" />
+            Inscribirme
+          </>
+        )}
+      </Button>
+    </div>
   );
 }

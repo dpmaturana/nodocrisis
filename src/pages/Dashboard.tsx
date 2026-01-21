@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { useMockAuth } from "@/hooks/useMockAuth";
+import { eventService, deploymentService } from "@/services";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { CapacityIcon } from "@/components/ui/CapacityIcon";
@@ -9,35 +9,41 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Activity, AlertTriangle, Building2, ChevronRight, MapPin, Plus, Users } from "@/lib/icons";
-import type { Event, Sector, CapacityType } from "@/types/database";
+import type { Event, CapacityType } from "@/types/database";
 
 interface DashboardData {
   activeEvents: Event[];
-  sectors: Sector[];
   capacityTypes: CapacityType[];
   deploymentCount: number;
+  sectorCount: number;
 }
 
 export default function Dashboard() {
-  const { isAdmin } = useAuth();
+  const { isAdmin } = useMockAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [eventsRes, sectorsRes, capacitiesRes, deploymentsRes] = await Promise.all([
-          supabase.from("events").select("*").eq("status", "active").order("created_at", { ascending: false }),
-          supabase.from("sectors").select("*").order("created_at", { ascending: false }).limit(10),
-          supabase.from("capacity_types").select("*"),
-          supabase.from("deployments").select("id", { count: "exact" }).eq("status", "active"),
+        const [activeEvents, capacityTypes, deploymentCount] = await Promise.all([
+          eventService.getActive(),
+          eventService.getCapacityTypes(),
+          deploymentService.getActiveCount(),
         ]);
 
+        // Count sectors from active events
+        let sectorCount = 0;
+        for (const event of activeEvents) {
+          const sectors = await eventService.getSectorsForEvent(event.id);
+          sectorCount += sectors.length;
+        }
+
         setData({
-          activeEvents: eventsRes.data || [],
-          sectors: sectorsRes.data || [],
-          capacityTypes: capacitiesRes.data || [],
-          deploymentCount: deploymentsRes.count || 0,
+          activeEvents,
+          capacityTypes,
+          deploymentCount,
+          sectorCount,
         });
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
@@ -66,8 +72,8 @@ export default function Dashboard() {
   }
 
   const activeEventCount = data?.activeEvents.length || 0;
-  const sectorCount = data?.sectors.length || 0;
-  const criticalGaps = 0; // Will be calculated from real data
+  const sectorCount = data?.sectorCount || 0;
+  const criticalGaps = 0; // Would be calculated from matrix
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -81,7 +87,7 @@ export default function Dashboard() {
         </div>
         {isAdmin && (
           <Button asChild>
-            <Link to="/events/new">
+            <Link to="/admin/create-event">
               <Plus className="w-4 h-4 mr-2" />
               Nuevo Evento
             </Link>
@@ -143,7 +149,7 @@ export default function Dashboard() {
                 <p className="text-muted-foreground">No hay eventos activos</p>
                 {isAdmin && (
                   <Button variant="outline" size="sm" className="mt-4" asChild>
-                    <Link to="/events/new">
+                    <Link to="/admin/create-event">
                       <Plus className="w-4 h-4 mr-2" />
                       Crear evento
                     </Link>
@@ -155,7 +161,7 @@ export default function Dashboard() {
                 {data?.activeEvents.map((event) => (
                   <Link
                     key={event.id}
-                    to={`/events/${event.id}`}
+                    to={isAdmin ? `/admin/event-dashboard/${event.id}` : `/events/${event.id}`}
                     className="flex items-center justify-between p-4 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors group"
                   >
                     <div className="flex items-center gap-4">
