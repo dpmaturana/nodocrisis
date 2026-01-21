@@ -36,6 +36,11 @@ import {
   Check,
   Pause,
   Mic,
+  Square,
+  Play,
+  Loader2,
+  Send,
+  History,
   type LucideIcon,
 } from "lucide-react";
 
@@ -102,4 +107,9 @@ export {
   Check,
   Pause,
   Mic,
+  Square,
+  Play,
+  Loader2,
+  Send,
+  History,
 };
