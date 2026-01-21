@@ -57,45 +57,60 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { event_id, sector_id, actor_id, text_note } = await req.json();
+    const { event_id, sector_id, actor_id, text_note, dry_run } = await req.json();
 
-    if (!event_id || !sector_id || !actor_id || !text_note) {
+    // In dry_run mode, we only need the text_note
+    if (!dry_run && (!event_id || !sector_id || !actor_id || !text_note)) {
       return new Response(
         JSON.stringify({ error: "Missing required fields: event_id, sector_id, actor_id, text_note" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    console.log(`Creating text-only field report for event: ${event_id}, sector: ${sector_id}`);
-
-    // 1. Create field report with status 'extracting' (no audio_url needed)
-    const { data: report, error: insertError } = await supabase
-      .from("field_reports")
-      .insert({
-        event_id,
-        sector_id,
-        actor_id,
-        audio_url: "text-only", // Placeholder to satisfy NOT NULL constraint
-        text_note,
-        status: "extracting",
-      })
-      .select()
-      .single();
-
-    if (insertError) {
-      console.error("Insert error:", insertError);
+    if (!text_note) {
       return new Response(
-        JSON.stringify({ error: `Failed to create report: ${insertError.message}` }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Missing required field: text_note" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`Field report created: ${report.id}, extracting from text...`);
+    // Initialize Supabase client (only needed if not dry_run)
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = dry_run ? null : createClient(supabaseUrl, supabaseServiceKey);
+
+    console.log(`Processing text report (dry_run: ${!!dry_run}) for event: ${event_id}, sector: ${sector_id}`);
+
+    let report: { id: string } | null = null;
+
+    // 1. Create field report with status 'extracting' (skip in dry_run mode)
+    if (!dry_run && supabase) {
+      const { data: insertedReport, error: insertError } = await supabase
+        .from("field_reports")
+        .insert({
+          event_id,
+          sector_id,
+          actor_id,
+          audio_url: "text-only", // Placeholder to satisfy NOT NULL constraint
+          text_note,
+          status: "extracting",
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error("Insert error:", insertError);
+        return new Response(
+          JSON.stringify({ error: `Failed to create report: ${insertError.message}` }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      report = insertedReport;
+      console.log(`Field report created: ${report!.id}, extracting from text...`);
+    } else {
+      console.log("Dry run mode: skipping DB insert, proceeding with LLM extraction...");
+    }
 
     // 2. Call LLM to extract structured data from text note
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
@@ -124,14 +139,16 @@ Deno.serve(async (req) => {
       const errorText = await extractResponse.text();
       console.error("LLM error:", errorText);
       
-      // Update report with error
-      await supabase
-        .from("field_reports")
-        .update({
-          status: "failed",
-          error_message: `Extraction failed: ${extractResponse.status}`,
-        })
-        .eq("id", report.id);
+      // Update report with error (only if not dry_run)
+      if (!dry_run && supabase && report) {
+        await supabase
+          .from("field_reports")
+          .update({
+            status: "failed",
+            error_message: `Extraction failed: ${extractResponse.status}`,
+          })
+          .eq("id", report.id);
+      }
       
       return new Response(
         JSON.stringify({ error: "Failed to extract data from text" }),
@@ -168,46 +185,71 @@ Deno.serve(async (req) => {
 
     console.log("Extracted data:", extractedData);
 
-    // 3. Update field report with extracted data
-    const { data: updatedReport, error: updateError } = await supabase
-      .from("field_reports")
-      .update({
-        extracted_data: extractedData,
-        status: "completed",
-      })
-      .eq("id", report.id)
-      .select()
-      .single();
+    // 3. Update field report with extracted data (skip in dry_run mode)
+    let updatedReport = null;
+    if (!dry_run && supabase && report) {
+      const { data, error: updateError } = await supabase
+        .from("field_reports")
+        .update({
+          extracted_data: extractedData,
+          status: "completed",
+        })
+        .eq("id", report.id)
+        .select()
+        .single();
 
-    if (updateError) {
-      console.error("Update error:", updateError);
-    }
-
-    // 4. Create a signal if there are observations
-    if (extractedData.observations) {
-      const { error: signalError } = await supabase.from("signals").insert({
-        event_id,
-        sector_id,
-        signal_type: "field_report",
-        source: "actor_text_report",
-        content: extractedData.observations,
-        confidence: extractedData.confidence,
-        level: "sector",
-        field_report_id: report.id,
-      });
-
-      if (signalError) {
-        console.error("Signal creation error:", signalError);
-      } else {
-        console.log("Signal created from text report");
+      if (updateError) {
+        console.error("Update error:", updateError);
       }
+      updatedReport = data;
+
+      // 4. Create a signal if there are observations (only if not dry_run)
+      if (extractedData.observations) {
+        const { error: signalError } = await supabase.from("signals").insert({
+          event_id,
+          sector_id,
+          signal_type: "field_report",
+          source: "actor_text_report",
+          content: extractedData.observations,
+          confidence: extractedData.confidence,
+          level: "sector",
+          field_report_id: report.id,
+        });
+
+        if (signalError) {
+          console.error("Signal creation error:", signalError);
+        } else {
+          console.log("Signal created from text report");
+        }
+      }
+    } else {
+      console.log("Dry run mode: skipping DB update and signal creation");
     }
+
+    // Build response report
+    const responseReport = dry_run
+      ? {
+          id: `dry-run-${Date.now()}`,
+          event_id: event_id || "dry-run",
+          sector_id: sector_id || "dry-run",
+          actor_id: actor_id || "dry-run",
+          audio_url: "text-only",
+          text_note,
+          transcript: null,
+          status: "completed",
+          extracted_data: extractedData,
+          error_message: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }
+      : updatedReport || { ...report, extracted_data: extractedData, status: "completed" };
 
     return new Response(
       JSON.stringify({
         success: true,
-        report: updatedReport || { ...report, extracted_data: extractedData, status: "completed" },
+        report: responseReport,
         extracted_data: extractedData,
+        dry_run: !!dry_run,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
