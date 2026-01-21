@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import { AlertTriangle, CheckCircle, Clock, XCircle, Eye, Check, Activity, Pause } from "@/lib/icons";
 
-type StatusType = 
+export type StatusType = 
   | "critical" | "warning" | "covered" | "sms" | "context" | "uncovered" | "pending"
   // Gap states (PRD-aligned)
   | "gap-critical" | "gap-partial" | "gap-active" | "gap-evaluating"
