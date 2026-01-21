@@ -247,6 +247,7 @@ export type Database = {
           id: string
           sector_id: string
           status: string
+          text_note: string | null
           transcript: string | null
           updated_at: string
         }
@@ -260,6 +261,7 @@ export type Database = {
           id?: string
           sector_id: string
           status?: string
+          text_note?: string | null
           transcript?: string | null
           updated_at?: string
         }
@@ -273,6 +275,7 @@ export type Database = {
           id?: string
           sector_id?: string
           status?: string
+          text_note?: string | null
           transcript?: string | null
           updated_at?: string
         }

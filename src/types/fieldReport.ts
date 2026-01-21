@@ -27,6 +27,7 @@ export interface FieldReport {
   actor_id: string;
   audio_url: string;
   transcript: string | null;
+  text_note: string | null;
   status: FieldReportStatus;
   extracted_data: ExtractedData | null;
   error_message: string | null;
@@ -38,4 +39,5 @@ export interface CreateFieldReportParams {
   event_id: string;
   sector_id: string;
   audio_file: Blob;
+  text_note?: string;
 }

@@ -10,6 +10,7 @@ function toFieldReport(row: any): FieldReport {
     actor_id: row.actor_id,
     audio_url: row.audio_url,
     transcript: row.transcript,
+    text_note: row.text_note,
     status: row.status as FieldReportStatus,
     extracted_data: row.extracted_data as ExtractedData | null,
     error_message: row.error_message,
@@ -23,7 +24,7 @@ export const fieldReportService = {
    * Upload audio file and create a field report record
    */
   async createReport(params: CreateFieldReportParams, actorId: string): Promise<FieldReport> {
-    const { event_id, sector_id, audio_file } = params;
+    const { event_id, sector_id, audio_file, text_note } = params;
     
     // Generate unique filename
     const timestamp = Date.now();
@@ -43,7 +44,7 @@ export const fieldReportService = {
       throw new Error(`Failed to upload audio: ${uploadError.message}`);
     }
 
-    // Create field report record
+    // Create field report record with text_note
     const { data, error } = await supabase
       .from('field_reports')
       .insert({
@@ -51,6 +52,7 @@ export const fieldReportService = {
         sector_id,
         actor_id: actorId,
         audio_url: `field-audio/${filename}`,
+        text_note: text_note || null,
         status: 'pending',
       })
       .select()
