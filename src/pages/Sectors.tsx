@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useActorMode } from "@/hooks/useActorMode";
 import { sectorService, capabilityService } from "@/services";
 import type { EnrichedSector } from "@/services/sectorService";
 import type { ActorCapability } from "@/types/database";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertTriangle, MapPin, Plus } from "lucide-react";
+import { AlertTriangle, ArrowLeft, MapPin, Plus } from "lucide-react";
 import {
   Collapsible,
   CollapsibleContent,
@@ -19,13 +20,17 @@ import { SectorDetailDrawer } from "@/components/sectors/SectorDetailDrawer";
 import { EnrollmentModal } from "@/components/sectors/EnrollmentModal";
 
 export default function Sectors() {
-  const { user } = useAuth();
+  const { user, isActor, isAdmin } = useAuth();
+  const { isOperating } = useActorMode();
   const [sectors, setSectors] = useState<EnrichedSector[]>([]);
   const [userCapabilities, setUserCapabilities] = useState<ActorCapability[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSector, setSelectedSector] = useState<EnrichedSector | null>(null);
   const [enrollingSector, setEnrollingSector] = useState<EnrichedSector | null>(null);
   const [otherSectorsOpen, setOtherSectorsOpen] = useState(false);
+
+  // Show back button for actors in operation mode
+  const showBackButton = isActor && !isAdmin && isOperating;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -78,11 +83,21 @@ export default function Sectors() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">¿Dónde puedo ayudar?</h1>
-        <p className="text-muted-foreground mt-1">
-          Sectores priorizados según tus capacidades
-        </p>
+      <div className="flex flex-col gap-4">
+        {showBackButton && (
+          <Button variant="ghost" size="sm" className="w-fit -ml-2" asChild>
+            <Link to="/my-deployments">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Volver a Mis Despliegues
+            </Link>
+          </Button>
+        )}
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">¿Dónde puedo ayudar?</h1>
+          <p className="text-muted-foreground mt-1">
+            Sectores priorizados según tus capacidades
+          </p>
+        </div>
       </div>
 
       {/* No capabilities warning */}

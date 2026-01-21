@@ -1,10 +1,11 @@
 import { Outlet, Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { AppSidebar } from "./AppSidebar";
+import { ActorLayout } from "./ActorLayout";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function AppLayout() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, isAdmin, isActor } = useAuth();
 
   if (isLoading) {
     return (
@@ -32,6 +33,12 @@ export function AppLayout() {
     return <Navigate to="/auth" replace />;
   }
 
+  // ONGs/Actors use simplified layout without sidebar
+  if (isActor && !isAdmin) {
+    return <ActorLayout />;
+  }
+
+  // Admins use full sidebar layout
   return (
     <div className="flex min-h-screen bg-background">
       <AppSidebar />
