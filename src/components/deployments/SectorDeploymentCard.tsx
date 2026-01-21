@@ -423,12 +423,12 @@ function OperatingPhaseContent({
       {/* Finish option */}
       <div className="pt-2 border-t">
         <Button
-          variant="ghost"
-          size="sm"
+          variant="outline"
           onClick={onFinish}
           disabled={isFinishing}
-          className="text-muted-foreground hover:text-foreground"
+          className="w-full gap-2"
         >
+          <CheckCircle className="w-4 h-4" />
           Finalizar operación
         </Button>
       </div>
