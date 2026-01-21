@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, Navigate } from "react-router-dom";
-import { useMockAuth } from "@/hooks/useMockAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { eventService } from "@/services";
 import { MOCK_EVENTS, MOCK_SECTORS, addEvent, addSector, MOCK_SECTOR_CAPABILITY_MATRIX, updateMatrixCell } from "@/services/mock/data";
 import type { NeedLevelExtended } from "@/services/mock/data";
@@ -18,7 +18,7 @@ import { Activity, MapPin, Plus, Shield } from "@/lib/icons";
 import type { Event, Sector, CapacityType, NeedLevel } from "@/types/database";
 
 export default function Coordination() {
-  const { isAdmin, isLoading: authLoading } = useMockAuth();
+  const { isAdmin, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
   const preselectedEventId = searchParams.get("event");

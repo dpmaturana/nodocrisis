@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Loader2, Sparkles, FileText } from "lucide-react";
-import { useAuth } from "@/hooks/useMockAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { situationReportService } from "@/services";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";

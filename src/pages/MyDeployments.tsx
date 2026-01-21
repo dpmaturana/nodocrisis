@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useMockAuth } from "@/hooks/useMockAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { deploymentService } from "@/services";
 import type { DeploymentWithDetails } from "@/services/deploymentService";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,7 +19,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
 export default function MyDeployments() {
-  const { user } = useMockAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [deployments, setDeployments] = useState<DeploymentWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);

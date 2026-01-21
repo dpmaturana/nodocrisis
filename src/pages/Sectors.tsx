@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useMockAuth } from "@/hooks/useMockAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { sectorService, deploymentService } from "@/services";
 import type { RecommendedSector } from "@/services/sectorService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +15,7 @@ import { AlertTriangle, CheckCircle, Filter, MapPin, Plus, Search, Users } from 
 import type { Event, SectorGap } from "@/types/database";
 
 export default function Sectors() {
-  const { user, isAdmin } = useMockAuth();
+  const { user, isAdmin } = useAuth();
   const { toast } = useToast();
   const [events, setEvents] = useState<Event[]>([]);
   const [recommendedSectors, setRecommendedSectors] = useState<RecommendedSector[]>([]);

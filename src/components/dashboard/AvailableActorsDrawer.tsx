@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, Building2, Check, Users } from "lucide-react";
-import { useMockAuth } from "@/hooks/useMockAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { 
   MOCK_ACTOR_CAPABILITIES,
   MOCK_CAPACITY_TYPES,
@@ -38,7 +38,7 @@ export function AvailableActorsDrawer({
   open, 
   onOpenChange,
 }: AvailableActorsDrawerProps) {
-  const { isAdmin } = useMockAuth();
+  const { isAdmin } = useAuth();
   const { toast } = useToast();
   const [actors, setActors] = useState<ActorWithCapability[]>([]);
   const [invitedActors, setInvitedActors] = useState<Set<string>>(new Set());
