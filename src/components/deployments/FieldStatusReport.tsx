@@ -166,22 +166,14 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
     
     try {
       let reportWithResults: FieldReport | null = null;
+      const eventId = group.event.id;
+      const sectorId = group.sector.id;
+      const hasValidIds = isValidUUID(eventId) && isValidUUID(sectorId);
       
-      // 1. If there's audio, create field report and trigger transcription
-      // Only attempt if we have valid UUIDs (not mock data)
-      if (audioBlob) {
-        const eventId = group.event.id;
-        const sectorId = group.sector.id;
-        
-        if (!isValidUUID(eventId) || !isValidUUID(sectorId)) {
-          // Skip audio upload for mock data - just show warning
-          console.warn("Skipping audio upload: mock IDs detected", { eventId, sectorId });
-          toast({
-            title: "Audio no guardado",
-            description: "Los reportes de audio solo funcionan con eventos reales, no con datos de prueba.",
-            variant: "default",
-          });
-        } else {
+      // 1. Process field report (audio or text-only)
+      if (hasValidIds) {
+        if (audioBlob) {
+          // Audio flow: upload + transcribe + extract
           const report = await fieldReportService.createReport({
             event_id: eventId,
             sector_id: sectorId,
@@ -201,7 +193,25 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
               setProcessingStatus(updatedReport.status);
             }
           );
+        } else if (textNote.trim()) {
+          // Text-only flow: extract directly from text
+          setProcessingState("transcribing");
+          setProcessingStatus("extracting");
+          
+          reportWithResults = await fieldReportService.createTextOnlyReport({
+            event_id: eventId,
+            sector_id: sectorId,
+            text_note: textNote,
+          }, actorId);
         }
+      } else if (audioBlob || textNote.trim()) {
+        // Mock data warning
+        console.warn("Skipping report processing: mock IDs detected", { eventId, sectorId });
+        toast({
+          title: "Reporte no guardado en BD",
+          description: "Los reportes solo se guardan con eventos reales, no con datos de prueba.",
+          variant: "default",
+        });
       }
       
       // 2. Update deployment statuses based on selected option
