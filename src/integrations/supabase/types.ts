@@ -236,6 +236,63 @@ export type Database = {
         }
         Relationships: []
       }
+      field_reports: {
+        Row: {
+          actor_id: string
+          audio_url: string
+          created_at: string
+          error_message: string | null
+          event_id: string
+          extracted_data: Json | null
+          id: string
+          sector_id: string
+          status: string
+          transcript: string | null
+          updated_at: string
+        }
+        Insert: {
+          actor_id: string
+          audio_url: string
+          created_at?: string
+          error_message?: string | null
+          event_id: string
+          extracted_data?: Json | null
+          id?: string
+          sector_id: string
+          status?: string
+          transcript?: string | null
+          updated_at?: string
+        }
+        Update: {
+          actor_id?: string
+          audio_url?: string
+          created_at?: string
+          error_message?: string | null
+          event_id?: string
+          extracted_data?: Json | null
+          id?: string
+          sector_id?: string
+          status?: string
+          transcript?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "field_reports_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "field_reports_sector_id_fkey"
+            columns: ["sector_id"]
+            isOneToOne: false
+            referencedRelation: "sectors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       initial_situation_reports: {
         Row: {
           created_at: string
@@ -496,6 +553,67 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      signals: {
+        Row: {
+          confidence: number
+          content: string
+          created_at: string
+          event_id: string
+          field_report_id: string | null
+          id: string
+          level: string
+          sector_id: string | null
+          signal_type: string
+          source: string
+        }
+        Insert: {
+          confidence?: number
+          content: string
+          created_at?: string
+          event_id: string
+          field_report_id?: string | null
+          id?: string
+          level?: string
+          sector_id?: string | null
+          signal_type: string
+          source: string
+        }
+        Update: {
+          confidence?: number
+          content?: string
+          created_at?: string
+          event_id?: string
+          field_report_id?: string | null
+          id?: string
+          level?: string
+          sector_id?: string | null
+          signal_type?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signals_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signals_field_report_id_fkey"
+            columns: ["field_report_id"]
+            isOneToOne: false
+            referencedRelation: "field_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signals_sector_id_fkey"
+            columns: ["sector_id"]
+            isOneToOne: false
+            referencedRelation: "sectors"
             referencedColumns: ["id"]
           },
         ]
