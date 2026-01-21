@@ -215,11 +215,6 @@ export function SectorDeploymentCard({ group, actorId, onRefresh }: SectorDeploy
               )}
             </div>
           </div>
-          <Button variant="ghost" size="icon" asChild>
-            <Link to={`/events/${event.id}`}>
-              <ChevronRight className="w-5 h-5" />
-            </Link>
-          </Button>
         </div>
 
         {/* Phase/State indicator */}
