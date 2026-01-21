@@ -245,6 +245,103 @@ export const MOCK_SECTOR_CAPABILITY_MATRIX: Record<string, Record<string, NeedLe
   },
 };
 
+// ============== SECTOR CONTEXT (for ONG decision-making) ==============
+export interface SectorContext {
+  keyPoints: string[];        // Max 3 bullets for card
+  extendedContext: string;    // Full text for drawer
+  operationalSummary: string; // 1-line AI summary
+  accessInfo?: string;
+  isolationLevel?: "none" | "partial" | "total";
+  estimatedAffected?: string;
+}
+
+export const MOCK_SECTOR_CONTEXT: Record<string, SectorContext> = {
+  "sec-1": {
+    keyPoints: ["Accesos interrumpidos", "Aislamiento parcial", "Sin agua potable"],
+    extendedContext: "Sector rural con caminos cortados por derrumbes en ruta principal. Comunidad aislada parcialmente, solo acceso por camino secundario de tierra. Sin suministro de agua potable desde hace 48 horas. Evacuación activa de familias cercanas al foco de incendio.",
+    operationalSummary: "Sector rural con alta presión operativa y brechas no contenidas.",
+    accessInfo: "Ruta principal cortada, acceso solo por camino secundario",
+    isolationLevel: "partial",
+    estimatedAffected: "~500-800 personas"
+  },
+  "sec-2": {
+    keyPoints: ["Zona periurbana", "Evacuación en curso", "Humo denso"],
+    extendedContext: "Sector periurbano en las afueras de Chillán Viejo. Evacuación preventiva activa en sector norte. Visibilidad reducida por humo denso. Acceso vehicular disponible pero con restricciones.",
+    operationalSummary: "Sector periurbano con evacuación activa y condiciones de visibilidad reducida.",
+    accessInfo: "Acceso vehicular con restricciones por humo",
+    isolationLevel: "none",
+    estimatedAffected: "~200-400 personas"
+  },
+  "sec-3": {
+    keyPoints: ["Situación controlada", "Accesos habilitados", "Recursos desplegados"],
+    extendedContext: "Sector céntrico con situación estabilizada. Recursos de emergencia desplegados y operando. Accesos habilitados y sin restricciones mayores.",
+    operationalSummary: "Sector con cobertura adecuada y situación bajo control.",
+    accessInfo: "Accesos habilitados sin restricciones",
+    isolationLevel: "none",
+    estimatedAffected: "~100-200 personas"
+  },
+  "sec-4": {
+    keyPoints: ["Hospital saturado", "Alta demanda de salud", "Heridos reportados"],
+    extendedContext: "Sector con alta concentración de necesidades de salud. Hospital local reporta saturación y solicita apoyo externo. Múltiples heridos reportados en últimas horas. Acceso vehicular disponible.",
+    operationalSummary: "Sector con emergencia de salud activa y sistema local saturado.",
+    accessInfo: "Acceso vehicular disponible",
+    isolationLevel: "none",
+    estimatedAffected: "~300-500 personas"
+  },
+  "sec-5": {
+    keyPoints: ["Inundaciones localizadas", "Familias desplazadas", "Albergues requeridos"],
+    extendedContext: "Sector afectado por inundaciones localizadas producto del temporal. Varias familias desplazadas requieren albergue temporal. Calles principales anegadas en algunos puntos.",
+    operationalSummary: "Sector con inundaciones activas y necesidad de albergue.",
+    accessInfo: "Calles anegadas, acceso parcial",
+    isolationLevel: "partial",
+    estimatedAffected: "~150-300 personas"
+  },
+  "sec-6": {
+    keyPoints: ["Cortes de luz", "Vientos fuertes", "Árboles caídos"],
+    extendedContext: "Sector con múltiples cortes de suministro eléctrico. Vientos fuertes han derribado árboles bloqueando algunas calles. Requiere maquinaria para despeje.",
+    operationalSummary: "Sector con daños por viento y necesidad de despeje de vías.",
+    accessInfo: "Algunas calles bloqueadas por árboles",
+    isolationLevel: "none",
+    estimatedAffected: "~400-600 personas"
+  },
+};
+
+// ============== ACTORS IN SECTOR (for drawer display) ==============
+export interface ActorInSector {
+  id: string;
+  name: string;
+  capacityType: CapacityType;
+  quantity: number;
+  unit: string;
+  status: "operating" | "confirmed";
+  notes?: string;
+}
+
+export function getActorsInSector(sectorId: string): ActorInSector[] {
+  const deployments = MOCK_DEPLOYMENTS.filter(
+    d => d.sector_id === sectorId && (d.status === "operating" || d.status === "confirmed")
+  );
+  
+  // Mock actor names based on deployment
+  const actorNames: Record<string, string> = {
+    "mock-actor-1": "Cruz Roja Chile",
+    "mock-admin-1": "Bomberos Voluntarios",
+  };
+  
+  return deployments.map(d => {
+    const capacityType = getCapacityTypeById(d.capacity_type_id);
+    return {
+      id: d.id,
+      name: actorNames[d.actor_id] || "Organización Anónima",
+      capacityType: capacityType!,
+      quantity: 2, // Mock quantity
+      unit: capacityType?.name === "Transporte" ? "vehículos" : "equipos",
+      status: d.status as "operating" | "confirmed",
+      notes: d.notes,
+    };
+  });
+}
+
 // ============== DEPLOYMENTS (PRD-aligned states) ==============
 export let MOCK_DEPLOYMENTS: Deployment[] = [
   {
