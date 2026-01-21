@@ -27,13 +27,15 @@ interface SectorDetailDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onEnroll: () => void;
+  hideEnrollButton?: boolean;
 }
 
 export function SectorDetailDrawer({ 
   sector, 
   open, 
   onOpenChange, 
-  onEnroll 
+  onEnroll,
+  hideEnrollButton = false,
 }: SectorDetailDrawerProps) {
   const [otherGapsOpen, setOtherGapsOpen] = useState(false);
   
@@ -285,13 +287,15 @@ export function SectorDetailDrawer({
           </div>
         </ScrollArea>
 
-        {/* Sticky CTA */}
-        <div className="p-4 border-t bg-background">
-          <Button className="w-full" size="lg" onClick={onEnroll}>
-            <Users className="w-4 h-4 mr-2" />
-            Inscribirme en este sector
-          </Button>
-        </div>
+        {/* Sticky CTA - Only show if not already enrolled */}
+        {!hideEnrollButton && (
+          <div className="p-4 border-t bg-background">
+            <Button className="w-full" size="lg" onClick={onEnroll}>
+              <Users className="w-4 h-4 mr-2" />
+              Inscribirme en este sector
+            </Button>
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   );
