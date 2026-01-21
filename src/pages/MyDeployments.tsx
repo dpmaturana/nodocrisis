@@ -56,22 +56,29 @@ export default function MyDeployments() {
     }
   };
 
+  // PRD-aligned status labels
   const statusLabels: Record<DeploymentStatus, string> = {
-    planned: "Planificado",
-    active: "Activo",
-    completed: "Completado",
-    cancelled: "Cancelado",
+    interested: "Interesado",
+    confirmed: "Confirmado",
+    operating: "Operando",
+    suspended: "Suspendido",
+    finished: "Finalizado",
   };
 
   const statusVariants: Record<DeploymentStatus, "warning" | "covered" | "pending" | "critical"> = {
-    planned: "warning",
-    active: "covered",
-    completed: "pending",
-    cancelled: "critical",
+    interested: "warning",
+    confirmed: "warning",
+    operating: "covered",
+    suspended: "pending",
+    finished: "pending",
   };
 
-  const activeDeployments = deployments.filter((d) => d.status === "active" || d.status === "planned");
-  const pastDeployments = deployments.filter((d) => d.status === "completed" || d.status === "cancelled");
+  const activeDeployments = deployments.filter((d) => 
+    d.status === "operating" || d.status === "confirmed" || d.status === "interested"
+  );
+  const pastDeployments = deployments.filter((d) => 
+    d.status === "finished" || d.status === "suspended"
+  );
 
   if (isLoading) {
     return (
@@ -172,7 +179,9 @@ function DeploymentCard({
   statusLabels: Record<DeploymentStatus, string>;
   statusVariants: Record<DeploymentStatus, "warning" | "covered" | "pending" | "critical">;
 }) {
-  const isActive = deployment.status === "active" || deployment.status === "planned";
+  const isActive = deployment.status === "operating" || 
+                   deployment.status === "confirmed" || 
+                   deployment.status === "interested";
 
   return (
     <Card className={isActive ? "" : "opacity-70"}>
@@ -220,10 +229,11 @@ function DeploymentCard({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="planned">Planificado</SelectItem>
-                  <SelectItem value="active">Activo</SelectItem>
-                  <SelectItem value="completed">Completado</SelectItem>
-                  <SelectItem value="cancelled">Cancelado</SelectItem>
+                  <SelectItem value="interested">Interesado</SelectItem>
+                  <SelectItem value="confirmed">Confirmado</SelectItem>
+                  <SelectItem value="operating">Operando</SelectItem>
+                  <SelectItem value="suspended">Suspendido</SelectItem>
+                  <SelectItem value="finished">Finalizado</SelectItem>
                 </SelectContent>
               </Select>
             )}

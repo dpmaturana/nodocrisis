@@ -61,7 +61,7 @@ export const sectorService = {
           const deployments = MOCK_DEPLOYMENTS.filter(
             d => d.sector_id === sector.id && 
                  d.capacity_type_id === capacity.id &&
-                 (d.status === "active" || d.status === "planned")
+                 (d.status === "operating" || d.status === "confirmed")
           );
 
           const coverage = deployments.length;

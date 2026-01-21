@@ -32,6 +32,9 @@ import {
   Lock,
   User,
   Trash2,
+  Eye,
+  Check,
+  Pause,
   type LucideIcon,
 } from "lucide-react";
 
@@ -94,4 +97,7 @@ export {
   Truck,
   Zap,
   Radio,
+  Eye,
+  Check,
+  Pause,
 };
