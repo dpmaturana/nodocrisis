@@ -1,18 +1,19 @@
 import { Button } from "@/components/ui/button";
 import { Shield, Users } from "@/lib/icons";
-import { useMockAuth } from "@/hooks/useMockAuth";
+import { useAuth } from "@/hooks/useAuth";
 
 export function RoleSwitcher() {
-  const { currentRole, toggleRole } = useMockAuth();
+  const { isAdmin } = useAuth();
 
+  // Role is now determined by database - display only
   return (
     <Button
       variant="outline"
       size="sm"
-      onClick={toggleRole}
-      className="gap-2"
+      className="gap-2 cursor-default"
+      disabled
     >
-      {currentRole === "admin" ? (
+      {isAdmin ? (
         <>
           <Shield className="w-4 h-4" />
           <span>Admin</span>
@@ -23,7 +24,6 @@ export function RoleSwitcher() {
           <span>Actor</span>
         </>
       )}
-      <span className="text-xs text-muted-foreground">(click para cambiar)</span>
     </Button>
   );
 }

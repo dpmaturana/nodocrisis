@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { useMockAuth } from "@/hooks/useMockAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { eventService } from "@/services";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,7 @@ import { es } from "date-fns/locale";
 
 export default function EventDetail() {
   const { eventId } = useParams<{ eventId: string }>();
-  const { isAdmin } = useMockAuth();
+  const { isAdmin } = useAuth();
   const [event, setEvent] = useState<Event | null>(null);
   const [sectors, setSectors] = useState<Sector[]>([]);
   const [capacityTypes, setCapacityTypes] = useState<CapacityType[]>([]);

@@ -13,7 +13,7 @@ import {
   Trash2,
   Sparkles,
 } from "lucide-react";
-import { useAuth } from "@/hooks/useMockAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { situationReportService, MOCK_CAPACITY_TYPES } from "@/services";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";

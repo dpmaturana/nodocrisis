@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useMockAuth } from "@/hooks/useMockAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { capabilityService } from "@/services";
 import type { CapabilityWithType } from "@/services/capabilityService";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +16,7 @@ import { Building2, Plus, Trash2 } from "@/lib/icons";
 import type { AvailabilityStatus, CapacityType } from "@/types/database";
 
 export default function MyCapabilities() {
-  const { user, profile } = useMockAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
   const [capabilities, setCapabilities] = useState<CapabilityWithType[]>([]);
   const [capacityTypes, setCapacityTypes] = useState<CapacityType[]>([]);
