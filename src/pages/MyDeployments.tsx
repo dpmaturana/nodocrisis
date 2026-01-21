@@ -67,12 +67,14 @@ export default function MyDeployments() {
             Gestiona tus inscripciones y despliegues en sectores de emergencia
           </p>
         </div>
-        <Button variant="outline" asChild>
-          <Link to="/sectors">
-            <MapPin className="w-4 h-4 mr-2" />
-            Ver Sectores Recomendados
-          </Link>
-        </Button>
+        {activeGroups.length > 0 && (
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/sectors">
+              <MapPin className="w-4 h-4 mr-2" />
+              Buscar nuevos sectores donde apoyar
+            </Link>
+          </Button>
+        )}
       </div>
 
       {/* Active Deployments grouped by Sector */}
