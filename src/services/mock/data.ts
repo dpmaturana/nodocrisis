@@ -440,8 +440,45 @@ export function getDeploymentsByEventId(eventId: string): Deployment[] {
   return MOCK_DEPLOYMENTS.filter(d => d.event_id === eventId);
 }
 
+// Returns capabilities for any user - if no specific capabilities, returns demo set
 export function getCapabilitiesByActorId(actorId: string): ActorCapability[] {
-  return MOCK_ACTOR_CAPABILITIES.filter(c => c.user_id === actorId);
+  const userCapabilities = MOCK_ACTOR_CAPABILITIES.filter(c => c.user_id === actorId);
+  
+  // If user has no capabilities yet, return demo capabilities assigned to them
+  if (userCapabilities.length === 0) {
+    return getDefaultCapabilitiesForUser(actorId);
+  }
+  
+  return userCapabilities;
+}
+
+// Creates default demo capabilities for any new user
+function getDefaultCapabilitiesForUser(userId: string): ActorCapability[] {
+  const now = new Date().toISOString();
+  return [
+    {
+      id: `demo-cap-${userId}-1`,
+      user_id: userId,
+      capacity_type_id: "cap-2", // Transporte
+      quantity: 2,
+      unit: "vehículos",
+      availability: "ready",
+      notes: "Vehículos de demostración",
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      id: `demo-cap-${userId}-2`,
+      user_id: userId,
+      capacity_type_id: "cap-5", // Alimentación
+      quantity: 500,
+      unit: "raciones",
+      availability: "ready",
+      notes: "Raciones de emergencia demo",
+      created_at: now,
+      updated_at: now,
+    },
+  ];
 }
 
 // ============== GAP HELPERS ==============
