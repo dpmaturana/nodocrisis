@@ -200,7 +200,7 @@ export function SectorDetailDrawer({
               
               <div className="flex items-start gap-2 p-3 rounded-lg bg-warning/10 border border-warning/30 mb-3">
                 <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
-                <p className="text-xs text-warning-foreground">
+                <p className="text-xs text-foreground">
                   La presencia o cantidad de actores no implica que la necesidad esté contenida.
                 </p>
               </div>
