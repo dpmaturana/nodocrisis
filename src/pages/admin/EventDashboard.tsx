@@ -132,7 +132,7 @@ export default function EventDashboard() {
               Eventos
             </Link>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
-            <span className="font-medium">{event.name}
+            <span className="font-medium">{event.name}</span>
           </div>
           <h1 className="text-3xl font-bold tracking-tight">{event.name}</h1>
           <div className="flex items-center gap-4 mt-2 text-muted-foreground">
