@@ -6,6 +6,10 @@ import type {
   ActorCapability,
   DeploymentStatus,
   AvailabilityStatus,
+  Gap,
+  GapState,
+  Signal,
+  SignalType,
 } from "@/types/database";
 
 // ============== CAPACITY TYPES ==============
@@ -148,6 +152,33 @@ export const MOCK_SECTORS: Sector[] = [
   },
 ];
 
+// ============== GAPS (PRD-aligned) ==============
+export const MOCK_GAPS: Gap[] = [
+  // Critical gaps - require immediate attention
+  { id: "gap-1", event_id: "evt-mock-1", sector_id: "sec-1", capacity_type_id: "cap-1", state: "critical", last_updated_at: "2026-01-21T10:30:00Z", signal_count: 5 },
+  { id: "gap-2", event_id: "evt-mock-1", sector_id: "sec-1", capacity_type_id: "cap-8", state: "critical", last_updated_at: "2026-01-21T10:15:00Z", signal_count: 3 },
+  { id: "gap-3", event_id: "evt-mock-1", sector_id: "sec-4", capacity_type_id: "cap-3", state: "critical", last_updated_at: "2026-01-21T09:45:00Z", signal_count: 4 },
+  // Partial gaps - some coverage but insufficient
+  { id: "gap-4", event_id: "evt-mock-1", sector_id: "sec-2", capacity_type_id: "cap-4", state: "partial", last_updated_at: "2026-01-21T09:00:00Z", signal_count: 2 },
+  { id: "gap-5", event_id: "evt-mock-1", sector_id: "sec-4", capacity_type_id: "cap-5", state: "partial", last_updated_at: "2026-01-21T08:30:00Z", signal_count: 2 },
+  // Active gaps - fully covered
+  { id: "gap-6", event_id: "evt-mock-1", sector_id: "sec-3", capacity_type_id: "cap-1", state: "active", last_updated_at: "2026-01-20T16:00:00Z", signal_count: 1 },
+  // Evaluating - not visible in dashboard
+  { id: "gap-7", event_id: "evt-mock-1", sector_id: "sec-2", capacity_type_id: "cap-7", state: "evaluating", last_updated_at: "2026-01-21T07:00:00Z", signal_count: 1 },
+];
+
+// ============== SIGNALS ==============
+export const MOCK_SIGNALS: Signal[] = [
+  // Gap 1 signals (Agua y Bomberos - San Carlos Rural)
+  { id: "sig-1", event_id: "evt-mock-1", sector_id: "sec-1", signal_type: "sms", level: "sector", content: "Necesitamos agua urgente, llevamos 2 días sin suministro", source: "+56912345678", confidence: 0.85, created_at: "2026-01-21T10:30:00Z" },
+  { id: "sig-2", event_id: "evt-mock-1", sector_id: "sec-1", signal_type: "sms", level: "sector", content: "El fuego está muy cerca, no hay bomberos", source: "+56987654321", confidence: 0.9, created_at: "2026-01-21T10:00:00Z" },
+  { id: "sig-3", event_id: "evt-mock-1", sector_id: "sec-1", signal_type: "field_report", level: "sector", content: "Sector sin acceso a agua potable. Cisternas requeridas.", source: "Equipo Terreno A", confidence: 0.95, created_at: "2026-01-21T09:30:00Z" },
+  { id: "sig-4", event_id: "evt-mock-1", sector_id: "sec-1", signal_type: "context", level: "sector", content: "Zona rural aislada, infraestructura hídrica dañada por incendio anterior", source: "Reporte Situación Inicial", confidence: 1.0, created_at: "2026-01-15T08:00:00Z" },
+  // Gap 3 signals (Salud - Ñiquén Norte)
+  { id: "sig-7", event_id: "evt-mock-1", sector_id: "sec-4", signal_type: "sms", level: "sector", content: "Necesitamos ambulancia, hay heridos", source: "+56922222222", confidence: 0.85, created_at: "2026-01-21T09:45:00Z" },
+  { id: "sig-8", event_id: "evt-mock-1", sector_id: "sec-4", signal_type: "official", level: "sector", content: "Hospital local saturado, requiere apoyo externo", source: "SEREMI Salud", confidence: 1.0, created_at: "2026-01-21T08:00:00Z" },
+];
+
 // ============== NEED LEVEL MATRIX ==============
 export type NeedLevelExtended = "unknown" | "low" | "medium" | "high" | "critical" | "covered";
 
@@ -214,7 +245,7 @@ export const MOCK_SECTOR_CAPABILITY_MATRIX: Record<string, Record<string, NeedLe
   },
 };
 
-// ============== DEPLOYMENTS ==============
+// ============== DEPLOYMENTS (PRD-aligned states) ==============
 export let MOCK_DEPLOYMENTS: Deployment[] = [
   {
     id: "dep-1",
@@ -222,7 +253,7 @@ export let MOCK_DEPLOYMENTS: Deployment[] = [
     sector_id: "sec-1",
     capacity_type_id: "cap-2",
     actor_id: "mock-actor-1",
-    status: "active",
+    status: "operating",
     notes: "2 camionetas disponibles para traslado",
     verified: true,
     created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
@@ -234,7 +265,7 @@ export let MOCK_DEPLOYMENTS: Deployment[] = [
     sector_id: "sec-3",
     capacity_type_id: "cap-5",
     actor_id: "mock-actor-1",
-    status: "completed",
+    status: "finished",
     notes: "Entrega de 500 raciones",
     verified: true,
     created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
@@ -246,7 +277,7 @@ export let MOCK_DEPLOYMENTS: Deployment[] = [
     sector_id: "sec-2",
     capacity_type_id: "cap-3",
     actor_id: "mock-actor-1",
-    status: "planned",
+    status: "confirmed",
     notes: "Despliegue de ambulancia programado",
     verified: false,
     created_at: new Date().toISOString(),
@@ -320,6 +351,59 @@ export function getCapabilitiesByActorId(actorId: string): ActorCapability[] {
   return MOCK_ACTOR_CAPABILITIES.filter(c => c.user_id === actorId);
 }
 
+// ============== GAP HELPERS ==============
+export function getGapsByEventId(eventId: string): Gap[] {
+  return MOCK_GAPS.filter(g => g.event_id === eventId);
+}
+
+export function getVisibleGaps(eventId: string): Gap[] {
+  return MOCK_GAPS.filter(g => 
+    g.event_id === eventId && 
+    (g.state === 'critical' || g.state === 'partial')
+  );
+}
+
+export function getGapById(id: string): Gap | undefined {
+  return MOCK_GAPS.find(g => g.id === id);
+}
+
+export function getSignalsByGap(sectorId: string, capacityTypeId: string): Signal[] {
+  return MOCK_SIGNALS.filter(s => s.sector_id === sectorId);
+}
+
+export function getSignalsBySector(sectorId: string): Signal[] {
+  return MOCK_SIGNALS.filter(s => s.sector_id === sectorId);
+}
+
+export function getDeploymentsByGap(sectorId: string, capacityTypeId: string): Deployment[] {
+  return MOCK_DEPLOYMENTS.filter(d => 
+    d.sector_id === sectorId && 
+    d.capacity_type_id === capacityTypeId
+  );
+}
+
+export function getOperatingCount(eventId: string): number {
+  return MOCK_DEPLOYMENTS.filter(d => 
+    d.event_id === eventId && 
+    d.status === 'operating'
+  ).length;
+}
+
+export function countGapsByState(eventId: string): Record<GapState, number> {
+  const gaps = getGapsByEventId(eventId);
+  return {
+    evaluating: gaps.filter(g => g.state === 'evaluating').length,
+    critical: gaps.filter(g => g.state === 'critical').length,
+    partial: gaps.filter(g => g.state === 'partial').length,
+    active: gaps.filter(g => g.state === 'active').length,
+  };
+}
+
+export function getSectorsWithGaps(eventId: string): string[] {
+  const visibleGaps = getVisibleGaps(eventId);
+  return [...new Set(visibleGaps.map(g => g.sector_id))];
+}
+
 // Mutators for in-memory state
 export function addDeployment(deployment: Omit<Deployment, "id" | "created_at" | "updated_at">): Deployment {
   const newDeployment: Deployment = {
@@ -391,4 +475,14 @@ export function updateMatrixCell(sectorId: string, capacityId: string, level: Ne
     MOCK_SECTOR_CAPABILITY_MATRIX[sectorId] = {};
   }
   MOCK_SECTOR_CAPABILITY_MATRIX[sectorId][capacityId] = level;
+}
+
+export function addSignal(signal: Omit<Signal, "id" | "created_at">): Signal {
+  const newSignal: Signal = {
+    ...signal,
+    id: `sig-${Date.now()}`,
+    created_at: new Date().toISOString(),
+  };
+  (MOCK_SIGNALS as Signal[]).push(newSignal);
+  return newSignal;
 }
