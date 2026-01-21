@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useMockAuth";
 import { Button } from "@/components/ui/button";
 import {
   Activity,
