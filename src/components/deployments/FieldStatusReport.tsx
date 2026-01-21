@@ -205,11 +205,38 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
           }, actorId);
         }
       } else if (audioBlob || textNote.trim()) {
-        // Mock data warning
-        console.warn("Skipping report processing: mock IDs detected", { eventId, sectorId });
+        // Mock data - create local mock report for visualization
+        console.warn("Using mock report visualization", { eventId, sectorId });
+        
+        // Create a mock FieldReport for visualization
+        const mockReport: FieldReport = {
+          id: `mock-report-${Date.now()}`,
+          event_id: eventId,
+          sector_id: sectorId,
+          actor_id: actorId,
+          audio_url: '',
+          transcript: null,
+          text_note: textNote || null,
+          status: 'completed',
+          extracted_data: {
+            sector_mentioned: null,
+            capability_types: [],
+            items: [],
+            location_detail: null,
+            observations: textNote || 'Reporte de prueba sin procesar por IA.',
+            evidence_quotes: [],
+            confidence: 1,
+          },
+          error_message: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        
+        reportWithResults = mockReport;
+        
         toast({
-          title: "Reporte no guardado en BD",
-          description: "Los reportes solo se guardan con eventos reales, no con datos de prueba.",
+          title: "Modo prueba",
+          description: "Visualización simulada. En producción se procesará con IA.",
           variant: "default",
         });
       }
