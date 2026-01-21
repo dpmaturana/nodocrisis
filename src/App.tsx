@@ -3,8 +3,9 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { MockAuthProvider } from "@/hooks/useMockAuth";
+import { AuthProvider } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
+import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Events from "./pages/Events";
 import EventDetail from "./pages/EventDetail";
@@ -22,13 +23,16 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <MockAuthProvider>
+    <AuthProvider>
       <TooltipProvider>
         <Toaster />
         <Sonner />
         <BrowserRouter>
           <Routes>
-            {/* All routes now protected with mock auth - no login needed */}
+            {/* Auth route - public */}
+            <Route path="/auth" element={<Auth />} />
+            
+            {/* Protected routes */}
             <Route element={<AppLayout />}>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
@@ -48,9 +52,6 @@ const App = () => (
               <Route path="/admin/coordination" element={<Coordination />} />
               <Route path="/admin/actors" element={<Dashboard />} />
               <Route path="/admin/settings" element={<Dashboard />} />
-              
-              {/* Redirect old auth route */}
-              <Route path="/auth" element={<Navigate to="/dashboard" replace />} />
             </Route>
 
             {/* Catch-all */}
@@ -58,7 +59,7 @@ const App = () => (
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
-    </MockAuthProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 
