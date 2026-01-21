@@ -9,11 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertTriangle, ArrowLeft, MapPin, Plus } from "lucide-react";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown } from "lucide-react";
 import { SectorCard } from "@/components/sectors/SectorCard";
 import { SectorDetailDrawer } from "@/components/sectors/SectorDetailDrawer";
@@ -30,14 +26,14 @@ export default function Sectors() {
   const [otherSectorsOpen, setOtherSectorsOpen] = useState(false);
 
   const navigate = useNavigate();
-  
+
   // Show back button for actors in operation mode
   const showBackButton = isActor && !isAdmin && isOperating;
 
   useEffect(() => {
     const fetchData = async () => {
       if (!user) return;
-      
+
       try {
         const [enrichedSectors, capabilities] = await Promise.all([
           sectorService.getEnrichedSectors(user.id),
@@ -94,10 +90,8 @@ export default function Sectors() {
           </Button>
         )}
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">¿Dónde puedo ayudar?</h1>
-          <p className="text-muted-foreground mt-1">
-            Sectores priorizados según tus capacidades
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight">Dónde tu organización es más necesaria ahora</h1>
+          <p className="text-muted-foreground mt-1">Sectores priorizados según tus capacidades</p>
         </div>
       </div>
 
@@ -134,9 +128,7 @@ export default function Sectors() {
               </p>
             </div>
             <Button variant="outline" asChild>
-              <Link to="/my-capabilities">
-                Editar Capacidades
-              </Link>
+              <Link to="/my-capabilities">Editar Capacidades</Link>
             </Button>
           </CardContent>
         </Card>
