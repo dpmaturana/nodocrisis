@@ -1,19 +1,6 @@
-import { simulateDelay } from "./mock/delay";
-import {
-  MOCK_DEPLOYMENTS,
-  getDeploymentsByActorId,
-  addDeployment,
-  updateDeploymentStatus as mockUpdateDeploymentStatus,
-  getEventById,
-  getSectorById,
-  getCapacityTypeById,
-  getActorsInSector,
-  MOCK_SECTOR_CONTEXT,
-  MOCK_SECTOR_CAPABILITY_MATRIX,
-  type SectorContext,
-  type ActorInSector,
-} from "./mock/data";
-import type { Deployment, DeploymentStatus, Event, Sector, CapacityType, GapState } from "@/types/database";
+import { supabase } from "@/integrations/supabase/client";
+import type { Deployment, DeploymentStatus, Event, Sector, CapacityType } from "@/types/database";
+import type { ActorInSector, SectorContext } from "./mock/data";
 
 export interface DeploymentWithDetails extends Deployment {
   event?: Event;
@@ -23,6 +10,9 @@ export interface DeploymentWithDetails extends Deployment {
 
 export type OperatingPhase = "preparing" | "operating" | "stabilizing";
 export type SectorState = "critical" | "partial" | "contained";
+
+// Re-export types for consumers
+export type { ActorInSector, SectorContext };
 
 export interface SectorDeploymentGroup {
   sector: Sector;
@@ -34,17 +24,19 @@ export interface SectorDeploymentGroup {
   otherActors: ActorInSector[];
 }
 
-function determineSectorState(sectorId: string): SectorState {
-  const matrix = MOCK_SECTOR_CAPABILITY_MATRIX[sectorId];
-  if (!matrix) return "partial";
-  
-  const values = Object.values(matrix);
-  const hasCritical = values.includes("critical");
-  const hasHigh = values.includes("high");
-  const allCoveredOrLow = values.every(v => v === "covered" || v === "low" || v === "unknown");
-  
-  if (hasCritical) return "critical";
-  if (allCoveredOrLow) return "contained";
+export interface SectorDeploymentGroup {
+  sector: Sector;
+  event: Event;
+  sectorState: SectorState;
+  sectorContext: SectorContext;
+  deployments: DeploymentWithDetails[];
+  operatingPhase: OperatingPhase;
+  otherActors: ActorInSector[];
+}
+
+function determineSectorState(needLevels: string[]): SectorState {
+  if (needLevels.includes("critical")) return "critical";
+  if (needLevels.every(v => v === "low" || v === "covered")) return "contained";
   return "partial";
 }
 
@@ -75,15 +67,12 @@ function sortSectorGroups(groups: SectorDeploymentGroup[]): SectorDeploymentGrou
   };
   
   return groups.sort((a, b) => {
-    // 1. By operating phase
     if (phaseOrder[a.operatingPhase] !== phaseOrder[b.operatingPhase]) {
       return phaseOrder[a.operatingPhase] - phaseOrder[b.operatingPhase];
     }
-    // 2. By sector state (critical first)
     if (stateOrder[a.sectorState] !== stateOrder[b.sectorState]) {
       return stateOrder[a.sectorState] - stateOrder[b.sectorState];
     }
-    // 3. By most recent update
     const aLatest = Math.max(...a.deployments.map(d => new Date(d.updated_at).getTime()));
     const bLatest = Math.max(...b.deployments.map(d => new Date(d.updated_at).getTime()));
     return bLatest - aLatest;
@@ -92,69 +81,103 @@ function sortSectorGroups(groups: SectorDeploymentGroup[]): SectorDeploymentGrou
 
 export const deploymentService = {
   async getMyDeployments(actorId: string): Promise<DeploymentWithDetails[]> {
-    await simulateDelay(200);
-    
-    const deployments = getDeploymentsByActorId(actorId);
-    
-    return deployments.map((d) => ({
+    const { data, error } = await supabase
+      .from("deployments")
+      .select(`
+        *,
+        event:events(*),
+        sector:sectors(*),
+        capacity_type:capacity_types(*)
+      `)
+      .eq("actor_id", actorId);
+
+    if (error) throw error;
+
+    return (data || []).map((d: any) => ({
       ...d,
-      event: getEventById(d.event_id),
-      sector: getSectorById(d.sector_id),
-      capacity_type: getCapacityTypeById(d.capacity_type_id),
+      event: d.event,
+      sector: d.sector,
+      capacity_type: d.capacity_type,
     }));
   },
 
   async getMyDeploymentsGrouped(actorId: string): Promise<SectorDeploymentGroup[]> {
-    await simulateDelay(200);
-    
-    const deployments = getDeploymentsByActorId(actorId);
+    const deployments = await this.getMyDeployments(actorId);
     
     // Group by sector
     const sectorMap = new Map<string, DeploymentWithDetails[]>();
     
     deployments.forEach((d) => {
-      const withDetails: DeploymentWithDetails = {
-        ...d,
-        event: getEventById(d.event_id),
-        sector: getSectorById(d.sector_id),
-        capacity_type: getCapacityTypeById(d.capacity_type_id),
-      };
-      
       const existing = sectorMap.get(d.sector_id) || [];
-      existing.push(withDetails);
+      existing.push(d);
       sectorMap.set(d.sector_id, existing);
+    });
+    
+    // Get need levels for determining sector state
+    const sectorIds = Array.from(sectorMap.keys());
+    const { data: needsData } = await supabase
+      .from("sector_needs_context")
+      .select("sector_id, level")
+      .in("sector_id", sectorIds);
+    
+    const needsBySector = new Map<string, string[]>();
+    (needsData || []).forEach((n: any) => {
+      const existing = needsBySector.get(n.sector_id) || [];
+      existing.push(n.level);
+      needsBySector.set(n.sector_id, existing);
+    });
+    
+    // Get other actors in sectors
+    const { data: otherDeployments } = await supabase
+      .from("deployments")
+      .select(`
+        id,
+        sector_id,
+        status,
+        actor_id,
+        capacity_type:capacity_types(name),
+        profile:profiles!deployments_actor_id_fkey(full_name, organization_name)
+      `)
+      .in("sector_id", sectorIds)
+      .neq("actor_id", actorId);
+    
+    const otherActorsBySector = new Map<string, ActorInSector[]>();
+    (otherDeployments || []).forEach((d: any) => {
+      const existing = otherActorsBySector.get(d.sector_id) || [];
+      existing.push({
+        id: d.id,
+        name: d.profile?.organization_name || d.profile?.full_name || "Actor",
+        capacity: d.capacity_type?.name || "Capacidad",
+        status: d.status,
+      });
+      otherActorsBySector.set(d.sector_id, existing);
     });
     
     // Build groups
     const groups: SectorDeploymentGroup[] = [];
     
     sectorMap.forEach((sectorDeployments, sectorId) => {
-      const sector = getSectorById(sectorId);
+      const sector = sectorDeployments[0]?.sector;
       const event = sectorDeployments[0]?.event;
       
       if (!sector || !event) return;
       
-      const sectorState = determineSectorState(sectorId);
+      const needLevels = needsBySector.get(sectorId) || ["medium"];
+      const sectorState = determineSectorState(needLevels);
       const operatingPhase = determineOperatingPhase(sectorDeployments, sectorState);
-      
-      // Get other actors (exclude current actor)
-      const allActors = getActorsInSector(sectorId);
-      const otherActors = allActors.filter(a => 
-        !sectorDeployments.some(d => d.id === a.id)
-      );
       
       groups.push({
         sector,
         event,
         sectorState,
-        sectorContext: MOCK_SECTOR_CONTEXT[sectorId] || {
+        sectorContext: {
           keyPoints: [],
           extendedContext: "",
-          operationalSummary: "Sin información disponible",
+          operationalSummary: `Sector ${sector.canonical_name} - ${event.name}`,
         },
         deployments: sectorDeployments,
         operatingPhase,
-        otherActors,
+        otherActors: otherActorsBySector.get(sectorId) || [],
       });
     });
     
@@ -168,71 +191,95 @@ export const deploymentService = {
     capacityTypeId: string,
     notes?: string
   ): Promise<Deployment> {
-    await simulateDelay(300);
-    
     // Check if already enrolled
-    const existing = MOCK_DEPLOYMENTS.find(
-      d => d.actor_id === actorId && 
-           d.sector_id === sectorId && 
-           d.capacity_type_id === capacityTypeId &&
-           d.status !== "finished"
-    );
+    const { data: existing } = await supabase
+      .from("deployments")
+      .select("id")
+      .eq("actor_id", actorId)
+      .eq("sector_id", sectorId)
+      .eq("capacity_type_id", capacityTypeId)
+      .not("status", "eq", "finished")
+      .single();
     
     if (existing) {
       throw new Error("Ya estás inscrito en este sector con esta capacidad");
     }
     
-    return addDeployment({
-      event_id: eventId,
-      sector_id: sectorId,
-      capacity_type_id: capacityTypeId,
-      actor_id: actorId,
-      status: "interested",
-      notes: notes || null,
-      verified: false,
-    });
+    const { data, error } = await supabase
+      .from("deployments")
+      .insert({
+        event_id: eventId,
+        sector_id: sectorId,
+        capacity_type_id: capacityTypeId,
+        actor_id: actorId,
+        status: "interested",
+        notes: notes || null,
+        verified: false,
+      })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
   },
 
   async updateStatus(id: string, status: DeploymentStatus): Promise<void> {
-    await simulateDelay(200);
-    mockUpdateDeploymentStatus(id, status);
+    const { error } = await supabase
+      .from("deployments")
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    
+    if (error) throw error;
   },
 
   async updateStatusWithNote(id: string, status: DeploymentStatus, notes?: string): Promise<void> {
-    await simulateDelay(200);
-    mockUpdateDeploymentStatus(id, status);
+    const updateData: any = { 
+      status, 
+      updated_at: new Date().toISOString() 
+    };
     
     if (notes) {
-      const deployment = MOCK_DEPLOYMENTS.find(d => d.id === id);
-      if (deployment) {
-        deployment.notes = notes;
-      }
+      updateData.notes = notes;
     }
+    
+    const { error } = await supabase
+      .from("deployments")
+      .update(updateData)
+      .eq("id", id);
+    
+    if (error) throw error;
   },
 
   async markSectorAsOperating(sectorId: string, actorId: string): Promise<void> {
-    await simulateDelay(200);
+    const { error } = await supabase
+      .from("deployments")
+      .update({ status: "operating", updated_at: new Date().toISOString() })
+      .eq("sector_id", sectorId)
+      .eq("actor_id", actorId)
+      .in("status", ["interested", "confirmed"]);
     
-    // Update all deployments for this actor in this sector to operating
-    MOCK_DEPLOYMENTS.forEach(d => {
-      if (d.sector_id === sectorId && d.actor_id === actorId && 
-          (d.status === "interested" || d.status === "confirmed")) {
-        d.status = "operating";
-        d.updated_at = new Date().toISOString();
-      }
-    });
+    if (error) throw error;
   },
 
   async getActiveCount(): Promise<number> {
-    await simulateDelay(100);
-    return MOCK_DEPLOYMENTS.filter(d => d.status === "operating").length;
+    const { count, error } = await supabase
+      .from("deployments")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "operating");
+    
+    if (error) throw error;
+    return count || 0;
   },
 
   async getOperatingCount(eventId: string): Promise<number> {
-    await simulateDelay(100);
-    return MOCK_DEPLOYMENTS.filter(
-      d => d.event_id === eventId && d.status === "operating"
-    ).length;
+    const { count, error } = await supabase
+      .from("deployments")
+      .select("*", { count: "exact", head: true })
+      .eq("event_id", eventId)
+      .eq("status", "operating");
+    
+    if (error) throw error;
+    return count || 0;
   },
 
   async markAsOperating(
@@ -240,8 +287,6 @@ export const deploymentService = {
     feedbackType: "yes" | "insufficient" | "suspended",
     notes?: string
   ): Promise<void> {
-    await simulateDelay(200);
-    
     let status: DeploymentStatus;
 
     switch (feedbackType) {
@@ -254,14 +299,6 @@ export const deploymentService = {
         break;
     }
 
-    mockUpdateDeploymentStatus(id, status);
-    
-    // Update notes if provided
-    if (notes) {
-      const deployment = MOCK_DEPLOYMENTS.find(d => d.id === id);
-      if (deployment) {
-        deployment.notes = notes;
-      }
-    }
+    await this.updateStatusWithNote(id, status, notes);
   },
 };

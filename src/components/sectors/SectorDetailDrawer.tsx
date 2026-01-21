@@ -223,7 +223,7 @@ export function SectorDetailDrawer({
                         <span className="font-medium text-sm">{actor.name}</span>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {actor.capacityType.name} · {actor.quantity} {actor.unit} · 
+                        {actor.capacity} · 
                         {actor.status === "operating" ? " Operando" : " Confirmado"}
                       </p>
                     </div>

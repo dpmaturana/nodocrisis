@@ -261,7 +261,7 @@ function PreparingPhaseContent({
                 />
                 <span className="font-medium">{actor.name}</span>
                 <span className="text-muted-foreground">·</span>
-                <span className="text-muted-foreground">{actor.capacityType.name}</span>
+                <span className="text-muted-foreground">{actor.capacity}</span>
               </div>
             ))}
           </div>
