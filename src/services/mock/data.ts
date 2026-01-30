@@ -10,6 +10,11 @@ import type {
   GapState,
   Signal,
   SignalType,
+  Actor,
+  ActorCapabilityDeclared,
+  ActorHabitualZone,
+  ActorContact,
+  ActorParticipationHistory,
 } from "@/types/database";
 
 // ============== CAPACITY TYPES ==============
@@ -767,3 +772,113 @@ export function getOperatingActorsForEvent(eventId: string): OperatingActorInfo[
     };
   });
 }
+
+// ============== ACTOR NETWORK (Structural, non-operational) ==============
+
+export const MOCK_ACTORS_NETWORK: Actor[] = [
+  {
+    id: "actor-net-1",
+    user_id: "mock-actor-1",
+    organization_name: "Cruz Roja Chile",
+    organization_type: "ong",
+    description: "Organización humanitaria con presencia nacional, especializada en respuesta a emergencias y desastres.",
+    structural_status: "active",
+    created_at: "2025-01-01T00:00:00Z",
+    updated_at: "2025-01-15T00:00:00Z",
+  },
+  {
+    id: "actor-net-2",
+    user_id: "mock-admin-1",
+    organization_name: "Bomberos Voluntarios Chillán",
+    organization_type: "volunteer",
+    description: "Cuerpo de bomberos con capacidad de rescate y combate de incendios forestales.",
+    structural_status: "active",
+    created_at: "2025-01-01T00:00:00Z",
+    updated_at: "2025-01-10T00:00:00Z",
+  },
+  {
+    id: "actor-net-3",
+    user_id: "mock-state-1",
+    organization_name: "ONEMI Regional Ñuble",
+    organization_type: "state",
+    description: "Oficina Nacional de Emergencias - Región de Ñuble. Coordinación interinstitucional.",
+    structural_status: "active",
+    created_at: "2024-12-01T00:00:00Z",
+    updated_at: "2025-01-05T00:00:00Z",
+  },
+  {
+    id: "actor-net-4",
+    user_id: "mock-private-1",
+    organization_name: "Transporte Andes SpA",
+    organization_type: "private",
+    description: "Empresa de transporte con flota de camiones disponible para emergencias.",
+    structural_status: "active",
+    created_at: "2024-11-15T00:00:00Z",
+    updated_at: "2025-01-02T00:00:00Z",
+  },
+  {
+    id: "actor-net-5",
+    user_id: "mock-vol-1",
+    organization_name: "Voluntarios por Chile",
+    organization_type: "volunteer",
+    description: "Red de voluntarios para apoyo logístico en emergencias.",
+    structural_status: "inactive",
+    created_at: "2024-10-01T00:00:00Z",
+    updated_at: "2024-12-20T00:00:00Z",
+  },
+];
+
+export const MOCK_ACTOR_CAPABILITIES_DECLARED: ActorCapabilityDeclared[] = [
+  // Cruz Roja
+  { id: "acd-1", actor_id: "actor-net-1", capacity_type_id: "cap-2", level: "specialized", notes: "Flota de 15 vehículos 4x4 con equipamiento", created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  { id: "acd-2", actor_id: "actor-net-1", capacity_type_id: "cap-3", level: "operational", notes: "2 ambulancias básicas", created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  { id: "acd-3", actor_id: "actor-net-1", capacity_type_id: "cap-5", level: "specialized", notes: "Cocina móvil para 500 personas", created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  // Bomberos
+  { id: "acd-4", actor_id: "actor-net-2", capacity_type_id: "cap-1", level: "specialized", notes: "3 carros bomba, 2 cisternas", created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  { id: "acd-5", actor_id: "actor-net-2", capacity_type_id: "cap-8", level: "specialized", notes: "Equipo SAR certificado", created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  // ONEMI
+  { id: "acd-6", actor_id: "actor-net-3", capacity_type_id: "cap-7", level: "specialized", notes: "Red de comunicaciones regional", created_at: "2024-12-01T00:00:00Z", updated_at: "2024-12-01T00:00:00Z" },
+  { id: "acd-7", actor_id: "actor-net-3", capacity_type_id: "cap-4", level: "operational", notes: "Coordinación de albergues", created_at: "2024-12-01T00:00:00Z", updated_at: "2024-12-01T00:00:00Z" },
+  // Transporte Andes
+  { id: "acd-8", actor_id: "actor-net-4", capacity_type_id: "cap-2", level: "specialized", notes: "20 camiones de carga", created_at: "2024-11-15T00:00:00Z", updated_at: "2024-11-15T00:00:00Z" },
+  { id: "acd-9", actor_id: "actor-net-4", capacity_type_id: "cap-6", level: "operational", notes: "2 retroexcavadoras", created_at: "2024-11-15T00:00:00Z", updated_at: "2024-11-15T00:00:00Z" },
+  // Voluntarios
+  { id: "acd-10", actor_id: "actor-net-5", capacity_type_id: "cap-5", level: "basic", notes: "Preparación de alimentos", created_at: "2024-10-01T00:00:00Z", updated_at: "2024-10-01T00:00:00Z" },
+];
+
+export const MOCK_ACTOR_ZONES: ActorHabitualZone[] = [
+  // Cruz Roja
+  { id: "zone-1", actor_id: "actor-net-1", region: "Ñuble", commune: null, presence_type: "habitual", created_at: "2025-01-01T00:00:00Z" },
+  { id: "zone-2", actor_id: "actor-net-1", region: "Biobío", commune: "Concepción", presence_type: "occasional", created_at: "2025-01-01T00:00:00Z" },
+  { id: "zone-3", actor_id: "actor-net-1", region: "Maule", commune: null, presence_type: "occasional", created_at: "2025-01-01T00:00:00Z" },
+  // Bomberos
+  { id: "zone-4", actor_id: "actor-net-2", region: "Ñuble", commune: "Chillán", presence_type: "habitual", created_at: "2025-01-01T00:00:00Z" },
+  { id: "zone-5", actor_id: "actor-net-2", region: "Ñuble", commune: "San Carlos", presence_type: "habitual", created_at: "2025-01-01T00:00:00Z" },
+  // ONEMI
+  { id: "zone-6", actor_id: "actor-net-3", region: "Ñuble", commune: null, presence_type: "habitual", created_at: "2024-12-01T00:00:00Z" },
+  // Transporte Andes
+  { id: "zone-7", actor_id: "actor-net-4", region: "Ñuble", commune: null, presence_type: "habitual", created_at: "2024-11-15T00:00:00Z" },
+  { id: "zone-8", actor_id: "actor-net-4", region: "Biobío", commune: null, presence_type: "habitual", created_at: "2024-11-15T00:00:00Z" },
+  // Voluntarios
+  { id: "zone-9", actor_id: "actor-net-5", region: "Metropolitana", commune: null, presence_type: "habitual", created_at: "2024-10-01T00:00:00Z" },
+];
+
+export const MOCK_ACTOR_CONTACTS: ActorContact[] = [
+  // Cruz Roja
+  { id: "contact-1", actor_id: "actor-net-1", name: "María González", role: "Coordinadora Emergencias", primary_channel: "+56 9 1234 5678", secondary_channel: "mgonzalez@cruzroja.cl", is_primary: true, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  { id: "contact-2", actor_id: "actor-net-1", name: "Carlos Muñoz", role: "Jefe Logística", primary_channel: "+56 9 2345 6789", secondary_channel: null, is_primary: false, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  // Bomberos
+  { id: "contact-3", actor_id: "actor-net-2", name: "Pedro Fernández", role: "Comandante", primary_channel: "+56 9 8765 4321", secondary_channel: "comandancia@bomberos.cl", is_primary: true, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  // ONEMI
+  { id: "contact-4", actor_id: "actor-net-3", name: "Ana Sepúlveda", role: "Directora Regional", primary_channel: "+56 9 5555 1234", secondary_channel: "asepulveda@onemi.gov.cl", is_primary: true, created_at: "2024-12-01T00:00:00Z", updated_at: "2024-12-01T00:00:00Z" },
+  // Transporte Andes
+  { id: "contact-5", actor_id: "actor-net-4", name: "Roberto Silva", role: "Gerente Operaciones", primary_channel: "+56 9 7777 8888", secondary_channel: "rsilva@transporteandes.cl", is_primary: true, created_at: "2024-11-15T00:00:00Z", updated_at: "2024-11-15T00:00:00Z" },
+];
+
+export const MOCK_ACTOR_PARTICIPATION_HISTORY: ActorParticipationHistory[] = [
+  // Cruz Roja
+  { event_id: "evt-mock-3", event_name: "Inundación Valdivia 2025", capacities_activated: ["Transporte", "Alimentación"], sectors_operated: ["Valdivia Centro", "Isla Teja"], started_at: "2025-01-05T00:00:00Z", ended_at: "2025-01-15T00:00:00Z" },
+  { event_id: "evt-old-1", event_name: "Incendios Valparaíso 2024", capacities_activated: ["Transporte", "Salud", "Alimentación"], sectors_operated: ["Cerro Alegre", "Cerro Barón"], started_at: "2024-02-01T00:00:00Z", ended_at: "2024-02-20T00:00:00Z" },
+  // Bomberos
+  { event_id: "evt-old-2", event_name: "Incendio Forestal Coihueco 2024", capacities_activated: ["Agua y Bomberos", "Búsqueda y Rescate"], sectors_operated: ["Coihueco Rural", "Pinto"], started_at: "2024-01-15T00:00:00Z", ended_at: "2024-01-25T00:00:00Z" },
+];

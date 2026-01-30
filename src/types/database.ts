@@ -240,3 +240,101 @@ export const EVENT_TYPES = [
   { value: 'emergencia_sanitaria', label: 'Emergencia Sanitaria' },
   { value: 'otro', label: 'Otro' },
 ] as const;
+
+// ============== ACTOR NETWORK TYPES (Structural, non-operational) ==============
+
+export type ActorType = 'ong' | 'state' | 'private' | 'volunteer';
+export type ActorStructuralStatus = 'active' | 'inactive';
+export type CapabilityLevel = 'basic' | 'operational' | 'specialized';
+export type PresenceType = 'habitual' | 'occasional';
+
+export interface Actor {
+  id: string;
+  user_id: string;
+  organization_name: string;
+  organization_type: ActorType;
+  description: string | null;
+  structural_status: ActorStructuralStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ActorCapabilityDeclared {
+  id: string;
+  actor_id: string;
+  capacity_type_id: string;
+  level: CapabilityLevel;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ActorHabitualZone {
+  id: string;
+  actor_id: string;
+  region: string;
+  commune: string | null;
+  presence_type: PresenceType;
+  created_at: string;
+}
+
+export interface ActorContact {
+  id: string;
+  actor_id: string;
+  name: string;
+  role: string;
+  primary_channel: string;
+  secondary_channel: string | null;
+  is_primary: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ActorParticipationHistory {
+  event_id: string;
+  event_name: string;
+  capacities_activated: string[];
+  sectors_operated: string[];
+  started_at: string;
+  ended_at: string | null;
+}
+
+export interface ActorWithDetails {
+  actor: Actor;
+  capabilities: ActorCapabilityDeclared[];
+  zones: ActorHabitualZone[];
+  contacts: ActorContact[];
+  capacityTypeNames: Record<string, string>;
+}
+
+export const ACTOR_TYPE_LABELS: Record<ActorType, string> = {
+  ong: 'ONG',
+  state: 'Estado',
+  private: 'Privado',
+  volunteer: 'Voluntariado',
+};
+
+export const CAPABILITY_LEVEL_LABELS: Record<CapabilityLevel, string> = {
+  basic: 'Básico',
+  operational: 'Operativo',
+  specialized: 'Especializado',
+};
+
+export const CHILE_REGIONS = [
+  'Arica y Parinacota',
+  'Tarapacá',
+  'Antofagasta',
+  'Atacama',
+  'Coquimbo',
+  'Valparaíso',
+  'Metropolitana',
+  'O\'Higgins',
+  'Maule',
+  'Ñuble',
+  'Biobío',
+  'La Araucanía',
+  'Los Ríos',
+  'Los Lagos',
+  'Aysén',
+  'Magallanes',
+] as const;
