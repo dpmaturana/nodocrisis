@@ -10,9 +10,9 @@ import {
   MapPin,
   Plus,
   Settings,
-  Shield,
   Users,
-} from "@/lib/icons";
+  Archive,
+} from "lucide-react";
 
 interface SidebarLinkProps {
   to: string;
@@ -64,34 +64,53 @@ export function AppSidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        <div className="mb-4">
-          <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-            General
-          </p>
-          <SidebarLink to="/dashboard" icon={BarChart3} label="Dashboard" />
-          <SidebarLink to="/events" icon={Activity} label="Eventos" />
-          <SidebarLink to="/sectors" icon={MapPin} label="Sectores" />
-        </div>
+        {isAdmin ? (
+          <>
+            {/* Admin Navigation */}
+            <div className="mb-4">
+              <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Operación
+              </p>
+              <SidebarLink to="/admin/event-dashboard" icon={BarChart3} label="Dashboard" />
+              <SidebarLink to="/admin/create-event" icon={Plus} label="Nueva Emergencia" />
+            </div>
 
-        {isAdmin && (
-          <div className="mb-4">
-            <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Administración
-            </p>
-            <SidebarLink to="/admin/create-event" icon={Plus} label="Nueva Emergencia" />
-            <SidebarLink to="/admin/coordination" icon={Shield} label="Coordinación" />
-            <SidebarLink to="/admin/actors" icon={Users} label="Actores" />
-            <SidebarLink to="/admin/settings" icon={Settings} label="Configuración" />
-          </div>
+            <div className="mb-4">
+              <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Gestión
+              </p>
+              <SidebarLink to="/admin/actors" icon={Users} label="Red de Actores" />
+              <SidebarLink to="/admin/past-events" icon={Archive} label="Eventos Pasados" />
+            </div>
+
+            <div className="mb-4">
+              <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Sistema
+              </p>
+              <SidebarLink to="/admin/settings" icon={Settings} label="Configuración" />
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Actor Navigation */}
+            <div className="mb-4">
+              <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                General
+              </p>
+              <SidebarLink to="/dashboard" icon={BarChart3} label="Dashboard" />
+              <SidebarLink to="/events" icon={Activity} label="Eventos" />
+              <SidebarLink to="/sectors" icon={MapPin} label="Sectores" />
+            </div>
+
+            <div className="mb-4">
+              <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Mi Organización
+              </p>
+              <SidebarLink to="/my-capabilities" icon={Building2} label="Mis Capacidades" />
+              <SidebarLink to="/my-deployments" icon={MapPin} label="Mis Despliegues" />
+            </div>
+          </>
         )}
-
-        <div className="mb-4">
-          <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-            Mi Organización
-          </p>
-          <SidebarLink to="/my-capabilities" icon={Building2} label="Mis Capacidades" />
-          <SidebarLink to="/my-deployments" icon={MapPin} label="Mis Despliegues" />
-        </div>
       </nav>
 
       {/* User info */}
