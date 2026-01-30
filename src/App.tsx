@@ -17,6 +17,7 @@ import Coordination from "./pages/admin/Coordination";
 import CreateEventAI from "./pages/admin/CreateEventAI";
 import SituationReport from "./pages/admin/SituationReport";
 import EventDashboard from "./pages/admin/EventDashboard";
+import ActorNetwork from "./pages/admin/ActorNetwork";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -50,7 +51,7 @@ const App = () => (
               <Route path="/admin/event-dashboard" element={<EventDashboard />} />
               <Route path="/admin/event-dashboard/:eventId" element={<EventDashboard />} />
               <Route path="/admin/coordination" element={<Coordination />} />
-              <Route path="/admin/actors" element={<Dashboard />} />
+              <Route path="/admin/actors" element={<ActorNetwork />} />
               <Route path="/admin/settings" element={<Dashboard />} />
             </Route>
 
