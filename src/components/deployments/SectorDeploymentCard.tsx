@@ -313,7 +313,7 @@ function PreparingPhaseContent({
         <div className="space-y-2">
           <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
             <Users className="w-4 h-4" />
-            Otros actores en el sector
+            Other actors in the sector
           </h4>
           <div className="space-y-1">
             {otherActors.slice(0, 3).map((actor) => (
@@ -380,7 +380,7 @@ function OperatingPhaseContent({
     <>
       {/* Capabilities List */}
       <div className="space-y-2">
-        <h4 className="text-sm font-medium text-muted-foreground">Tus capacidades en este sector</h4>
+        <h4 className="text-sm font-medium text-muted-foreground">Your capabilities in this sector</h4>
         <div className="space-y-2">
           {deployments.map((dep) => (
             <CapabilityRow key={dep.id} deployment={dep} />
@@ -395,7 +395,7 @@ function OperatingPhaseContent({
       <div className="pt-2 border-t">
         <Button variant="outline" onClick={onFinish} disabled={isFinishing} className="w-full gap-2">
           <CheckCircle className="w-4 h-4" />
-          Finalizar operación
+          Complete operation
         </Button>
       </div>
     </>
@@ -416,10 +416,10 @@ function StabilizingPhaseContent({ deployments, onFinish, isFinishing }: Stabili
         <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
         <div>
           <p className="text-sm font-medium text-green-700 dark:text-green-400">
-            Tu apoyo ha contribuido a estabilizar la situación
+            Your support contributed to stabilize the situation
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            El sector está contenido. Puedes mantener el monitoreo o finalizar tu operación.
+            Sector is contained. You can continue monitoring or end your operation.
           </p>
         </div>
       </div>
@@ -441,10 +441,10 @@ function StabilizingPhaseContent({ deployments, onFinish, isFinishing }: Stabili
       {/* CTAs */}
       <div className="flex flex-col sm:flex-row gap-2 pt-2">
         <Button variant="outline" className="flex-1">
-          Mantener en monitoreo
+          Continue monitoring
         </Button>
         <Button variant="secondary" onClick={onFinish} disabled={isFinishing} className="flex-1">
-          Finalizar operación
+          End operation
         </Button>
       </div>
     </>
