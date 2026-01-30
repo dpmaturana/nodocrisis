@@ -4,9 +4,9 @@ import { AlertCircle, AlertTriangle, CheckCircle, Clock, Eye, Check, Activity, P
 // ============= Gap State Transitions =============
 
 const validGapTransitions: Record<GapState, GapState[]> = {
-  evaluating: ['critical', 'partial', 'active'],
-  critical: ['partial', 'active'], // Cannot go back to evaluating
-  partial: ['critical', 'active'], // Can escalate or resolve
+  evaluating: ["critical", "partial", "active"],
+  critical: ["partial", "active"], // Cannot go back to evaluating
+  partial: ["critical", "active"], // Can escalate or resolve
   active: [], // Terminal state (fully covered)
 };
 
@@ -61,20 +61,20 @@ export function getGapStateConfig(state: GapState): StateConfig {
 // Matrix: [fromState][role] -> allowedToStates
 const deploymentTransitions: Record<DeploymentStatus, Record<AppRole, DeploymentStatus[]>> = {
   interested: {
-    actor: ['confirmed', 'finished'], // Actor can confirm or withdraw
-    admin: ['confirmed'], // Admin can confirm on behalf
+    actor: ["confirmed", "finished"], // Actor can confirm or withdraw
+    admin: ["confirmed"], // Admin can confirm on behalf
   },
   confirmed: {
-    actor: ['operating', 'suspended', 'finished'],
-    admin: ['operating', 'suspended', 'finished'],
+    actor: ["operating", "suspended", "finished"],
+    admin: ["operating", "suspended", "finished"],
   },
   operating: {
-    actor: ['suspended', 'finished'],
-    admin: ['suspended', 'finished'],
+    actor: ["suspended", "finished"],
+    admin: ["suspended", "finished"],
   },
   suspended: {
-    actor: ['operating', 'finished'], // Can resume or finish
-    admin: ['operating', 'finished'],
+    actor: ["operating", "finished"], // Can resume or finish
+    admin: ["operating", "finished"],
   },
   finished: {
     actor: [], // Terminal
@@ -82,11 +82,7 @@ const deploymentTransitions: Record<DeploymentStatus, Record<AppRole, Deployment
   },
 };
 
-export function canTransitionDeployment(
-  from: DeploymentStatus,
-  to: DeploymentStatus,
-  role: AppRole
-): boolean {
+export function canTransitionDeployment(from: DeploymentStatus, to: DeploymentStatus, role: AppRole): boolean {
   return deploymentTransitions[from]?.[role]?.includes(to) ?? false;
 }
 
@@ -133,26 +129,26 @@ export function getDeploymentStateConfig(status: DeploymentStatus): StateConfig 
 
 // ============= Event Phase Config =============
 
-export type EventPhase = 'stable' | 'unstable' | 'critical';
+export type EventPhase = "stable" | "unstable" | "critical";
 
 export function getEventPhaseConfig(phase: EventPhase): { bg: string; text: string; label: string; emoji: string } {
   const configs: Record<EventPhase, { bg: string; text: string; label: string; emoji: string }> = {
     stable: {
       bg: "bg-coverage/20",
       text: "text-coverage",
-      label: "Estable",
+      label: "Stabilized",
       emoji: "🟢",
     },
     unstable: {
       bg: "bg-warning/20",
       text: "text-warning",
-      label: "Inestable",
+      label: "Unstable",
       emoji: "🟠",
     },
     critical: {
       bg: "bg-gap-critical/20",
       text: "text-gap-critical",
-      label: "Crítico",
+      label: "Critical",
       emoji: "🔴",
     },
   };
