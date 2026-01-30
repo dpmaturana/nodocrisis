@@ -82,14 +82,14 @@ export default function Dashboard() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground mt-1">
-            Centro de comando para coordinación de emergencias
+            Command center for emergency coordination
           </p>
         </div>
         {isAdmin && (
           <Button asChild>
             <Link to="/admin/create-event">
               <Plus className="w-4 h-4 mr-2" />
-              Nuevo Evento
+              New Event
             </Link>
           </Button>
         )}
@@ -98,29 +98,29 @@ export default function Dashboard() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="Eventos Activos"
+          title="Active Events"
           value={activeEventCount}
-          subtitle="Emergencias en curso"
+          subtitle="Ongoing emergencies"
           icon={Activity}
           variant={activeEventCount > 0 ? "warning" : "default"}
         />
         <StatCard
-          title="Sectores Operativos"
+          title="Operational Sectors"
           value={sectorCount}
-          subtitle="Áreas con actividad"
+          subtitle="Areas with activity"
           icon={MapPin}
         />
         <StatCard
-          title="Brechas Críticas"
+          title="Critical Gaps"
           value={criticalGaps}
-          subtitle="Capacidades sin cobertura"
+          subtitle="Uncovered capabilities"
           icon={AlertTriangle}
           variant={criticalGaps > 0 ? "critical" : "success"}
         />
         <StatCard
-          title="Despliegues Activos"
+          title="Active Deployments"
           value={data?.deploymentCount || 0}
-          subtitle="Actores en terreno"
+          subtitle="Actors in the field"
           icon={Users}
           variant="success"
         />
@@ -132,12 +132,12 @@ export default function Dashboard() {
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle>Eventos Activos</CardTitle>
-              <CardDescription>Emergencias en curso que requieren coordinación</CardDescription>
+              <CardTitle>Active Events</CardTitle>
+              <CardDescription>Ongoing emergencies requiring coordination</CardDescription>
             </div>
             <Button variant="ghost" size="sm" asChild>
               <Link to="/events">
-                Ver todos
+                View all
                 <ChevronRight className="w-4 h-4 ml-1" />
               </Link>
             </Button>
@@ -146,12 +146,12 @@ export default function Dashboard() {
             {data?.activeEvents.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Activity className="w-12 h-12 text-muted-foreground/50 mb-4" />
-                <p className="text-muted-foreground">No hay eventos activos</p>
+                <p className="text-muted-foreground">No active events</p>
                 {isAdmin && (
                   <Button variant="outline" size="sm" className="mt-4" asChild>
                     <Link to="/admin/create-event">
                       <Plus className="w-4 h-4 mr-2" />
-                      Crear evento
+                      Create event
                     </Link>
                   </Button>
                 )}
@@ -173,12 +173,12 @@ export default function Dashboard() {
                           {event.name}
                         </h3>
                         <p className="text-sm text-muted-foreground">
-                          {event.location || "Sin ubicación definida"}
+                          {event.location || "No location defined"}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <StatusBadge status="warning" label="Activo" size="sm" />
+                      <StatusBadge status="warning" label="Active" size="sm" />
                       <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors" />
                     </div>
                   </Link>
@@ -191,8 +191,8 @@ export default function Dashboard() {
         {/* Capacity Types */}
         <Card>
           <CardHeader>
-            <CardTitle>Tipos de Capacidad</CardTitle>
-            <CardDescription>Recursos disponibles en el sistema</CardDescription>
+            <CardTitle>Capacity Types</CardTitle>
+            <CardDescription>Available resources in the system</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -213,27 +213,27 @@ export default function Dashboard() {
       {!isAdmin && (
         <Card>
           <CardHeader>
-            <CardTitle>Acciones Rápidas</CardTitle>
-            <CardDescription>Gestiona tu participación en emergencias</CardDescription>
+            <CardTitle>Quick Actions</CardTitle>
+            <CardDescription>Manage your participation in emergencies</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <Button variant="outline" className="h-auto py-4 flex-col gap-2" asChild>
                 <Link to="/my-capabilities">
                   <Building2 className="w-6 h-6" />
-                  <span>Gestionar Capacidades</span>
+                  <span>Manage Capabilities</span>
                 </Link>
               </Button>
               <Button variant="outline" className="h-auto py-4 flex-col gap-2" asChild>
                 <Link to="/sectors">
                   <MapPin className="w-6 h-6" />
-                  <span>Ver Sectores Recomendados</span>
+                  <span>View Recommended Sectors</span>
                 </Link>
               </Button>
               <Button variant="outline" className="h-auto py-4 flex-col gap-2" asChild>
                 <Link to="/my-deployments">
                   <Users className="w-6 h-6" />
-                  <span>Mis Despliegues</span>
+                  <span>My Deployments</span>
                 </Link>
               </Button>
             </div>

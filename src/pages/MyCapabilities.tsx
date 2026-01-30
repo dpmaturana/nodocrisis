@@ -75,8 +75,8 @@ export default function MyCapabilities() {
       });
 
       toast({
-        title: "Capacidad agregada",
-        description: "Tu capacidad ha sido registrada correctamente.",
+        title: "Capability added",
+        description: "Your capability has been registered successfully.",
       });
 
       // Reset form
@@ -93,7 +93,7 @@ export default function MyCapabilities() {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "No se pudo agregar la capacidad",
+        description: error.message || "Could not add the capability",
         variant: "destructive",
       });
     } finally {
@@ -107,13 +107,13 @@ export default function MyCapabilities() {
       setCapabilities(capabilities.filter((c) => c.id !== id));
 
       toast({
-        title: "Capacidad eliminada",
-        description: "La capacidad ha sido removida de tu perfil.",
+        title: "Capability deleted",
+        description: "The capability has been removed from your profile.",
       });
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "No se pudo eliminar la capacidad",
+        description: error.message || "Could not delete the capability",
         variant: "destructive",
       });
     }
@@ -127,7 +127,7 @@ export default function MyCapabilities() {
       );
 
       toast({
-        title: "Disponibilidad actualizada",
+        title: "Availability updated",
       });
     } catch (error: any) {
       toast({
@@ -156,9 +156,9 @@ export default function MyCapabilities() {
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Mis Capacidades</h1>
+        <h1 className="text-3xl font-bold tracking-tight">My Capabilities</h1>
         <p className="text-muted-foreground mt-1">
-          Gestiona las capacidades que tu organización puede aportar en emergencias
+          Manage the capabilities your organization can provide in emergencies
         </p>
       </div>
 
@@ -171,30 +171,30 @@ export default function MyCapabilities() {
                 <Building2 className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <CardTitle>Mi Organización</CardTitle>
-                <CardDescription>Información de contacto</CardDescription>
+                <CardTitle>My Organization</CardTitle>
+                <CardDescription>Contact information</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Nombre de contacto</Label>
+              <Label>Contact name</Label>
               <Input value={fullName} disabled className="bg-muted" />
             </div>
             <div className="space-y-2">
-              <Label>Nombre de la organización</Label>
+              <Label>Organization name</Label>
               <Input value={orgName} disabled className="bg-muted" />
             </div>
             <div className="space-y-2">
-              <Label>Tipo de organización</Label>
+              <Label>Organization type</Label>
               <Input value={orgType} disabled className="bg-muted" />
             </div>
             <div className="space-y-2">
-              <Label>Teléfono</Label>
+              <Label>Phone</Label>
               <Input value={phone} disabled className="bg-muted" />
             </div>
             <p className="text-xs text-muted-foreground">
-              (Perfil de demostración - datos mock)
+              (Demo profile - mock data)
             </p>
           </CardContent>
         </Card>
@@ -203,29 +203,29 @@ export default function MyCapabilities() {
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle>Capacidades Disponibles</CardTitle>
-              <CardDescription>Recursos que puedes aportar</CardDescription>
+              <CardTitle>Available Capabilities</CardTitle>
+              <CardDescription>Resources you can provide</CardDescription>
             </div>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button disabled={availableCapacityTypes.length === 0}>
                   <Plus className="w-4 h-4 mr-2" />
-                  Agregar Capacidad
+                  Add Capability
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Agregar Nueva Capacidad</DialogTitle>
+                  <DialogTitle>Add New Capability</DialogTitle>
                   <DialogDescription>
-                    Registra una capacidad que tu organización puede aportar
+                    Register a capability your organization can provide
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 pt-4">
                   <div className="space-y-2">
-                    <Label>Tipo de capacidad</Label>
+                    <Label>Capability type</Label>
                     <Select value={selectedCapacity} onValueChange={setSelectedCapacity}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar capacidad" />
+                        <SelectValue placeholder="Select capability" />
                       </SelectTrigger>
                       <SelectContent>
                         {availableCapacityTypes.map((ct) => (
@@ -242,50 +242,50 @@ export default function MyCapabilities() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Cantidad (opcional)</Label>
+                      <Label>Quantity (optional)</Label>
                       <Input
                         type="number"
                         value={quantity}
                         onChange={(e) => setQuantity(e.target.value)}
-                        placeholder="Ej: 100"
+                        placeholder="E.g.: 100"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Unidad (opcional)</Label>
+                      <Label>Unit (optional)</Label>
                       <Input
                         value={unit}
                         onChange={(e) => setUnit(e.target.value)}
-                        placeholder="Ej: litros, kits"
+                        placeholder="E.g.: liters, kits"
                       />
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Disponibilidad</Label>
+                    <Label>Availability</Label>
                     <Select value={availability} onValueChange={(v) => setAvailability(v as AvailabilityStatus)}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="ready">Disponible</SelectItem>
-                        <SelectItem value="limited">Limitada</SelectItem>
-                        <SelectItem value="unavailable">No disponible</SelectItem>
+                        <SelectItem value="ready">Available</SelectItem>
+                        <SelectItem value="limited">Limited</SelectItem>
+                        <SelectItem value="unavailable">Unavailable</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Notas adicionales</Label>
+                    <Label>Additional notes</Label>
                     <Textarea
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Información adicional sobre esta capacidad..."
+                      placeholder="Additional information about this capability..."
                       rows={3}
                     />
                   </div>
 
                   <Button onClick={handleAddCapability} className="w-full" disabled={!selectedCapacity || isSaving}>
-                    {isSaving ? "Guardando..." : "Agregar Capacidad"}
+                    {isSaving ? "Saving..." : "Add Capability"}
                   </Button>
                 </div>
               </DialogContent>
@@ -295,8 +295,8 @@ export default function MyCapabilities() {
             {capabilities.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Building2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>No tienes capacidades registradas</p>
-                <p className="text-sm">Agrega las capacidades que puedes aportar</p>
+                <p>You have no registered capabilities</p>
+                <p className="text-sm">Add the capabilities you can provide</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -313,7 +313,7 @@ export default function MyCapabilities() {
                       />
                       {capability.quantity && (
                         <span className="text-sm text-muted-foreground font-mono">
-                          {capability.quantity} {capability.unit || "unidades"}
+                          {capability.quantity} {capability.unit || "units"}
                         </span>
                       )}
                     </div>
@@ -326,9 +326,9 @@ export default function MyCapabilities() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="ready">Disponible</SelectItem>
-                          <SelectItem value="limited">Limitada</SelectItem>
-                          <SelectItem value="unavailable">No disponible</SelectItem>
+                          <SelectItem value="ready">Available</SelectItem>
+                          <SelectItem value="limited">Limited</SelectItem>
+                          <SelectItem value="unavailable">Unavailable</SelectItem>
                         </SelectContent>
                       </Select>
                       <Button

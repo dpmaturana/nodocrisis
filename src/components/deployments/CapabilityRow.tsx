@@ -16,11 +16,11 @@ const statusToVariant: Record<DeploymentStatus, "deploy-interested" | "deploy-co
 };
 
 const statusLabels: Record<DeploymentStatus, string> = {
-  interested: "Interesado",
-  confirmed: "Confirmado",
-  operating: "Operando",
-  suspended: "Suspendido",
-  finished: "Finalizado",
+  interested: "Interested",
+  confirmed: "Confirmed",
+  operating: "Operating",
+  suspended: "Suspended",
+  finished: "Finished",
 };
 
 export function CapabilityRow({ deployment }: CapabilityRowProps) {
@@ -34,7 +34,7 @@ export function CapabilityRow({ deployment }: CapabilityRowProps) {
         />
         <div>
           <span className="font-medium text-sm">
-            {deployment.capacity_type?.name || "Capacidad"}
+            {deployment.capacity_type?.name || "Capability"}
           </span>
           {deployment.notes && (
             <p className="text-xs text-muted-foreground mt-0.5">
