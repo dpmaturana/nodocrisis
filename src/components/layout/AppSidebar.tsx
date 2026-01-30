@@ -60,7 +60,7 @@ export function AppSidebar() {
                 Operation
               </p>
               <SidebarLink to="/admin/event-dashboard" icon={BarChart3} label="Dashboard" />
-              <SidebarLink to="/admin/create-event" icon={Plus} label="Nueva Emergencia" />
+              <SidebarLink to="/admin/create-event" icon={Plus} label="New Emergency" />
             </div>
 
             <div className="mb-4">
