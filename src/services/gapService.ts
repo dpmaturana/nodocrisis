@@ -6,15 +6,24 @@ import {
   getGapById as getGapByIdFromData,
   getGapsByEventId,
   getSignalsByGap,
+  getSignalsBySector,
   getDeploymentsByGap,
   countGapsByState,
   getSectorsWithGaps as getSectorsWithGapsFromData,
   getSectorById,
   getCapacityTypeById,
   getEventById,
+  getOperatingCount,
+  MOCK_SECTOR_CONTEXT,
+  getLastSignalForEvent,
+  getGlobalConfidence,
+  getDominantSignalTypesForGap,
+  getOperatingActorsForEvent,
+  type SectorContext,
+  type OperatingActorInfo,
 } from "./mock/data";
 import { getGapStateConfig } from "@/lib/stateTransitions";
-import type { Gap, GapState, Signal, Deployment, Sector, CapacityType, Event } from "@/types/database";
+import type { Gap, GapState, Signal, Deployment, Sector, CapacityType, Event, SignalType } from "@/types/database";
 
 export interface GapWithDetails extends Gap {
   sector?: Sector;
@@ -30,6 +39,37 @@ export interface GapCounts {
   active: number;
   evaluating: number;
   sectorsWithGaps: number;
+}
+
+export interface SectorWithGaps {
+  sector: Sector;
+  context: SectorContext;
+  gaps: GapWithDetails[];
+  hasCritical: boolean;
+  gapCounts: { critical: number; partial: number };
+  gapSignalTypes: Record<string, SignalType[]>;
+}
+
+export interface OperatingActor {
+  id: string;
+  name: string;
+  type: "ong" | "state" | "private" | "volunteer";
+  sectors: string[];
+  capacity: string;
+  lastConfirmation: string | null;
+  gapId?: string;
+  contact?: {
+    name: string;
+    role?: string;
+    phone?: string;
+    email?: string;
+  };
+}
+
+export interface DashboardMeta {
+  lastSignal: Signal | null;
+  globalConfidence: "high" | "medium" | "low";
+  operatingCount: number;
 }
 
 export const gapService = {
@@ -50,6 +90,69 @@ export const gapService = {
       if (a.state === 'critical' && b.state !== 'critical') return -1;
       if (a.state !== 'critical' && b.state === 'critical') return 1;
       return new Date(b.last_updated_at).getTime() - new Date(a.last_updated_at).getTime();
+    });
+  },
+
+  /**
+   * Get gaps grouped by sector for admin dashboard
+   */
+  async getGapsGroupedBySector(eventId: string): Promise<SectorWithGaps[]> {
+    await simulateDelay(150);
+    const visibleGaps = getVisibleGaps(eventId);
+    
+    // Group gaps by sector_id
+    const gapsBySector: Record<string, Gap[]> = {};
+    visibleGaps.forEach(gap => {
+      if (!gapsBySector[gap.sector_id]) {
+        gapsBySector[gap.sector_id] = [];
+      }
+      gapsBySector[gap.sector_id].push(gap);
+    });
+    
+    // Build SectorWithGaps for each sector
+    const sectorsWithGaps: SectorWithGaps[] = Object.entries(gapsBySector).map(([sectorId, gaps]) => {
+      const sector = getSectorById(sectorId);
+      const context = MOCK_SECTOR_CONTEXT[sectorId] || {
+        keyPoints: [],
+        extendedContext: "",
+        operationalSummary: "",
+      };
+      
+      const gapsWithDetails: GapWithDetails[] = gaps.map(gap => ({
+        ...gap,
+        sector: sector,
+        capacity_type: getCapacityTypeById(gap.capacity_type_id),
+        event: getEventById(gap.event_id),
+        coverage: getDeploymentsByGap(gap.sector_id, gap.capacity_type_id),
+      }));
+      
+      // Get signal types for each gap
+      const gapSignalTypes: Record<string, SignalType[]> = {};
+      gaps.forEach(gap => {
+        gapSignalTypes[gap.id] = getDominantSignalTypesForGap(gap.sector_id, gap.capacity_type_id);
+      });
+      
+      const criticalCount = gaps.filter(g => g.state === 'critical').length;
+      const partialCount = gaps.filter(g => g.state === 'partial').length;
+      
+      return {
+        sector: sector!,
+        context,
+        gaps: gapsWithDetails,
+        hasCritical: criticalCount > 0,
+        gapCounts: { critical: criticalCount, partial: partialCount },
+        gapSignalTypes,
+      };
+    });
+    
+    // Sort: sectors with critical gaps first, then by number of critical, then partial
+    return sectorsWithGaps.sort((a, b) => {
+      if (a.hasCritical && !b.hasCritical) return -1;
+      if (!a.hasCritical && b.hasCritical) return 1;
+      if (a.gapCounts.critical !== b.gapCounts.critical) {
+        return b.gapCounts.critical - a.gapCounts.critical;
+      }
+      return b.gapCounts.partial - a.gapCounts.partial;
     });
   },
 
@@ -90,6 +193,14 @@ export const gapService = {
   },
 
   /**
+   * Get signals for a specific gap
+   */
+  async getSignalsForGap(sectorId: string, capacityTypeId: string): Promise<Signal[]> {
+    await simulateDelay(50);
+    return getSignalsBySector(sectorId);
+  },
+
+  /**
    * Get counts for metrics cards
    */
   async getCounts(eventId: string): Promise<GapCounts> {
@@ -101,6 +212,26 @@ export const gapService = {
       ...counts,
       sectorsWithGaps,
     };
+  },
+
+  /**
+   * Get dashboard meta info (last signal, global confidence, etc.)
+   */
+  async getDashboardMeta(eventId: string): Promise<DashboardMeta> {
+    await simulateDelay(50);
+    return {
+      lastSignal: getLastSignalForEvent(eventId),
+      globalConfidence: getGlobalConfidence(eventId),
+      operatingCount: getOperatingCount(eventId),
+    };
+  },
+
+  /**
+   * Get operating actors for modal
+   */
+  async getOperatingActors(eventId: string): Promise<OperatingActor[]> {
+    await simulateDelay(100);
+    return getOperatingActorsForEvent(eventId);
   },
 
   /**

@@ -616,3 +616,154 @@ export function addSignal(signal: Omit<Signal, "id" | "created_at">): Signal {
   (MOCK_SIGNALS as Signal[]).push(newSignal);
   return newSignal;
 }
+
+// ============== DASHBOARD HELPERS ==============
+
+/**
+ * Get the last reliable signal for an event
+ */
+export function getLastSignalForEvent(eventId: string): Signal | null {
+  const eventSignals = MOCK_SIGNALS.filter(s => s.event_id === eventId);
+  if (eventSignals.length === 0) return null;
+  
+  // Sort by created_at descending
+  const sorted = [...eventSignals].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+  
+  return sorted[0];
+}
+
+/**
+ * Get global confidence level for an event based on signal quality
+ */
+export function getGlobalConfidence(eventId: string): "high" | "medium" | "low" {
+  const eventSignals = MOCK_SIGNALS.filter(s => s.event_id === eventId);
+  
+  if (eventSignals.length === 0) return "low";
+  
+  // Calculate average confidence weighted by signal type
+  const avgConfidence =
+    eventSignals.reduce((sum, s) => sum + s.confidence, 0) / eventSignals.length;
+  
+  // Check for recent field reports (high value)
+  const hasRecentFieldReports = eventSignals.some(
+    s => s.signal_type === "field_report" || s.signal_type === "official"
+  );
+  
+  if (avgConfidence >= 0.85 && hasRecentFieldReports) return "high";
+  if (avgConfidence >= 0.6) return "medium";
+  return "low";
+}
+
+/**
+ * Get dominant signal types for a specific gap
+ */
+export function getDominantSignalTypesForGap(
+  sectorId: string,
+  capacityTypeId: string
+): SignalType[] {
+  const signals = MOCK_SIGNALS.filter(s => s.sector_id === sectorId);
+  
+  // Count by type
+  const typeCounts: Record<string, number> = {};
+  signals.forEach(s => {
+    typeCounts[s.signal_type] = (typeCounts[s.signal_type] || 0) + 1;
+  });
+  
+  // Sort by count and take top 2
+  const sortedTypes = Object.entries(typeCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 2)
+    .map(([type]) => type as SignalType);
+  
+  return sortedTypes;
+}
+
+/**
+ * Get operating actors with full info
+ */
+export interface OperatingActorInfo {
+  id: string;
+  name: string;
+  type: "ong" | "state" | "private" | "volunteer";
+  sectors: string[];
+  capacity: string;
+  lastConfirmation: string;
+  gapId?: string;
+  contact?: {
+    name: string;
+    role?: string;
+    phone?: string;
+    email?: string;
+  };
+}
+
+export function getOperatingActorsForEvent(eventId: string): OperatingActorInfo[] {
+  const operatingDeployments = MOCK_DEPLOYMENTS.filter(
+    d => d.event_id === eventId && d.status === "operating"
+  );
+  
+  // Group by actor_id
+  const actorDeployments: Record<string, typeof operatingDeployments> = {};
+  operatingDeployments.forEach(d => {
+    if (!actorDeployments[d.actor_id]) {
+      actorDeployments[d.actor_id] = [];
+    }
+    actorDeployments[d.actor_id].push(d);
+  });
+  
+  // Mock actor details
+  const actorDetails: Record<string, { name: string; type: "ong" | "state" | "private" | "volunteer"; contact: OperatingActorInfo["contact"] }> = {
+    "mock-actor-1": {
+      name: "Cruz Roja Chile",
+      type: "ong",
+      contact: {
+        name: "María González",
+        role: "Coordinadora Emergencias",
+        phone: "+56 9 1234 5678",
+        email: "mgonzalez@cruzroja.cl",
+      },
+    },
+    "mock-admin-1": {
+      name: "Bomberos Voluntarios",
+      type: "volunteer",
+      contact: {
+        name: "Pedro Fernández",
+        role: "Jefe de Operaciones",
+        phone: "+56 9 8765 4321",
+      },
+    },
+  };
+  
+  return Object.entries(actorDeployments).map(([actorId, deployments]) => {
+    const sectors = deployments.map(d => {
+      const sector = getSectorById(d.sector_id);
+      return sector?.canonical_name || "Sector desconocido";
+    });
+    
+    const capacity = deployments.map(d => {
+      const cap = getCapacityTypeById(d.capacity_type_id);
+      return cap?.name || "Capacidad";
+    }).join(", ");
+    
+    const latestDeployment = deployments.sort(
+      (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    )[0];
+    
+    const details = actorDetails[actorId];
+    const name = details?.name || "Organización Anónima";
+    const type = details?.type || "ong";
+    const contact = details?.contact;
+    
+    return {
+      id: actorId,
+      name,
+      type,
+      sectors: [...new Set(sectors)],
+      capacity,
+      lastConfirmation: latestDeployment.updated_at,
+      contact,
+    };
+  });
+}
