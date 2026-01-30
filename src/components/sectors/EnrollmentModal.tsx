@@ -102,22 +102,22 @@ export function EnrollmentModal({
             sector.event.id,
             sector.sector.id,
             opt.capability.capacity_type_id,
-            `Inscripción desde sector ${sector.sector.canonical_name}`
+            `Enrollment from sector ${sector.sector.canonical_name}`
           )
         )
       );
 
       toast({
-        title: "Inscripción exitosa",
-        description: `Te has inscrito en ${sector.sector.canonical_name} con ${selectedCount} capacidad${selectedCount > 1 ? "es" : ""}.`,
+        title: "Enrollment successful",
+        description: `You have enrolled in ${sector.sector.canonical_name} with ${selectedCount} ${selectedCount > 1 ? "capabilities" : "capability"}.`,
       });
 
       onOpenChange(false);
       onSuccess();
     } catch (error: any) {
       toast({
-        title: "Error al inscribirse",
-        description: error.message || "No se pudo completar la inscripción",
+        title: "Enrollment error",
+        description: error.message || "Could not complete the enrollment",
         variant: "destructive",
       });
     } finally {
@@ -131,16 +131,16 @@ export function EnrollmentModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Inscribirse en {sector.sector.canonical_name}</DialogTitle>
+          <DialogTitle>Enroll in {sector.sector.canonical_name}</DialogTitle>
           <DialogDescription>
-            Selecciona las capacidades que puedes aportar en este sector:
+            Select the capabilities you can provide in this sector:
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 py-4 max-h-[400px] overflow-y-auto">
           {options.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
-              No tienes capacidades declaradas. Agrega capacidades en tu perfil para poder inscribirte.
+              You have no declared capabilities. Add capabilities in your profile to enroll.
             </p>
           ) : (
             options.map((option) => {
@@ -170,20 +170,20 @@ export function EnrollmentModal({
                       />
                       <span className="font-medium text-sm">
                         {/* We'll get the name from the gap if available */}
-                        {gap?.capacityType.name || `Capacidad`}
+                        {gap?.capacityType.name || `Capability`}
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Tienes: {cap.quantity} {cap.unit}
-                      {cap.availability === "limited" && " (limitada)"}
+                      You have: {cap.quantity} {cap.unit}
+                      {cap.availability === "limited" && " (limited)"}
                     </p>
                     {gap ? (
                       <p className={`text-xs mt-1 ${gap.isCritical ? "text-gap-critical" : "text-warning"}`}>
-                        Brecha: {gap.isCritical ? "🔴 Crítico" : "🟠 Parcial"}
+                        Gap: {gap.isCritical ? "🔴 Critical" : "🟠 Partial"}
                       </p>
                     ) : (
                       <p className="text-xs text-muted-foreground mt-1">
-                        Sin brecha activa en este sector
+                        No active gap in this sector
                       </p>
                     )}
                   </div>
@@ -199,18 +199,18 @@ export function EnrollmentModal({
             onClick={() => onOpenChange(false)}
             disabled={isSubmitting}
           >
-            Cancelar
+            Cancel
           </Button>
           <Button
             onClick={handleSubmit}
             disabled={selectedCount === 0 || isSubmitting}
           >
             {isSubmitting ? (
-              "Inscribiendo..."
+              "Enrolling..."
             ) : (
               <>
                 <Check className="w-4 h-4 mr-2" />
-                Confirmar inscripción ({selectedCount})
+                Confirm enrollment ({selectedCount})
               </>
             )}
           </Button>

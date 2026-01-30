@@ -1,6 +1,5 @@
 import { formatDistanceToNow } from "date-fns";
-import { es } from "date-fns/locale";
-import { MapPin, Users, AlertTriangle, FileText, MessageSquare, Info } from "lucide-react";
+import { MapPin, Users, AlertTriangle, FileText, MessageSquare, Info, ChevronDown } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -18,7 +17,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 import type { EnrichedSector } from "@/services/sectorService";
 
@@ -57,9 +55,9 @@ export function SectorDetailDrawer({
   );
 
   const stateConfig = {
-    critical: { label: "Sector crítico", icon: "🔴", className: "text-gap-critical" },
-    partial: { label: "Sector parcial", icon: "🟠", className: "text-warning" },
-    contained: { label: "Sector contenido", icon: "🟢", className: "text-coverage" },
+    critical: { label: "Critical sector", icon: "🔴", className: "text-gap-critical" },
+    partial: { label: "Partial sector", icon: "🟠", className: "text-warning" },
+    contained: { label: "Contained sector", icon: "🟢", className: "text-coverage" },
   };
 
   const config = stateConfig[state];
@@ -87,7 +85,7 @@ export function SectorDetailDrawer({
             {/* Operational Summary */}
             <section>
               <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                Resumen Operativo
+                Operational Summary
               </h3>
               <p className="text-sm italic text-foreground/80 bg-muted/50 p-3 rounded-lg">
                 "{context.operationalSummary}"
@@ -99,20 +97,20 @@ export function SectorDetailDrawer({
             {/* Context Details */}
             <section>
               <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                Contexto del Sector
+                Sector Context
               </h3>
               <div className="space-y-3">
                 {context.accessInfo && (
                   <div className="flex items-start gap-2 text-sm">
-                    <span className="font-medium text-muted-foreground w-20 shrink-0">Acceso:</span>
+                    <span className="font-medium text-muted-foreground w-20 shrink-0">Access:</span>
                     <span>{context.accessInfo}</span>
                   </div>
                 )}
                 {context.isolationLevel && context.isolationLevel !== "none" && (
                   <div className="flex items-start gap-2 text-sm">
-                    <span className="font-medium text-muted-foreground w-20 shrink-0">Aislamiento:</span>
+                    <span className="font-medium text-muted-foreground w-20 shrink-0">Isolation:</span>
                     <span className={context.isolationLevel === "total" ? "text-gap-critical font-medium" : ""}>
-                      {context.isolationLevel === "partial" ? "Parcial" : "Total"}
+                      {context.isolationLevel === "partial" ? "Partial" : "Total"}
                     </span>
                   </div>
                 )}
@@ -127,13 +125,13 @@ export function SectorDetailDrawer({
             {/* Gaps - Relevant */}
             <section>
               <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                Brechas Activas
+                Active Gaps
               </h3>
               
               {relevantGaps.length > 0 && (
                 <div className="space-y-2 mb-4">
                   <p className="text-xs text-muted-foreground">
-                    Compatibles con tus capacidades ({relevantGaps.length})
+                    Compatible with your capabilities ({relevantGaps.length})
                   </p>
                   {relevantGaps.map((gap) => (
                     <div 
@@ -154,7 +152,7 @@ export function SectorDetailDrawer({
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">
-                          Demanda: {gap.totalDemand >= 3 ? "Alta" : gap.totalDemand >= 2 ? "Media" : "Baja"}
+                          Demand: {gap.totalDemand >= 3 ? "High" : gap.totalDemand >= 2 ? "Medium" : "Low"}
                         </span>
                         <span>{gap.isCritical ? "🔴" : "🟠"}</span>
                       </div>
@@ -168,7 +166,7 @@ export function SectorDetailDrawer({
                 <Collapsible open={otherGapsOpen} onOpenChange={setOtherGapsOpen}>
                   <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground w-full">
                     <ChevronDown className={`w-4 h-4 transition-transform ${otherGapsOpen ? "rotate-180" : ""}`} />
-                    Otras brechas ({otherGaps.length})
+                    Other gaps ({otherGaps.length})
                   </CollapsibleTrigger>
                   <CollapsibleContent className="mt-2 space-y-2">
                     {otherGaps.map((gap) => (
@@ -197,19 +195,19 @@ export function SectorDetailDrawer({
             {/* Actors in Sector */}
             <section>
               <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                Actores Apoyando en el Sector
+                Actors Supporting in Sector
               </h3>
               
               <div className="flex items-start gap-2 p-3 rounded-lg bg-warning/10 border border-warning/30 mb-3">
                 <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
                 <p className="text-xs text-foreground">
-                  La presencia o cantidad de actores no implica que la necesidad esté contenida.
+                  The presence or number of actors does not imply the need is contained.
                 </p>
               </div>
 
               {actorsInSector.length === 0 ? (
                 <p className="text-sm text-muted-foreground italic">
-                  No hay actores confirmados u operando en este sector.
+                  No confirmed or operating actors in this sector.
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -226,7 +224,7 @@ export function SectorDetailDrawer({
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {actor.capacity} · 
-                        {actor.status === "operating" ? " Operando" : " Confirmado"}
+                        {actor.status === "operating" ? " Operating" : " Confirmed"}
                       </p>
                     </div>
                   ))}
@@ -240,11 +238,11 @@ export function SectorDetailDrawer({
                 <Separator />
                 <section>
                   <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                    Magnitud Estimada
+                    Estimated Magnitude
                   </h3>
                   <div className="flex items-center gap-2 text-sm">
                     <Info className="w-4 h-4 text-muted-foreground" />
-                    <span>Personas afectadas: {context.estimatedAffected} (estimado)</span>
+                    <span>People affected: {context.estimatedAffected} (estimated)</span>
                   </div>
                 </section>
               </>
@@ -256,7 +254,7 @@ export function SectorDetailDrawer({
                 <Separator />
                 <section>
                   <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                    Señales Recientes
+                    Recent Signals
                   </h3>
                   <div className="space-y-2">
                     {recentSignals.slice(0, 3).map((signal) => (
@@ -273,8 +271,7 @@ export function SectorDetailDrawer({
                           <p className="text-sm truncate">{signal.content}</p>
                           <p className="text-xs text-muted-foreground">
                             {formatDistanceToNow(new Date(signal.created_at), { 
-                              addSuffix: true, 
-                              locale: es 
+                              addSuffix: true
                             })}
                           </p>
                         </div>
@@ -292,7 +289,7 @@ export function SectorDetailDrawer({
           <div className="p-4 border-t bg-background">
             <Button className="w-full" size="lg" onClick={onEnroll}>
               <Users className="w-4 h-4 mr-2" />
-              Inscribirme en este sector
+              Enroll in this sector
             </Button>
           </div>
         )}
