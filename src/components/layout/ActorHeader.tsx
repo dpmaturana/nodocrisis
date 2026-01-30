@@ -21,7 +21,7 @@ export function ActorHeader() {
   };
 
   const orgInitial = profile?.organization_name?.[0]?.toUpperCase() || "O";
-  const orgName = profile?.organization_name || "Mi Organización";
+  const orgName = profile?.organization_name || "My Organization";
 
   return (
     <header className="sticky top-0 z-40 bg-background border-b border-border">
@@ -50,12 +50,12 @@ export function ActorHeader() {
           <DropdownMenuContent align="end" className="w-56 bg-popover">
             <DropdownMenuItem onClick={() => navigate("/my-capabilities")}>
               <Building2 className="w-4 h-4 mr-2" />
-              Mis Capacidades
+              My Capabilities
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
               <LogOut className="w-4 h-4 mr-2" />
-              Cerrar sesión
+              Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

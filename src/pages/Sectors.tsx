@@ -85,13 +85,13 @@ export default function Sectors() {
           <Button variant="ghost" size="sm" className="w-fit -ml-2" asChild>
             <Link to="/my-deployments">
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Volver a Mis Despliegues
+              Back to My Deployments
             </Link>
           </Button>
         )}
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dónde tu organización es más necesaria ahora</h1>
-          <p className="text-muted-foreground mt-1">Sectores priorizados según tus capacidades</p>
+          <h1 className="text-3xl font-bold tracking-tight">Where your organization is needed most</h1>
+          <p className="text-muted-foreground mt-1">Sectors prioritized based on your capabilities</p>
         </div>
       </div>
 
@@ -101,15 +101,15 @@ export default function Sectors() {
           <CardContent className="flex items-center gap-4 py-4">
             <AlertTriangle className="w-8 h-8 text-warning" />
             <div className="flex-1">
-              <p className="font-medium">No tienes capacidades declaradas</p>
+              <p className="font-medium">You have no declared capabilities</p>
               <p className="text-sm text-muted-foreground">
-                Agrega tus capacidades para ver sectores recomendados específicos para ti.
+                Add your capabilities to see sectors recommended specifically for you.
               </p>
             </div>
             <Button asChild>
               <Link to="/my-capabilities">
                 <Plus className="w-4 h-4 mr-2" />
-                Agregar Capacidades
+                Add Capabilities
               </Link>
             </Button>
           </CardContent>
@@ -122,13 +122,13 @@ export default function Sectors() {
           <CardContent className="flex items-center gap-4 py-4">
             <AlertTriangle className="w-8 h-8 text-warning" />
             <div className="flex-1">
-              <p className="font-medium">No hay sectores que coincidan con tus capacidades</p>
+              <p className="font-medium">No sectors match your capabilities</p>
               <p className="text-sm text-muted-foreground">
-                Puedes ver otros sectores con brechas activas más abajo, o agregar más capacidades a tu perfil.
+                You can view other sectors with active gaps below, or add more capabilities to your profile.
               </p>
             </div>
             <Button variant="outline" asChild>
-              <Link to="/my-capabilities">Editar Capacidades</Link>
+              <Link to="/my-capabilities">Edit Capabilities</Link>
             </Button>
           </CardContent>
         </Card>
@@ -153,7 +153,7 @@ export default function Sectors() {
         <Collapsible open={otherSectorsOpen} onOpenChange={setOtherSectorsOpen}>
           <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground py-2">
             <ChevronDown className={`w-4 h-4 transition-transform ${otherSectorsOpen ? "rotate-180" : ""}`} />
-            Otros sectores con brechas ({otherSectors.length})
+            Other sectors with gaps ({otherSectors.length})
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-4 pt-2">
             {otherSectors.map((sector) => (
@@ -173,9 +173,9 @@ export default function Sectors() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <MapPin className="w-12 h-12 text-muted-foreground/50 mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No hay sectores con brechas activas</h3>
+            <h3 className="text-lg font-semibold mb-2">No sectors with active gaps</h3>
             <p className="text-muted-foreground max-w-md">
-              Actualmente todos los sectores tienen cobertura adecuada o no hay eventos activos.
+              All sectors currently have adequate coverage or there are no active events.
             </p>
           </CardContent>
         </Card>

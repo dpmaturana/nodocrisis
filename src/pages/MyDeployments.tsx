@@ -62,16 +62,16 @@ export default function MyDeployments() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Mis Despliegues</h1>
+          <h1 className="text-3xl font-bold tracking-tight">My Deployments</h1>
           <p className="text-muted-foreground mt-1">
-            Gestiona tus inscripciones y despliegues en sectores de emergencia
+            Manage your enrollments and deployments in emergency sectors
           </p>
         </div>
         {activeGroups.length > 0 && (
           <Button variant="outline" size="sm" asChild>
             <Link to="/sectors">
               <MapPin className="w-4 h-4 mr-2" />
-              Buscar nuevos sectores donde apoyar
+              Find new sectors to support
             </Link>
           </Button>
         )}
@@ -82,11 +82,11 @@ export default function MyDeployments() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <MapPin className="w-12 h-12 text-muted-foreground/50 mb-4" />
-            <p className="text-muted-foreground mb-4">No tienes despliegues activos</p>
+            <p className="text-muted-foreground mb-4">You have no active deployments</p>
             <Button variant="outline" asChild>
               <Link to="/sectors">
                 <MapPin className="w-4 h-4 mr-2" />
-                Buscar sectores donde ayudar
+                Find sectors to help
               </Link>
             </Button>
           </CardContent>
@@ -114,7 +114,7 @@ export default function MyDeployments() {
             >
               <span className="flex items-center gap-2">
                 <History className="w-4 h-4" />
-                Historial ({historyCount} despliegues pasados)
+                History ({historyCount} past deployments)
               </span>
               <ChevronDown className="w-4 h-4" />
             </Button>
@@ -147,10 +147,10 @@ function HistorySectorCard({ group }: { group: SectorDeploymentGroup }) {
           </div>
           <div className="text-right">
             <p className="text-sm text-muted-foreground">
-              {deployments.length} capacidad{deployments.length !== 1 ? "es" : ""}
+              {deployments.length} {deployments.length !== 1 ? "capabilities" : "capability"}
             </p>
             <p className="text-xs text-muted-foreground">
-              {deployments.every((d) => d.status === "finished") ? "Finalizados" : "Suspendidos"}
+              {deployments.every((d) => d.status === "finished") ? "Finished" : "Suspended"}
             </p>
           </div>
         </div>

@@ -29,7 +29,7 @@ export default function Auth() {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-pulse flex items-center gap-3">
           <Activity className="w-8 h-8 text-primary" />
-          <span className="text-xl font-semibold">Cargando...</span>
+          <span className="text-xl font-semibold">Loading...</span>
         </div>
       </div>
     );
@@ -47,14 +47,14 @@ export default function Auth() {
 
     if (error) {
       toast({
-        title: "Error al iniciar sesión",
+        title: "Sign in error",
         description: error.message,
         variant: "destructive",
       });
     } else {
       toast({
-        title: "Bienvenido",
-        description: "Has iniciado sesión correctamente.",
+        title: "Welcome",
+        description: "You have signed in successfully.",
       });
     }
 
@@ -72,14 +72,14 @@ export default function Auth() {
 
     if (error) {
       toast({
-        title: "Error al registrarse",
+        title: "Registration error",
         description: error.message,
         variant: "destructive",
       });
     } else {
       toast({
-        title: "Registro exitoso",
-        description: "Tu cuenta ha sido creada. Ya puedes iniciar sesión.",
+        title: "Registration successful",
+        description: "Your account has been created. You can now sign in.",
       });
     }
 
@@ -95,33 +95,33 @@ export default function Auth() {
             <Activity className="w-10 h-10 text-primary-foreground" />
           </div>
           <h1 className="text-3xl font-bold">NodoCrisis</h1>
-          <p className="text-muted-foreground mt-1">Coordinación de Emergencias</p>
+          <p className="text-muted-foreground mt-1">Emergency Coordination</p>
         </div>
 
         <Card className="glass">
           <CardHeader className="text-center pb-4">
-            <CardTitle>Acceder a la plataforma</CardTitle>
+            <CardTitle>Access the platform</CardTitle>
             <CardDescription>
-              Ingresa para coordinar respuestas ante emergencias
+              Sign in to coordinate emergency responses
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="login" className="w-full">
               <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="login">Iniciar Sesión</TabsTrigger>
-                <TabsTrigger value="register">Registrarse</TabsTrigger>
+                <TabsTrigger value="login">Sign In</TabsTrigger>
+                <TabsTrigger value="register">Register</TabsTrigger>
               </TabsList>
 
               <TabsContent value="login">
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="login-email">Correo electrónico</Label>
+                    <Label htmlFor="login-email">Email</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
                         id="login-email"
                         type="email"
-                        placeholder="tu@email.com"
+                        placeholder="you@email.com"
                         value={loginEmail}
                         onChange={(e) => setLoginEmail(e.target.value)}
                         className="pl-10"
@@ -131,7 +131,7 @@ export default function Auth() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="login-password">Contraseña</Label>
+                    <Label htmlFor="login-password">Password</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
@@ -147,7 +147,7 @@ export default function Auth() {
                   </div>
 
                   <Button type="submit" className="w-full" disabled={isSubmitting}>
-                    {isSubmitting ? "Ingresando..." : "Iniciar Sesión"}
+                    {isSubmitting ? "Signing in..." : "Sign In"}
                   </Button>
                 </form>
               </TabsContent>
@@ -155,13 +155,13 @@ export default function Auth() {
               <TabsContent value="register">
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="register-name">Nombre completo</Label>
+                    <Label htmlFor="register-name">Full name</Label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
                         id="register-name"
                         type="text"
-                        placeholder="Juan Pérez"
+                        placeholder="John Doe"
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                         className="pl-10"
@@ -170,13 +170,13 @@ export default function Auth() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="register-org">Organización</Label>
+                    <Label htmlFor="register-org">Organization</Label>
                     <div className="relative">
                       <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
                         id="register-org"
                         type="text"
-                        placeholder="ONG, Empresa, Municipio..."
+                        placeholder="NGO, Company, Municipality..."
                         value={organizationName}
                         onChange={(e) => setOrganizationName(e.target.value)}
                         className="pl-10"
@@ -185,13 +185,13 @@ export default function Auth() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="register-email">Correo electrónico</Label>
+                    <Label htmlFor="register-email">Email</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
                         id="register-email"
                         type="email"
-                        placeholder="tu@email.com"
+                        placeholder="you@email.com"
                         value={registerEmail}
                         onChange={(e) => setRegisterEmail(e.target.value)}
                         className="pl-10"
@@ -201,7 +201,7 @@ export default function Auth() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="register-password">Contraseña</Label>
+                    <Label htmlFor="register-password">Password</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
@@ -218,7 +218,7 @@ export default function Auth() {
                   </div>
 
                   <Button type="submit" className="w-full" disabled={isSubmitting}>
-                    {isSubmitting ? "Registrando..." : "Crear Cuenta"}
+                    {isSubmitting ? "Registering..." : "Create Account"}
                   </Button>
                 </form>
               </TabsContent>
@@ -227,7 +227,7 @@ export default function Auth() {
         </Card>
 
         <p className="text-center text-sm text-muted-foreground mt-6">
-          Sistema de coordinación de respuesta ante emergencias
+          Emergency response coordination system
         </p>
       </div>
     </div>

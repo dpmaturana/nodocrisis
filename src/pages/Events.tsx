@@ -10,7 +10,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Activity, ChevronRight, MapPin, Plus, Search } from "@/lib/icons";
 import type { Event } from "@/types/database";
 import { format } from "date-fns";
-import { es } from "date-fns/locale";
 
 export default function Events() {
   const { isAdmin } = useAuth();
@@ -63,16 +62,16 @@ export default function Events() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Eventos de Emergencia</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Emergency Events</h1>
           <p className="text-muted-foreground mt-1">
-            Gestiona y visualiza eventos de emergencia activos y pasados
+            Manage and view active and past emergency events
           </p>
         </div>
         {isAdmin && (
           <Button asChild>
             <Link to="/admin/create-event">
               <Plus className="w-4 h-4 mr-2" />
-              Nuevo Evento
+              New Event
             </Link>
           </Button>
         )}
@@ -82,7 +81,7 @@ export default function Events() {
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
-          placeholder="Buscar eventos..."
+          placeholder="Search events..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10"
@@ -93,13 +92,13 @@ export default function Events() {
       <div>
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
           <Activity className="w-5 h-5 text-warning" />
-          Eventos Activos ({activeEvents.length})
+          Active Events ({activeEvents.length})
         </h2>
         {activeEvents.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12 text-center">
               <Activity className="w-12 h-12 text-muted-foreground/50 mb-4" />
-              <p className="text-muted-foreground">No hay eventos activos</p>
+              <p className="text-muted-foreground">No active events</p>
             </CardContent>
           </Card>
         ) : (
@@ -115,7 +114,7 @@ export default function Events() {
       {closedEvents.length > 0 && (
         <div>
           <h2 className="text-lg font-semibold mb-4 text-muted-foreground">
-            Eventos Cerrados ({closedEvents.length})
+            Closed Events ({closedEvents.length})
           </h2>
           <div className="grid gap-4">
             {closedEvents.map((event) => (
@@ -163,7 +162,7 @@ function EventCard({ event, isAdmin }: { event: Event; isAdmin: boolean }) {
                   </span>
                 )}
                 <span>
-                  Iniciado: {format(new Date(event.started_at), "d MMM yyyy", { locale: es })}
+                  Started: {format(new Date(event.started_at), "d MMM yyyy")}
                 </span>
               </div>
             </div>
@@ -171,7 +170,7 @@ function EventCard({ event, isAdmin }: { event: Event; isAdmin: boolean }) {
           <div className="flex items-center gap-4">
             <StatusBadge
               status={isActive ? "warning" : "pending"}
-              label={isActive ? "Activo" : "Cerrado"}
+              label={isActive ? "Active" : "Closed"}
             />
             <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors" />
           </div>
