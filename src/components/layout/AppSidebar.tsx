@@ -2,17 +2,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import {
-  Activity,
-  BarChart3,
-  Building2,
-  LogOut,
-  MapPin,
-  Plus,
-  Settings,
-  Users,
-  Archive,
-} from "lucide-react";
+import { Activity, BarChart3, Building2, LogOut, MapPin, Plus, Settings, Users, Archive } from "lucide-react";
 
 interface SidebarLinkProps {
   to: string;
@@ -28,9 +18,7 @@ function SidebarLink({ to, icon: Icon, label }: SidebarLinkProps) {
         cn(
           "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
           "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-          isActive
-            ? "bg-sidebar-accent text-sidebar-primary"
-            : "text-sidebar-foreground"
+          isActive ? "bg-sidebar-accent text-sidebar-primary" : "text-sidebar-foreground",
         )
       }
     >
@@ -58,7 +46,7 @@ export function AppSidebar() {
         </div>
         <div>
           <h1 className="text-lg font-bold text-foreground">NodoCrisis</h1>
-          <p className="text-xs text-muted-foreground">Coordinación de Emergencias</p>
+          <p className="text-xs text-muted-foreground">Emergency Coordination</p>
         </div>
       </div>
 
@@ -69,7 +57,7 @@ export function AppSidebar() {
             {/* Admin Navigation */}
             <div className="mb-4">
               <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                Operación
+                Operation
               </p>
               <SidebarLink to="/admin/event-dashboard" icon={BarChart3} label="Dashboard" />
               <SidebarLink to="/admin/create-event" icon={Plus} label="Nueva Emergencia" />
@@ -77,16 +65,14 @@ export function AppSidebar() {
 
             <div className="mb-4">
               <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                Gestión
+                Management
               </p>
               <SidebarLink to="/admin/actors" icon={Users} label="Red de Actores" />
               <SidebarLink to="/admin/past-events" icon={Archive} label="Eventos Pasados" />
             </div>
 
             <div className="mb-4">
-              <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                Sistema
-              </p>
+              <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">System</p>
               <SidebarLink to="/admin/settings" icon={Settings} label="Configuración" />
             </div>
           </>
@@ -94,9 +80,7 @@ export function AppSidebar() {
           <>
             {/* Actor Navigation */}
             <div className="mb-4">
-              <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                General
-              </p>
+              <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">General</p>
               <SidebarLink to="/dashboard" icon={BarChart3} label="Dashboard" />
               <SidebarLink to="/events" icon={Activity} label="Eventos" />
               <SidebarLink to="/sectors" icon={MapPin} label="Sectores" />
@@ -104,7 +88,7 @@ export function AppSidebar() {
 
             <div className="mb-4">
               <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                Mi Organización
+                My Organization
               </p>
               <SidebarLink to="/my-capabilities" icon={Building2} label="Mis Capacidades" />
               <SidebarLink to="/my-deployments" icon={MapPin} label="Mis Despliegues" />
@@ -122,12 +106,8 @@ export function AppSidebar() {
             </span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">
-              {profile?.organization_name || profile?.email || "Usuario"}
-            </p>
-            <p className="text-xs text-muted-foreground truncate">
-              {isAdmin ? "Administrador" : "Actor"}
-            </p>
+            <p className="text-sm font-medium truncate">{profile?.organization_name || profile?.email || "Usuario"}</p>
+            <p className="text-xs text-muted-foreground truncate">{isAdmin ? "Administrador" : "Actor"}</p>
           </div>
         </div>
         <Button
@@ -137,7 +117,7 @@ export function AppSidebar() {
           onClick={handleSignOut}
         >
           <LogOut className="w-4 h-4 mr-2" />
-          Cerrar sesión
+          Log out
         </Button>
       </div>
     </aside>
