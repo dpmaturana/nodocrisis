@@ -2,6 +2,8 @@ import { simulateDelay } from "./mock/delay";
 import {
   MOCK_GAPS,
   MOCK_CAPACITY_TYPES,
+  MOCK_SECTOR_CAPABILITY_MATRIX,
+  MOCK_DEPLOYMENTS,
   getVisibleGaps,
   getGapById as getGapByIdFromData,
   getGapsByEventId,
@@ -19,11 +21,14 @@ import {
   getGlobalConfidence,
   getDominantSignalTypesForGap,
   getOperatingActorsForEvent,
+  getActorsInSector,
   type SectorContext,
   type OperatingActorInfo,
+  type NeedLevelExtended,
 } from "./mock/data";
 import { getGapStateConfig } from "@/lib/stateTransitions";
-import type { Gap, GapState, Signal, Deployment, Sector, CapacityType, Event, SignalType } from "@/types/database";
+import type { Gap, GapState, Signal, Deployment, Sector, CapacityType, Event, SignalType, SectorGap, NeedLevel } from "@/types/database";
+import type { EnrichedSector } from "./sectorService";
 
 export interface GapWithDetails extends Gap {
   sector?: Sector;
@@ -249,6 +254,78 @@ export const gapService = {
     await simulateDelay(50);
     const counts = countGapsByState(eventId);
     return counts.evaluating;
+  },
+
+  /**
+   * Get enriched sector by ID for Admin Dashboard detail drawer
+   * Unlike the ONG version, this shows ALL gaps (not filtered by actor capabilities)
+   */
+  async getEnrichedSectorById(sectorId: string): Promise<EnrichedSector | null> {
+    await simulateDelay(150);
+    
+    const sector = getSectorById(sectorId);
+    if (!sector) return null;
+    
+    const event = getEventById(sector.event_id);
+    if (!event) return null;
+    
+    const context = MOCK_SECTOR_CONTEXT[sectorId] || {
+      keyPoints: ["Sin información adicional"],
+      extendedContext: "No hay contexto disponible para este sector.",
+      operationalSummary: "Sector sin evaluación detallada.",
+    };
+    
+    // Build gaps from capability matrix
+    const matrix = MOCK_SECTOR_CAPABILITY_MATRIX[sectorId] || {};
+    const gaps: SectorGap[] = [];
+    
+    MOCK_CAPACITY_TYPES.forEach(capacity => {
+      const level = matrix[capacity.id] as NeedLevelExtended || "unknown";
+      if (level === "unknown" || level === "covered") return;
+      
+      const deployments = MOCK_DEPLOYMENTS.filter(
+        d => d.sector_id === sectorId && 
+             d.capacity_type_id === capacity.id &&
+             (d.status === "operating" || d.status === "confirmed")
+      );
+      
+      const coverage = deployments.length;
+      const demand = level === "critical" ? 3 : level === "high" ? 2 : 1;
+      const gap = Math.max(0, demand - coverage);
+      
+      if (gap > 0) {
+        gaps.push({
+          sector,
+          capacityType: capacity,
+          smsDemand: 0,
+          contextDemand: demand,
+          totalDemand: demand,
+          coverage,
+          gap,
+          isUncovered: coverage === 0,
+          isCritical: level === "critical" || level === "high",
+          maxLevel: level as NeedLevel,
+        });
+      }
+    });
+    
+    const hasCritical = gaps.some(g => g.isCritical);
+    const state: EnrichedSector["state"] = hasCritical ? "critical" : "partial";
+    
+    const actorsInSector = getActorsInSector(sectorId);
+    const recentSignals = getSignalsBySector(sectorId).slice(0, 5);
+    
+    return {
+      sector,
+      event,
+      state,
+      context,
+      gaps,
+      relevantGaps: gaps, // Admin sees all gaps as relevant
+      bestMatchGaps: gaps.slice(0, 2),
+      actorsInSector,
+      recentSignals,
+    };
   },
 
   // ============= UI Helpers =============
