@@ -13,20 +13,20 @@ interface SectorCardProps {
 }
 
 function getCoverageLabel(gap: EnrichedSector["gaps"][0]): string {
-  if (gap.coverage === 0) return "Ninguna";
-  if (gap.coverage < gap.totalDemand / 2) return "Insuficiente";
-  return "Parcial";
+  if (gap.coverage === 0) return "None";
+  if (gap.coverage < gap.totalDemand / 2) return "Insufficient";
+  return "Partial";
 }
 
 const gapStateConfig = {
   critical: {
-    label: "Crítica",
+    label: "Critical",
     bgClass: "bg-gap-critical/20",
     textClass: "text-gap-critical",
     Icon: AlertCircle,
   },
   partial: {
-    label: "Parcial",
+    label: "Partial",
     bgClass: "bg-warning/20",
     textClass: "text-warning",
     Icon: AlertTriangle,
@@ -38,21 +38,21 @@ export function SectorCard({ sector, onViewDetails, onEnroll }: SectorCardProps)
 
   const stateConfig = {
     critical: {
-      label: "Sector crítico",
+      label: "Critical sector",
       bgClass: "bg-gap-critical/10",
       borderClass: "border-l-4 border-l-gap-critical",
       badgeVariant: "destructive" as const,
       icon: "🔴",
     },
     partial: {
-      label: "Sector parcial",
+      label: "Partial sector",
       bgClass: "bg-warning/10",
       borderClass: "border-l-4 border-l-warning",
       badgeVariant: "secondary" as const,
       icon: "🟠",
     },
     contained: {
-      label: "Sector contenido",
+      label: "Contained sector",
       bgClass: "bg-coverage/10",
       borderClass: "border-l-4 border-l-coverage",
       badgeVariant: "outline" as const,
@@ -89,7 +89,7 @@ export function SectorCard({ sector, onViewDetails, onEnroll }: SectorCardProps)
       <CardContent className="space-y-4">
         {/* Context Key Points */}
         <div>
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Contexto clave</h4>
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Key Context</h4>
           <ul className="space-y-1">
             {context.keyPoints.slice(0, 3).map((point, idx) => (
               <li key={idx} className="flex items-center gap-2 text-sm">
@@ -104,7 +104,7 @@ export function SectorCard({ sector, onViewDetails, onEnroll }: SectorCardProps)
         {bestMatchGaps.length > 0 && (
           <div>
             <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-              Capacidades que puedes aportar
+              Capabilities you can provide
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {bestMatchGaps.slice(0, 2).map((gap) => {
@@ -132,7 +132,7 @@ export function SectorCard({ sector, onViewDetails, onEnroll }: SectorCardProps)
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      <span className="text-foreground">Cobertura:</span> {getCoverageLabel(gap)}
+                      <span className="text-foreground">Coverage:</span> {getCoverageLabel(gap)}
                     </div>
                   </div>
                 );
@@ -151,7 +151,7 @@ export function SectorCard({ sector, onViewDetails, onEnroll }: SectorCardProps)
             }}
           >
             <Users className="w-4 h-4 mr-2" />
-            Inscribirme en este sector
+            Enroll in this sector
           </Button>
           <Button
             variant="outline"
@@ -160,7 +160,7 @@ export function SectorCard({ sector, onViewDetails, onEnroll }: SectorCardProps)
               onViewDetails();
             }}
           >
-            Ver detalles
+            View details
             <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         </div>
