@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { eventService, gapService } from "@/services";
 import type { Event, Signal } from "@/types/database";
 import type { GapWithDetails, GapCounts, DashboardMeta, OperatingActor } from "@/services/gapService";
+import type { EnrichedSector } from "@/services/sectorService";
 import type { SeverityFilter } from "@/components/dashboard/FilterChips";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -14,8 +15,8 @@ import { FilterChips } from "@/components/dashboard/FilterChips";
 import { SectorGapList } from "@/components/dashboard/SectorGapList";
 import { SignalsModal } from "@/components/dashboard/SignalsModal";
 import { OperatingActorsModal } from "@/components/dashboard/OperatingActorsModal";
-import { GapDetailDrawer } from "@/components/dashboard/GapDetailDrawer";
 import { AvailableActorsDrawer } from "@/components/dashboard/AvailableActorsDrawer";
+import { SectorDetailDrawer } from "@/components/sectors/SectorDetailDrawer";
 
 export default function EventDashboard() {
   const { eventId } = useParams<{ eventId: string }>();
@@ -35,8 +36,11 @@ export default function EventDashboard() {
   const [selectedGap, setSelectedGap] = useState<GapWithDetails | null>(null);
   const [signalsForModal, setSignalsForModal] = useState<Signal[]>([]);
   const [showSignalsModal, setShowSignalsModal] = useState(false);
-  const [showGapDrawer, setShowGapDrawer] = useState(false);
   const [showActorsDrawer, setShowActorsDrawer] = useState(false);
+  
+  // Sector detail drawer
+  const [selectedSector, setSelectedSector] = useState<EnrichedSector | null>(null);
+  const [showSectorDrawer, setShowSectorDrawer] = useState(false);
   
   // Operating actors modal
   const [operatingActors, setOperatingActors] = useState<OperatingActor[]>([]);
@@ -91,10 +95,12 @@ export default function EventDashboard() {
     setShowActorsDrawer(true);
   };
 
-  const handleViewSectorDetails = (sectorId: string) => {
-    // For now, open gap drawer with first gap in sector
-    // In future, could open a sector-specific drawer
-    console.log("View sector details:", sectorId);
+  const handleViewSectorDetails = async (sectorId: string) => {
+    const enrichedSector = await gapService.getEnrichedSectorById(sectorId);
+    if (enrichedSector) {
+      setSelectedSector(enrichedSector);
+      setShowSectorDrawer(true);
+    }
   };
 
   const handleOpenOperatingActorsModal = async () => {
@@ -180,20 +186,17 @@ export default function EventDashboard() {
         onOpenChange={setShowOperatingActorsModal}
         onViewGap={(gapId) => {
           setShowOperatingActorsModal(false);
-          // Could navigate to gap or open drawer
           console.log("View gap:", gapId);
         }}
       />
       
-      {/* Drawer de detalle de brecha */}
-      <GapDetailDrawer 
-        gapId={selectedGap?.id || null}
-        open={showGapDrawer}
-        onOpenChange={setShowGapDrawer}
-        onViewActors={() => {
-          setShowGapDrawer(false);
-          setShowActorsDrawer(true);
-        }}
+      {/* Drawer de detalle de sector (mismo que /sectors) */}
+      <SectorDetailDrawer
+        sector={selectedSector}
+        open={showSectorDrawer}
+        onOpenChange={setShowSectorDrawer}
+        onEnroll={() => {}} // No-op for admin
+        hideEnrollButton={true}
       />
       
       {/* Drawer de actores disponibles */}
