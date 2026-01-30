@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export type SeverityFilter = 'critical' | 'partial';
+export type SeverityFilter = "critical" | "partial";
 
 interface FilterCounts {
   sectorsWithGaps: number;
@@ -20,15 +20,10 @@ interface FilterChipsProps {
   onOpenActorsModal: () => void;
 }
 
-export function FilterChips({
-  counts,
-  activeFilters,
-  onFilterChange,
-  onOpenActorsModal,
-}: FilterChipsProps) {
+export function FilterChips({ counts, activeFilters, onFilterChange, onOpenActorsModal }: FilterChipsProps) {
   const toggleFilter = (filter: SeverityFilter) => {
     if (activeFilters.includes(filter)) {
-      onFilterChange(activeFilters.filter(f => f !== filter));
+      onFilterChange(activeFilters.filter((f) => f !== filter));
     } else {
       onFilterChange([...activeFilters, filter]);
     }
@@ -43,12 +38,9 @@ export function FilterChips({
   return (
     <div className="flex flex-wrap items-center gap-2">
       {/* Sectors with gaps - info chip, not a filter */}
-      <Badge 
-        variant="outline" 
-        className="px-3 py-1.5 text-sm font-medium bg-muted/50"
-      >
+      <Badge variant="outline" className="px-3 py-1.5 text-sm font-medium bg-muted/50">
         <MapPin className="w-4 h-4 mr-1.5" />
-        {counts.sectorsWithGaps} sectores con gaps
+        {counts.sectorsWithGaps} sectors with gaps
       </Badge>
 
       {/* Critical gaps filter */}
@@ -56,14 +48,14 @@ export function FilterChips({
         variant="outline"
         className={cn(
           "px-3 py-1.5 text-sm font-medium cursor-pointer transition-all",
-          activeFilters.includes('critical')
+          activeFilters.includes("critical")
             ? "bg-gap-critical text-white border-gap-critical"
-            : "hover:border-gap-critical hover:text-gap-critical"
+            : "hover:border-gap-critical hover:text-gap-critical",
         )}
-        onClick={() => toggleFilter('critical')}
+        onClick={() => toggleFilter("critical")}
       >
         <AlertCircle className="w-4 h-4 mr-1.5" />
-        {counts.critical} críticas
+        {counts.critical} critical
       </Badge>
 
       {/* Partial gaps filter */}
@@ -71,14 +63,14 @@ export function FilterChips({
         variant="outline"
         className={cn(
           "px-3 py-1.5 text-sm font-medium cursor-pointer transition-all",
-          activeFilters.includes('partial')
+          activeFilters.includes("partial")
             ? "bg-warning text-warning-foreground border-warning"
-            : "hover:border-warning hover:text-warning"
+            : "hover:border-warning hover:text-warning",
         )}
-        onClick={() => toggleFilter('partial')}
+        onClick={() => toggleFilter("partial")}
       >
         <AlertTriangle className="w-4 h-4 mr-1.5" />
-        {counts.partial} parciales
+        {counts.partial} parcial
       </Badge>
 
       {/* Operating actors - opens modal */}
@@ -88,7 +80,7 @@ export function FilterChips({
         onClick={onOpenActorsModal}
       >
         <Activity className="w-4 h-4 mr-1.5" />
-        {counts.operatingActors} actores operando
+        {counts.operatingActors} organizations operating
       </Badge>
 
       {/* Clear filters button */}
@@ -100,7 +92,7 @@ export function FilterChips({
           className="text-muted-foreground hover:text-foreground"
         >
           <X className="w-4 h-4 mr-1" />
-          Limpiar filtros
+          Clear filters
         </Button>
       )}
     </div>
