@@ -66,20 +66,21 @@ function calculateSectorGaps(sectorId: string, actorId: string): { gaps: SectorG
   const gaps: SectorGap[] = [];
   const myCapabilities = getCapabilitiesByActorId(actorId);
   const myCapabilityTypeIds = myCapabilities
-    .filter(c => c.availability !== "unavailable")
-    .map(c => c.capacity_type_id);
+    .filter((c) => c.availability !== "unavailable")
+    .map((c) => c.capacity_type_id);
 
   const sectorData = getSectorById(sectorId);
   if (!sectorData) return { gaps: [], relevantGaps: [] };
 
-  MOCK_CAPACITY_TYPES.forEach(capacity => {
+  MOCK_CAPACITY_TYPES.forEach((capacity) => {
     const level = matrix[capacity.id] || "unknown";
     if (level === "unknown" || level === "covered") return;
 
     const deployments = MOCK_DEPLOYMENTS.filter(
-      d => d.sector_id === sectorId && 
-           d.capacity_type_id === capacity.id &&
-           (d.status === "operating" || d.status === "confirmed")
+      (d) =>
+        d.sector_id === sectorId &&
+        d.capacity_type_id === capacity.id &&
+        (d.status === "operating" || d.status === "confirmed"),
     );
 
     const coverage = deployments.length;
@@ -102,17 +103,14 @@ function calculateSectorGaps(sectorId: string, actorId: string): { gaps: SectorG
     }
   });
 
-  const relevantGaps = gaps.filter(g => 
-    myCapabilityTypeIds.includes(g.capacityType.id)
-  );
+  const relevantGaps = gaps.filter((g) => myCapabilityTypeIds.includes(g.capacityType.id));
 
   return { gaps, relevantGaps };
 }
 
 // Helper to get recent signals for a sector
 function getRecentSignals(sectorId: string): Signal[] {
-  return MOCK_SIGNALS
-    .filter(s => s.sector_id === sectorId)
+  return MOCK_SIGNALS.filter((s) => s.sector_id === sectorId)
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 5);
 }
@@ -128,14 +126,8 @@ export function SectorDeploymentCard({ group, actorId, onRefresh }: SectorDeploy
   const phase = phaseConfig[operatingPhase];
 
   // Calculate gaps and signals for the drawer
-  const { gaps, relevantGaps } = useMemo(
-    () => calculateSectorGaps(sector.id, actorId),
-    [sector.id, actorId]
-  );
-  const recentSignals = useMemo(
-    () => getRecentSignals(sector.id),
-    [sector.id]
-  );
+  const { gaps, relevantGaps } = useMemo(() => calculateSectorGaps(sector.id, actorId), [sector.id, actorId]);
+  const recentSignals = useMemo(() => getRecentSignals(sector.id), [sector.id]);
 
   // Build EnrichedSector for the drawer
   const enrichedSector: EnrichedSector = {
@@ -304,7 +296,7 @@ function PreparingPhaseContent({
       {/* Operational Context */}
       {sectorContext.keyPoints.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-sm font-medium text-muted-foreground">Contexto operativo</h4>
+          <h4 className="text-sm font-medium text-muted-foreground">Operational Context</h4>
           <ul className="space-y-1">
             {sectorContext.keyPoints.slice(0, 3).map((point, idx) => (
               <li key={idx} className="text-sm flex items-start gap-2">
@@ -345,15 +337,8 @@ function PreparingPhaseContent({
         <h4 className="text-sm font-medium text-muted-foreground">Tus capacidades</h4>
         <div className="flex flex-wrap gap-2">
           {deployments.map((dep) => (
-            <div
-              key={dep.id}
-              className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-lg text-sm"
-            >
-              <CapacityIcon
-                name={dep.capacity_type?.name || ""}
-                icon={dep.capacity_type?.icon}
-                size="sm"
-              />
+            <div key={dep.id} className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-lg text-sm">
+              <CapacityIcon name={dep.capacity_type?.name || ""} icon={dep.capacity_type?.icon} size="sm" />
               <span>{dep.capacity_type?.name}</span>
             </div>
           ))}
@@ -362,18 +347,10 @@ function PreparingPhaseContent({
 
       {/* CTAs */}
       <div className="flex flex-col sm:flex-row gap-2 pt-2">
-        <Button
-          onClick={onMarkOperating}
-          disabled={isLoading}
-          className="flex-1 gap-2"
-        >
+        <Button onClick={onMarkOperating} disabled={isLoading} className="flex-1 gap-2">
           👉 Estamos operando
         </Button>
-        <Button 
-          variant="outline" 
-          className="gap-2"
-          onClick={onOpenSectorContext}
-        >
+        <Button variant="outline" className="gap-2" onClick={onOpenSectorContext}>
           Ver contexto del sector
           <ChevronRight className="w-4 h-4" />
         </Button>
@@ -403,9 +380,7 @@ function OperatingPhaseContent({
     <>
       {/* Capabilities List */}
       <div className="space-y-2">
-        <h4 className="text-sm font-medium text-muted-foreground">
-          Tus capacidades en este sector
-        </h4>
+        <h4 className="text-sm font-medium text-muted-foreground">Tus capacidades en este sector</h4>
         <div className="space-y-2">
           {deployments.map((dep) => (
             <CapabilityRow key={dep.id} deployment={dep} />
@@ -414,20 +389,11 @@ function OperatingPhaseContent({
       </div>
 
       {/* Field Status Report - Expanded by default */}
-      <FieldStatusReport
-        group={group}
-        actorId={actorId}
-        onReportSent={onRefresh}
-      />
+      <FieldStatusReport group={group} actorId={actorId} onReportSent={onRefresh} />
 
       {/* Finish option */}
       <div className="pt-2 border-t">
-        <Button
-          variant="outline"
-          onClick={onFinish}
-          disabled={isFinishing}
-          className="w-full gap-2"
-        >
+        <Button variant="outline" onClick={onFinish} disabled={isFinishing} className="w-full gap-2">
           <CheckCircle className="w-4 h-4" />
           Finalizar operación
         </Button>
@@ -442,11 +408,7 @@ interface StabilizingPhaseContentProps {
   isFinishing: boolean;
 }
 
-function StabilizingPhaseContent({
-  deployments,
-  onFinish,
-  isFinishing,
-}: StabilizingPhaseContentProps) {
+function StabilizingPhaseContent({ deployments, onFinish, isFinishing }: StabilizingPhaseContentProps) {
   return (
     <>
       {/* Success message */}
@@ -467,15 +429,8 @@ function StabilizingPhaseContent({
         <h4 className="text-sm font-medium text-muted-foreground">Tus capacidades</h4>
         <div className="flex flex-wrap gap-2">
           {deployments.map((dep) => (
-            <div
-              key={dep.id}
-              className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-lg text-sm"
-            >
-              <CapacityIcon
-                name={dep.capacity_type?.name || ""}
-                icon={dep.capacity_type?.icon}
-                size="sm"
-              />
+            <div key={dep.id} className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-lg text-sm">
+              <CapacityIcon name={dep.capacity_type?.name || ""} icon={dep.capacity_type?.icon} size="sm" />
               <span>{dep.capacity_type?.name}</span>
               <StatusBadge status="deploy-operating" label="Operando" size="sm" />
             </div>
@@ -488,12 +443,7 @@ function StabilizingPhaseContent({
         <Button variant="outline" className="flex-1">
           Mantener en monitoreo
         </Button>
-        <Button
-          variant="secondary"
-          onClick={onFinish}
-          disabled={isFinishing}
-          className="flex-1"
-        >
+        <Button variant="secondary" onClick={onFinish} disabled={isFinishing} className="flex-1">
           Finalizar operación
         </Button>
       </div>
