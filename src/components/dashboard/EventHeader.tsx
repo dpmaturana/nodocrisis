@@ -28,8 +28,8 @@ const CONFIDENCE_CONFIG = {
   low: { label: "Baja", bg: "bg-muted", text: "text-muted-foreground" },
 };
 
-export function EventHeader({ 
-  event, 
+export function EventHeader({
+  event,
   phase = "unstable",
   allEvents = [],
   onEventChange,
@@ -37,7 +37,7 @@ export function EventHeader({
   globalConfidence = "medium",
 }: EventHeaderProps) {
   const phaseConfig = getEventPhaseConfig(phase);
-  const otherEvents = allEvents.filter(e => e.id !== event.id && e.status === "active");
+  const otherEvents = allEvents.filter((e) => e.id !== event.id && e.status === "active");
   const confidenceConfig = CONFIDENCE_CONFIG[globalConfidence];
 
   const lastSignalTime = lastSignal
@@ -51,24 +51,20 @@ export function EventHeader({
     <div className="space-y-2">
       {/* Event name and location */}
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-2xl font-bold tracking-tight">
-          {event.name}
-        </h1>
-        {event.location && (
-          <span className="text-lg text-muted-foreground">
-            — {event.location}
-          </span>
-        )}
+        <h1 className="text-2xl font-bold tracking-tight">{event.name}</h1>
+        {event.location && <span className="text-lg text-muted-foreground">— {event.location}</span>}
       </div>
 
       {/* Phase badge, meta info, and event switcher */}
       <div className="flex items-center gap-4 flex-wrap">
         {/* Phase badge */}
-        <div className={cn(
-          "inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium",
-          phaseConfig.bg,
-          phaseConfig.text
-        )}>
+        <div
+          className={cn(
+            "inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium",
+            phaseConfig.bg,
+            phaseConfig.text,
+          )}
+        >
           <span>{phaseConfig.emoji}</span>
           <span>{phaseConfig.label}</span>
         </div>
@@ -77,17 +73,14 @@ export function EventHeader({
         {lastSignalTime && (
           <Badge variant="outline" className="font-normal text-muted-foreground">
             <Clock className="w-3 h-3 mr-1.5" />
-            Última señal {lastSignalTime}
+            Last signal {lastSignalTime}
           </Badge>
         )}
 
         {/* Global confidence */}
-        <Badge 
-          variant="outline" 
-          className={cn("font-normal", confidenceConfig.bg, confidenceConfig.text)}
-        >
+        <Badge variant="outline" className={cn("font-normal", confidenceConfig.bg, confidenceConfig.text)}>
           <ShieldCheck className="w-3 h-3 mr-1.5" />
-          Confianza {confidenceConfig.label}
+          Confidence {confidenceConfig.label}
         </Badge>
 
         {/* Event switcher */}
@@ -95,16 +88,13 @@ export function EventHeader({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-                Cambiar evento
+                Change event
                 <ChevronDown className="w-4 h-4 ml-1" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              {otherEvents.map(e => (
-                <DropdownMenuItem 
-                  key={e.id}
-                  onClick={() => onEventChange(e.id)}
-                >
+              {otherEvents.map((e) => (
+                <DropdownMenuItem key={e.id} onClick={() => onEventChange(e.id)}>
                   {e.name}
                 </DropdownMenuItem>
               ))}
