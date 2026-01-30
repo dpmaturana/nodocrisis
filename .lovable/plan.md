@@ -1,247 +1,147 @@
 
-## Plan: Rediseno Completo del Admin Dashboard — Vista por Sector
+
+## Plan: Conectar "Ver detalles" del Admin Dashboard con el SectorDetailDrawer existente
 
 ### Objetivo
-Transformar el dashboard de una lista plana de brechas a una estructura sector-centrica donde:
-- El sector es el contenedor principal
-- Los gaps son filas visibles dentro de cada sector
-- Las metricas superiores actuan como filtros clickeables
-- Las acciones permiten "Ver senales" y "Activar actores de {capacidad}"
+Hacer que el botón "Ver detalles" en cada sector del Admin Dashboard abra el mismo drawer que se usa en `/sectors`, mostrando el contexto completo del sector (resumen operativo, brechas, actores apoyando, señales recientes).
+
+### Cambio Principal
+
+El `SectorDetailDrawer` espera un tipo `EnrichedSector` que incluye:
+- `sector`, `event`, `state`
+- `context` (resumen operativo, acceso, aislamiento, etc.)
+- `gaps` (todas las brechas del sector)
+- `relevantGaps` (brechas que matchean con capacidades del actor - no aplica para admin)
+- `actorsInSector` (actores operando/confirmados)
+- `recentSignals` (últimas señales)
+
+Actualmente el Admin Dashboard tiene datos parciales (`Sector` + `SectorContext` + `GapWithDetails[]`), pero no el formato completo de `EnrichedSector`.
 
 ---
 
-## Cambios Estructurales
+## Sección Técnica
 
-### Vista Actual vs Vista Nueva
+### Archivos a Modificar
 
-```text
-ACTUAL:
-+---------------------------+
-| Header (evento + fase)    |
-+---------------------------+
-| [Stat] [Stat] [Stat] [Stat] |  <- Cards estaticas
-+---------------------------+
-| Card: Atencion Inmediata  |
-|   Gap 1 (plano)           |
-|   Gap 2 (plano)           |
-|   Gap 3 (plano)           |
-+---------------------------+
-| Collapsible: Monitoreados |  <- Muestra gaps "evaluating"
-+---------------------------+
-
-NUEVA (spec):
-+---------------------------+
-| Header (evento + fase     |
-|   + ultima senal + confianza) |
-+---------------------------+
-| [Chip] [Chip] [Chip] [Chip] |  <- Filtros clickeables
-|        + "Limpiar filtros"  |
-+---------------------------+
-| SECTOR CARD: San Carlos   |
-|   Contexto: 2 bullets     |
-|   Resumen: X X Y Y        |
-|   [Ver detalles]          |
-|   +-- Gap Row: Agua       |
-|   +-- Gap Row: Transporte |
-+---------------------------+
-| SECTOR CARD: Niquen       |
-|   ...                     |
-+---------------------------+
-```
-
----
-
-## Componentes a Modificar/Crear
-
-### 1. EventHeader.tsx (MODIFICAR)
-Agregar:
-- Ultima senal confiable (timestamp)
-- Confianza global (Alta/Media/Baja badge)
-- Remover texto "Coordinacion en curso"
-
-### 2. GapMetrics.tsx -> FilterChips.tsx (REEMPLAZAR)
-Cambiar de StatCards a chips/badges clickeables:
-- "Sectores con gaps" (filtra contenido)
-- "X Gaps" (filtra solo gaps rojos)
-- "Y Gaps" (filtra solo gaps naranjas)
-- "Z Actores operando" (abre modal)
-- "Limpiar filtros" siempre visible
-
-### 3. ImmediateAttention.tsx -> SectorGapList.tsx (REEMPLAZAR)
-Nueva estructura:
-- Agrupa gaps por sector
-- Renderiza SectorCard para cada sector con gaps
-- Cada SectorCard contiene GapRows visibles
-
-### 4. SectorCard.tsx (CREAR - Dashboard version)
-Nueva card de sector para admin dashboard:
-- Nombre del sector
-- Evento asociado
-- Contexto clave (max 2 bullets)
-- Resumen de gaps: X Y
-- CTA "Ver detalles" -> abre drawer de sector (vista ONG)
-- Contiene GapRow children
-
-### 5. GapRow.tsx (CREAR)
-Fila de gap dentro de sector card:
-```text
-[X] Transporte — Cobertura parcial
-Reportado por actores en terreno
-[ Ver senales ] [ Activar actores de transporte ]
-```
-- Severity icon (X o Y)
-- Capacity name
-- Coverage status (text)
-- Signal type dominant (copy cerrado)
-- CTA: Ver senales (abre modal)
-- CTA: Activar actores de {capacidad} (abre drawer)
-
-### 6. SignalsModal.tsx (CREAR)
-Modal para "Ver senales":
-- Lista de senales agrupadas por tipo
-- Orden: terreno > coordinacion > SMS > medios
-- Cada senal: tipo, texto resumido, timestamp, rol emisor
-- SIN conteos, SIN acciones
-- Solo para comprension
-
-### 7. OperatingActorsModal.tsx (CREAR)
-Modal para chip "Actores operando":
-- Lista de actores con estado "operating"
-- Nombre organizacion
-- Tipo (ONG/Estado/Privado/Voluntariado)
-- Sector(es) donde opera
-- Capacidad que aporta
-- Ultima confirmacion
-- Contacto (nombre + telefono/email)
-- CTAs: "Contactar actor", "Ver gap asociado"
-- Copy fijo: "La presencia de actores no implica brechas contenidas."
-
-### 8. MonitoredSectors.tsx (ELIMINAR)
-Spec indica: "No deben aparecer gaps en evaluacion"
-
-### 9. GapDetailDrawer.tsx (MODIFICAR)
-Renombrar a SectorDetailDrawer o crear variante para vista de contexto extendido (la que ven las ONG)
-
----
-
-## Archivos a Crear
-
-```text
-src/components/dashboard/
-  FilterChips.tsx          <- Reemplaza GapMetrics
-  SectorGapList.tsx        <- Reemplaza ImmediateAttention  
-  SectorCardAdmin.tsx      <- Card de sector con gaps
-  GapRow.tsx               <- Fila de gap individual
-  SignalsModal.tsx         <- Modal "Ver senales"
-  OperatingActorsModal.tsx <- Modal actores operando
-```
-
-## Archivos a Modificar
-
-```text
-src/pages/admin/EventDashboard.tsx
-  - Agregar estados para filtros activos
-  - Agregar estado para modales
-  - Reemplazar componentes
-  - Eliminar MonitoredSectors
-
-src/components/dashboard/EventHeader.tsx
-  - Agregar ultima senal timestamp
-  - Agregar confianza global
-
-src/services/gapService.ts
-  - Agregar metodo getGapsGroupedBySector()
-  - Agregar metodo getOperatingActors()
-
-src/services/mock/data.ts
-  - Agregar helper getLastSignalForEvent()
-  - Agregar helper getGlobalConfidence()
-```
-
-## Archivos a Eliminar
-
-```text
-src/components/dashboard/MonitoredSectors.tsx
-src/components/dashboard/GapMetrics.tsx (reemplazado)
-src/components/dashboard/ImmediateAttention.tsx (reemplazado)
-```
-
----
-
-## Logica de Filtrado
-
-Estado en EventDashboard:
+**1. `src/services/gapService.ts`**
+Agregar nuevo método para obtener un `EnrichedSector` por `sectorId`:
 ```typescript
-const [activeFilters, setActiveFilters] = useState<{
-  severity: ('critical' | 'partial')[];
-}>({ severity: [] });
+async getEnrichedSectorById(sectorId: string): Promise<EnrichedSector | null>
+```
+Este método reutiliza la lógica existente pero para un solo sector, sin filtrar por capacidades del actor.
+
+**2. `src/pages/admin/EventDashboard.tsx`**
+- Agregar estado: `selectedSector: EnrichedSector | null`
+- Agregar estado: `showSectorDrawer: boolean`
+- Modificar `handleViewSectorDetails`:
+  - Llamar a `gapService.getEnrichedSectorById(sectorId)`
+  - Setear el sector y abrir el drawer
+- Agregar `SectorDetailDrawer` con `hideEnrollButton={true}` (admin no se inscribe)
+
+**3. `src/components/dashboard/SectorGapList.tsx`**
+Modificar el callback `onViewSectorDetails` para que también reciba el `sectorId` (ya lo hace).
+
+**4. `src/services/sectorService.ts`** (alternativa)
+Si preferimos mantener la lógica de enriquecer sectores en un solo lugar, agregar:
+```typescript
+async getEnrichedSectorById(sectorId: string): Promise<EnrichedSector | null>
 ```
 
-Comportamiento:
-- Click en chip "X Gaps" -> filtra solo sectores con gaps X y solo esos gaps
-- Click en chip "Y Gaps" -> idem para Y
-- Filtros combinables
-- "Limpiar filtros" resetea a mostrar todos
+### Flujo de Datos
 
----
+```text
+Admin Dashboard
+     |
+     v
+Click "Ver detalles"
+     |
+     v
+handleViewSectorDetails(sectorId)
+     |
+     v
+gapService.getEnrichedSectorById(sectorId)
+     |
+     v
+setSelectedSector(enrichedSector)
+setShowSectorDrawer(true)
+     |
+     v
+<SectorDetailDrawer 
+   sector={selectedSector}
+   hideEnrollButton={true}
+/>
+```
 
-## Estructura de Datos para Agrupacion
+### Propiedades del Drawer para Admin
+
+El `SectorDetailDrawer` ya tiene una prop `hideEnrollButton` que oculta el CTA de inscripción. Para el admin:
+- `hideEnrollButton={true}` - El admin no se inscribe
+- `relevantGaps` será igual a `gaps` - El admin ve todas las brechas, no filtradas por capacidades personales
+
+### Implementación del Nuevo Método en gapService
 
 ```typescript
-interface SectorWithGaps {
-  sector: Sector;
-  context: SectorContext;
-  gaps: GapWithDetails[];
-  hasCritical: boolean;
-  gapCounts: { critical: number; partial: number };
+async getEnrichedSectorById(sectorId: string): Promise<EnrichedSector | null> {
+  await simulateDelay(150);
+  
+  const sector = getSectorById(sectorId);
+  if (!sector) return null;
+  
+  const event = getEventById(sector.event_id);
+  if (!event) return null;
+  
+  const context = MOCK_SECTOR_CONTEXT[sectorId] || {
+    keyPoints: [],
+    extendedContext: "",
+    operationalSummary: "",
+  };
+  
+  // Get all gaps for this sector
+  const sectorGaps = getVisibleGaps(event.id)
+    .filter(g => g.sector_id === sectorId);
+  
+  // Convert to SectorGap format expected by drawer
+  const gaps: SectorGap[] = sectorGaps.map(gap => ({
+    sector,
+    capacityType: getCapacityTypeById(gap.capacity_type_id)!,
+    smsDemand: 0,
+    contextDemand: gap.state === 'critical' ? 3 : 2,
+    totalDemand: gap.state === 'critical' ? 3 : 2,
+    coverage: getDeploymentsByGap(gap.sector_id, gap.capacity_type_id).length,
+    gap: 1,
+    isUncovered: getDeploymentsByGap(gap.sector_id, gap.capacity_type_id).length === 0,
+    isCritical: gap.state === 'critical',
+    maxLevel: gap.state === 'critical' ? 'critical' : 'high',
+  }));
+  
+  const hasCritical = gaps.some(g => g.isCritical);
+  const state: EnrichedSector["state"] = hasCritical ? "critical" : "partial";
+  
+  const actorsInSector = getActorsInSector(sectorId);
+  const recentSignals = getSignalsBySector(sectorId).slice(0, 5);
+  
+  return {
+    sector,
+    event,
+    state,
+    context,
+    gaps,
+    relevantGaps: gaps, // Admin ve todas
+    bestMatchGaps: gaps.slice(0, 2),
+    actorsInSector,
+    recentSignals,
+  };
 }
 ```
 
-Ordenamiento:
-1. Sectores con gaps X primero
-2. Por cantidad de gaps X
-3. Sectores solo Y despues
-4. Gaps dentro del sector: X arriba, Y abajo
+### Resultado
 
----
+Al hacer click en "Ver detalles" en cualquier sector del Admin Dashboard, se abrirá el mismo drawer que ven las ONG en `/sectors`, mostrando:
+- Resumen operativo
+- Contexto del sector (acceso, aislamiento)
+- Brechas activas (todas, no filtradas)
+- Actores apoyando en el sector
+- Señales recientes
 
-## Copy Cerrado para Tipos de Senal
+El botón de "Inscribirme" estará oculto ya que el admin no se inscribe.
 
-```typescript
-const SIGNAL_TYPE_COPY: Record<SignalType, string> = {
-  field_report: "Reportado por actores en terreno",
-  actor_report: "Validado por coordinacion territorial", 
-  sms: "Basado en reportes ciudadanos (SMS)",
-  news: "Detectado en contexto informativo (medios)",
-  context: "Contexto inicial del evento",
-  official: "Fuente oficial",
-  social: "Redes sociales",
-};
-```
-
-Para gap row, mostrar tipo(s) dominante(s) separados por "y" o coma.
-
----
-
-## Flujo de Usuario
-
-1. Admin abre dashboard
-2. Ve header con evento, fase, ultima senal, confianza
-3. Ve chips de filtro con contadores
-4. Ve lista de sectores ordenados por severidad
-5. Cada sector muestra contexto y gaps directamente
-6. Click en "Ver senales" -> modal con evidencia
-7. Click en "Activar actores de X" -> drawer con actores disponibles
-8. Click en "Ver detalles" -> drawer con contexto extendido (vista ONG)
-9. Click en chip "Actores operando" -> modal con lista de actores
-
----
-
-## Criterio de Exito
-
-El dashboard esta bien si un admin puede:
-- Identificar el sector prioritario en 5-10 segundos
-- Ver directamente los gaps relevantes
-- Activar actores sin leer texto largo
-- Profundizar solo si lo necesita
-- Filtrar sin perder contexto
