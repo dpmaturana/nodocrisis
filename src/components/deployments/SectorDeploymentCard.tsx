@@ -348,10 +348,10 @@ function PreparingPhaseContent({
       {/* CTAs */}
       <div className="flex flex-col sm:flex-row gap-2 pt-2">
         <Button onClick={onMarkOperating} disabled={isLoading} className="flex-1 gap-2">
-          👉 Estamos operando
+          👉 We are operating
         </Button>
         <Button variant="outline" className="gap-2" onClick={onOpenSectorContext}>
-          Ver contexto del sector
+          View sector overview
           <ChevronRight className="w-4 h-4" />
         </Button>
       </div>
