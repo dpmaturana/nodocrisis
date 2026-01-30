@@ -1,371 +1,242 @@
 
-## Plan: Seccion Red de Actores — Gestion Estructural de Actores (Admin)
+# Plan: Translate UI to English
 
-### Objetivo
-Crear una seccion administrativa para gestionar la base estructural de actores del sistema. Esta seccion NO es operativa y esta disenada para usarse fuera de emergencias.
+## Overview
 
-Acciones permitidas:
-- Registrar/editar actores
-- Definir capacidades declaradas
-- Definir zonas habituales de operacion
-- Gestionar contactos
-- Ver historial de participacion (solo lectura)
+Translate all user-facing text from Spanish to English across the application. This includes:
+- Page titles and descriptions
+- Button labels and actions
+- Form labels and placeholders
+- Toast messages
+- Status labels and badges
+- Modal/dialog content
+- Empty states and error messages
 
-Acciones prohibidas:
-- Activar actores en emergencias
-- Asignar a sectores
-- Cambiar estados operativos
+## Scope Analysis
 
----
+Based on codebase exploration, the following files contain Spanish text:
 
-## Estructura de Datos
+### Pages (12 files)
+| File | Estimated Strings |
+|------|-------------------|
+| `src/pages/Auth.tsx` | ~20 |
+| `src/pages/Dashboard.tsx` | ~25 |
+| `src/pages/Events.tsx` | ~15 |
+| `src/pages/EventDetail.tsx` | ~35 |
+| `src/pages/Sectors.tsx` | ~20 |
+| `src/pages/MyCapabilities.tsx` | ~30 |
+| `src/pages/MyDeployments.tsx` | ~15 |
+| `src/pages/admin/ActorNetwork.tsx` | ~15 |
+| `src/pages/admin/Coordination.tsx` | ~50 |
+| `src/pages/admin/CreateEventAI.tsx` | ~25 |
+| `src/pages/admin/EventDashboard.tsx` | ~10 |
+| `src/pages/admin/SituationReport.tsx` | ~40 |
 
-### Nuevo Tipo: Actor (para la red estructural)
+### Layout Components (3 files)
+| File | Estimated Strings |
+|------|-------------------|
+| `src/components/layout/AppSidebar.tsx` | ~15 |
+| `src/components/layout/ActorHeader.tsx` | ~5 |
+| `src/components/layout/ActorLayout.tsx` | ~5 |
 
+### Feature Components (~20 files)
+| Category | Files | Estimated Strings |
+|----------|-------|-------------------|
+| Sectors | 3 files | ~40 |
+| Deployments | 4 files | ~45 |
+| Actors | 8 files | ~60 |
+| Dashboard | 7 files | ~50 |
+| Reports | 3 files | ~25 |
+
+### Other Files
+| File | Estimated Strings |
+|------|-------------------|
+| `src/services/mock/data.ts` | ~20 (capacity type descriptions) |
+| `src/types/database.ts` | ~15 (label constants) |
+| `src/hooks/use-toast.ts` | ~5 |
+
+## Translation Mapping (Key Examples)
+
+### Navigation and Headers
+| Spanish | English |
+|---------|---------|
+| Dashboard | Dashboard |
+| Eventos | Events |
+| Sectores | Sectors |
+| Mis Capacidades | My Capabilities |
+| Mis Despliegues | My Deployments |
+| Red de Actores | Actor Network |
+| Coordinación | Coordination |
+| Nueva Emergencia | New Emergency |
+| Configuración | Settings |
+| Cerrar sesión | Sign Out |
+
+### Actions and Buttons
+| Spanish | English |
+|---------|---------|
+| Agregar | Add |
+| Guardar | Save |
+| Cancelar | Cancel |
+| Confirmar | Confirm |
+| Crear | Create |
+| Editar | Edit |
+| Eliminar | Delete |
+| Descartar | Discard |
+| Inscribirme | Enroll |
+| Ver detalles | View details |
+| Buscar | Search |
+
+### Status Labels
+| Spanish | English |
+|---------|---------|
+| Activo | Active |
+| Cerrado | Closed |
+| Crítico | Critical |
+| Parcial | Partial |
+| Contenido | Contained |
+| Disponible | Available |
+| Limitada | Limited |
+| No disponible | Unavailable |
+| Operando | Operating |
+| Confirmado | Confirmed |
+| Finalizado | Finished |
+
+### Form Labels
+| Spanish | English |
+|---------|---------|
+| Nombre | Name |
+| Correo electrónico | Email |
+| Contraseña | Password |
+| Organización | Organization |
+| Descripción | Description |
+| Cantidad | Quantity |
+| Unidad | Unit |
+| Disponibilidad | Availability |
+| Notas | Notes |
+
+### Toast Messages
+| Spanish | English |
+|---------|---------|
+| Capacidad agregada | Capability added |
+| Error al guardar | Error saving |
+| Inscripción exitosa | Enrollment successful |
+| Operación finalizada | Operation finished |
+| Borrador guardado | Draft saved |
+
+## Implementation Order
+
+### Batch 1: Core Pages (4-5 credits)
+1. `src/pages/Auth.tsx`
+2. `src/pages/Dashboard.tsx`
+3. `src/pages/Events.tsx`
+4. `src/pages/Sectors.tsx`
+5. `src/pages/MyCapabilities.tsx`
+6. `src/pages/MyDeployments.tsx`
+
+### Batch 2: Admin Pages (2-3 credits)
+1. `src/pages/admin/ActorNetwork.tsx`
+2. `src/pages/admin/Coordination.tsx`
+3. `src/pages/admin/CreateEventAI.tsx`
+4. `src/pages/admin/SituationReport.tsx`
+5. `src/pages/admin/EventDashboard.tsx`
+6. `src/pages/EventDetail.tsx`
+
+### Batch 3: Layout and Navigation (1 credit)
+1. `src/components/layout/AppSidebar.tsx`
+2. `src/components/layout/ActorHeader.tsx`
+3. `src/components/layout/ActorLayout.tsx`
+
+### Batch 4: Sector Components (1-2 credits)
+1. `src/components/sectors/SectorCard.tsx`
+2. `src/components/sectors/SectorDetailDrawer.tsx`
+3. `src/components/sectors/EnrollmentModal.tsx`
+
+### Batch 5: Deployment Components (1-2 credits)
+1. `src/components/deployments/SectorDeploymentCard.tsx`
+2. `src/components/deployments/CapabilityRow.tsx`
+3. `src/components/deployments/FieldStatusReport.tsx`
+4. `src/components/deployments/CompletedReportView.tsx`
+
+### Batch 6: Actor Components (1-2 credits)
+1. `src/components/actors/ActorForm.tsx`
+2. `src/components/actors/ActorRow.tsx`
+3. `src/components/actors/ActorDetailDrawer.tsx`
+4. `src/components/actors/ActorListFilters.tsx`
+5. `src/components/actors/CapabilityDeclaredList.tsx`
+6. `src/components/actors/HabitualZonesList.tsx`
+7. Other actor components
+
+### Batch 7: Dashboard and Report Components (1 credit)
+1. `src/components/dashboard/SectorCardAdmin.tsx`
+2. `src/components/dashboard/GapRow.tsx`
+3. `src/components/dashboard/FilterChips.tsx`
+4. `src/components/reports/SuggestedSectorCard.tsx`
+5. `src/components/reports/CapabilityToggleList.tsx`
+
+### Batch 8: Data and Types (1 credit)
+1. `src/services/mock/data.ts` (capacity type names/descriptions)
+2. `src/types/database.ts` (label constants like `ACTOR_TYPE_LABELS`)
+
+## Special Considerations
+
+### Date Formatting
+Replace Spanish locale imports:
 ```typescript
-// src/types/database.ts (agregar)
-export type ActorType = 'ong' | 'state' | 'private' | 'volunteer';
-export type ActorStructuralStatus = 'active' | 'inactive';
-export type CapabilityLevel = 'basic' | 'operational' | 'specialized';
+// Before
+import { es } from "date-fns/locale";
+format(date, "d MMM yyyy", { locale: es })
 
-export interface Actor {
-  id: string;
-  user_id: string; // Link to auth user
-  organization_name: string;
-  organization_type: ActorType;
-  description: string | null;
-  structural_status: ActorStructuralStatus;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ActorCapabilityDeclared {
-  id: string;
-  actor_id: string;
-  capacity_type_id: string;
-  level: CapabilityLevel;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ActorHabitualZone {
-  id: string;
-  actor_id: string;
-  region: string;
-  commune: string | null;
-  presence_type: 'habitual' | 'occasional';
-  created_at: string;
-}
-
-export interface ActorContact {
-  id: string;
-  actor_id: string;
-  name: string;
-  role: string;
-  primary_channel: string; // telefono, whatsapp, radio, email
-  secondary_channel: string | null;
-  is_primary: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ActorParticipationHistory {
-  event_id: string;
-  event_name: string;
-  capacities_activated: string[];
-  sectors_operated: string[];
-  started_at: string;
-  ended_at: string | null;
-}
+// After
+format(date, "d MMM yyyy")  // Uses default English
 ```
 
----
+### Branding
+Keep the app name **"NodoCrisis"** unchanged - it's a proper noun/brand name.
 
-## Archivos a Crear
+### Capacity Types
+These are currently hardcoded in Spanish in `src/services/mock/data.ts`. They need translation:
+- "Evacuacion y traslado" -> "Evacuation and transport"
+- "Busqueda y rescate" -> "Search and rescue"
+- "Atencion medica de emergencia" -> "Emergency medical care"
+- etc.
 
-```text
-src/pages/admin/
-  ActorNetwork.tsx           <- Vista principal: listado de actores
-
-src/components/actors/
-  ActorListFilters.tsx       <- Barra de busqueda + filtros
-  ActorRow.tsx               <- Fila de actor en listado
-  ActorDetailDrawer.tsx      <- Ficha completa de actor (drawer)
-  ActorForm.tsx              <- Formulario para crear/editar actor
-  CapabilityDeclaredList.tsx <- Lista de capacidades declaradas
-  HabitualZonesList.tsx      <- Lista de zonas habituales
-  ContactsList.tsx           <- Lista de contactos (max 2)
-  ParticipationHistory.tsx   <- Historial de participacion (solo lectura)
-
-src/services/
-  actorNetworkService.ts     <- Servicio para gestion de actores
-```
-
----
-
-## Componentes en Detalle
-
-### 1. ActorNetwork.tsx (Pagina Principal)
-Vista de listado simple, sin urgencia ni alarmas.
-
-Estructura:
-- Header: "Red de Actores" + descripcion + CTA "Registrar Actor"
-- Barra de busqueda por nombre
-- Filtros: Capacidad | Zona | Tipo de actor
-- Lista de ActorRow
-
-```text
-+------------------------------------+
-| Red de Actores                     |
-| Gestion estructural de capacidades |
-|                    [Registrar Actor]|
-+------------------------------------+
-| [Buscar...]                        |
-| Filtros: [Capacidad] [Zona] [Tipo] |
-+------------------------------------+
-| ActorRow: Cruz Roja Chile          |
-| ActorRow: Bomberos Voluntarios     |
-| ActorRow: ONEMI Regional           |
-+------------------------------------+
-```
-
-### 2. ActorRow.tsx
-Fila de actor en el listado.
-
-Mostrar:
-- Nombre de organizacion
-- Tipo (ONG / Estado / Voluntariado / Privado) - Badge
-- Capacidades principales (max 3)
-- Zonas habituales (resumen)
-- Estado estructural: Activo / Inactivo - Badge
-- CTA: "Ver ficha"
-
-NO mostrar: estados operativos, urgencia, colores de severidad
-
-```text
-+--------------------------------------------+
-| [Icon] Cruz Roja Chile          [ONG Badge]|
-|        Transporte, Salud, Alimentacion     |
-|        Nuble, Bio Bio              [Activo]|
-|                             [Ver ficha ->] |
-+--------------------------------------------+
-```
-
-### 3. ActorDetailDrawer.tsx (Ficha de Actor)
-Drawer lateral con toda la informacion del actor.
-
-Secciones:
-1. **Identidad** - Nombre, tipo, descripcion
-2. **Capacidades Declaradas** - Lista editable con nivel
-3. **Zonas Habituales** - Regiones/comunas + tipo presencia
-4. **Contactos** - Max 2 contactos con nombre, rol, canales
-5. **Historial de Participacion** - Solo lectura
-
-CTAs permitidos:
-- Editar informacion
-- Activar/Desactivar actor (estructural)
-- Agregar/editar capacidad
-- Agregar/editar contacto
-
-### 4. ActorForm.tsx
-Modal para crear/editar actor.
-
-Campos:
-- Nombre de organizacion (requerido)
-- Tipo de actor (select: ONG/Estado/Privado/Voluntariado)
-- Descripcion breve (textarea, max 200 caracteres)
-- Estado estructural (toggle: Activo/Inactivo)
-
-### 5. CapabilityDeclaredList.tsx
-Lista de capacidades declaradas por el actor.
-
-Para cada capacidad:
-- Tipo (select de taxonomia comun)
-- Nivel: Basico / Operativo / Especializado
-- Observaciones (opcional)
-
-Taxonomia cerrada:
-- Transporte
-- Agua
-- Alimentacion
-- Salud
-- Busqueda y Rescate
-- Alojamiento
-- Comunicaciones
-- Otros (requiere validacion)
-
-### 6. ContactsList.tsx
-Lista de contactos (max 2).
-
-Validacion:
-- Maximo 2 contactos activos
-- Contacto operativo principal (obligatorio)
-- Contacto alternativo (opcional)
-
-Campos por contacto:
-- Nombre
-- Rol (ej: "Coordinador logistico")
-- Canal principal (telefono/WhatsApp/radio/email)
-- Canal secundario (opcional)
-
-### 7. ParticipationHistory.tsx
-Historial de eventos pasados (solo lectura).
-
-Para cada evento:
-- Nombre del evento
-- Capacidades activadas
-- Sectores donde opero
-- Fechas
-
-Este historial es informativo, no evaluativo.
-
----
-
-## Servicio: actorNetworkService.ts
-
+### Type Constants
+Update label mappings in `src/types/database.ts`:
 ```typescript
-export const actorNetworkService = {
-  // Listado
-  getAll(): Promise<ActorWithDetails[]>
-  getById(actorId: string): Promise<ActorWithDetails | null>
-  
-  // Filtros
-  search(query: string): Promise<ActorWithDetails[]>
-  filterByCapacity(capacityTypeId: string): Promise<ActorWithDetails[]>
-  filterByZone(region: string): Promise<ActorWithDetails[]>
-  filterByType(type: ActorType): Promise<ActorWithDetails[]>
-  
-  // CRUD Actor
-  create(actor: CreateActorInput): Promise<Actor>
-  update(actorId: string, data: UpdateActorInput): Promise<Actor>
-  setStatus(actorId: string, status: ActorStructuralStatus): Promise<void>
-  
-  // Capacidades
-  addCapability(actorId: string, capability: CreateCapabilityInput): Promise<ActorCapabilityDeclared>
-  updateCapability(capabilityId: string, data: UpdateCapabilityInput): Promise<void>
-  removeCapability(capabilityId: string): Promise<void>
-  
-  // Zonas
-  addZone(actorId: string, zone: CreateZoneInput): Promise<ActorHabitualZone>
-  removeZone(zoneId: string): Promise<void>
-  
-  // Contactos
-  setContacts(actorId: string, contacts: ContactInput[]): Promise<void>
-  
-  // Historial (solo lectura)
-  getParticipationHistory(actorId: string): Promise<ActorParticipationHistory[]>
-}
-
-interface ActorWithDetails {
-  actor: Actor;
-  capabilities: ActorCapabilityDeclared[];
-  zones: ActorHabitualZone[];
-  contacts: ActorContact[];
-  capacityTypes: CapacityType[]; // Resolved names
-}
-```
-
----
-
-## Mock Data (Inicial)
-
-```typescript
-// src/services/mock/data.ts (agregar)
-export const MOCK_ACTORS_NETWORK: Actor[] = [
-  {
-    id: "actor-net-1",
-    user_id: "mock-actor-1",
-    organization_name: "Cruz Roja Chile",
-    organization_type: "ong",
-    description: "Organizacion humanitaria con presencia nacional",
-    structural_status: "active",
-    created_at: "2025-01-01T00:00:00Z",
-    updated_at: "2025-01-15T00:00:00Z",
-  },
-  {
-    id: "actor-net-2",
-    user_id: "mock-admin-1",
-    organization_name: "Bomberos Voluntarios Chillan",
-    organization_type: "volunteer",
-    description: "Cuerpo de bomberos con capacidad de rescate",
-    structural_status: "active",
-    created_at: "2025-01-01T00:00:00Z",
-    updated_at: "2025-01-10T00:00:00Z",
-  },
-  {
-    id: "actor-net-3",
-    user_id: "mock-state-1",
-    organization_name: "ONEMI Regional Nuble",
-    organization_type: "state",
-    description: "Oficina Nacional de Emergencias - Region de Nuble",
-    structural_status: "active",
-    created_at: "2024-12-01T00:00:00Z",
-    updated_at: "2025-01-05T00:00:00Z",
-  },
-];
-
-export const MOCK_ACTOR_CAPABILITIES_DECLARED: ActorCapabilityDeclared[] = [
-  { id: "acd-1", actor_id: "actor-net-1", capacity_type_id: "cap-2", level: "specialized", notes: "Flota de 15 vehiculos 4x4" },
-  { id: "acd-2", actor_id: "actor-net-1", capacity_type_id: "cap-3", level: "operational", notes: "Ambulancia basica" },
-  { id: "acd-3", actor_id: "actor-net-1", capacity_type_id: "cap-5", level: "specialized", notes: "Cocina movil" },
+// Before
+export const ACTOR_TYPE_LABELS: Record<ActorType, string> = {
+  ong: "ONG",
+  government: "Gobierno",
+  private: "Empresa Privada",
   // ...
-];
+};
 
-export const MOCK_ACTOR_ZONES: ActorHabitualZone[] = [
-  { id: "zone-1", actor_id: "actor-net-1", region: "Nuble", commune: null, presence_type: "habitual" },
-  { id: "zone-2", actor_id: "actor-net-1", region: "Bio Bio", commune: "Concepcion", presence_type: "occasional" },
+// After
+export const ACTOR_TYPE_LABELS: Record<ActorType, string> = {
+  ong: "NGO",
+  government: "Government",
+  private: "Private Company",
   // ...
-];
-
-export const MOCK_ACTOR_CONTACTS: ActorContact[] = [
-  { id: "contact-1", actor_id: "actor-net-1", name: "Maria Gonzalez", role: "Coordinadora Emergencias", primary_channel: "+56 9 1234 5678", secondary_channel: "mgonzalez@cruzroja.cl", is_primary: true, created_at: "", updated_at: "" },
-  // ...
-];
+};
 ```
 
----
+## Estimated Effort
 
-## Ruta en App.tsx
+| Batch | Files | Credits |
+|-------|-------|---------|
+| 1 - Core Pages | 6 | 2-3 |
+| 2 - Admin Pages | 6 | 2-3 |
+| 3 - Layout | 3 | 1 |
+| 4 - Sectors | 3 | 1 |
+| 5 - Deployments | 4 | 1-2 |
+| 6 - Actors | 7+ | 1-2 |
+| 7 - Dashboard/Reports | 5 | 1 |
+| 8 - Data/Types | 2 | 1 |
+| **Total** | **~36** | **~10-14** |
 
-```typescript
-// Agregar ruta para /admin/actors
-<Route path="/admin/actors" element={<ActorNetwork />} />
-```
+## Technical Notes
 
----
-
-## Diseno Visual (Sin Urgencia)
-
-Principios:
-- Colores neutros (sin rojos/naranjas de severidad)
-- Layout simple de listado
-- Sin metricas en tiempo real
-- Sin badges de alertas
-- Badges de tipo: neutros (outline/secondary)
-- Badge de estado: Activo (verde suave) / Inactivo (gris)
-
----
-
-## Interaccion con Dashboard
-
-Cuando desde el Dashboard se ejecuta "Activar actores de {capacidad}":
-
-El sistema consulta la Red de Actores y filtra por:
-1. capacidad declarada (match con la brecha)
-2. zona habitual compatible (match con el sector)
-3. estado estructural = "active"
-
-Esto ya funciona parcialmente con `AvailableActorsDrawer`. 
-Se mejorara para consultar la nueva estructura de datos.
-
----
-
-## Criterio de Exito
-
-La seccion esta bien construida si:
-- Puede mantenerse fuera de una emergencia
-- No genera urgencia ni ansiedad
-- Mejora la calidad del flujo "Activar actores"
-- No permite acciones operativas fuera de contexto
-- Un admin no entra aqui durante una crisis para "ver que hacer"
+- No i18n library needed - direct string replacement
+- Parallel file edits will be used within each batch for efficiency
+- All file edits use `lov-line-replace` for precision
+- Testing after each batch recommended to catch any missed strings
