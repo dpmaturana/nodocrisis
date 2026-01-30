@@ -1,17 +1,19 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { eventService } from "@/services";
-import type { Event } from "@/types/database";
-import type { GapWithDetails } from "@/services/gapService";
+import { eventService, gapService } from "@/services";
+import type { Event, Signal } from "@/types/database";
+import type { GapWithDetails, GapCounts, DashboardMeta, OperatingActor } from "@/services/gapService";
+import type { SeverityFilter } from "@/components/dashboard/FilterChips";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Activity } from "lucide-react";
 
 // Dashboard components
 import { EventHeader } from "@/components/dashboard/EventHeader";
-import { GapMetrics } from "@/components/dashboard/GapMetrics";
-import { ImmediateAttention } from "@/components/dashboard/ImmediateAttention";
-import { MonitoredSectors } from "@/components/dashboard/MonitoredSectors";
+import { FilterChips } from "@/components/dashboard/FilterChips";
+import { SectorGapList } from "@/components/dashboard/SectorGapList";
+import { SignalsModal } from "@/components/dashboard/SignalsModal";
+import { OperatingActorsModal } from "@/components/dashboard/OperatingActorsModal";
 import { GapDetailDrawer } from "@/components/dashboard/GapDetailDrawer";
 import { AvailableActorsDrawer } from "@/components/dashboard/AvailableActorsDrawer";
 
@@ -22,10 +24,23 @@ export default function EventDashboard() {
   const [allEvents, setAllEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Drawer state
+  // Dashboard meta
+  const [dashboardMeta, setDashboardMeta] = useState<DashboardMeta | null>(null);
+  const [counts, setCounts] = useState<GapCounts | null>(null);
+  
+  // Filter state
+  const [activeFilters, setActiveFilters] = useState<SeverityFilter[]>([]);
+  
+  // Modal/drawer states
   const [selectedGap, setSelectedGap] = useState<GapWithDetails | null>(null);
+  const [signalsForModal, setSignalsForModal] = useState<Signal[]>([]);
+  const [showSignalsModal, setShowSignalsModal] = useState(false);
   const [showGapDrawer, setShowGapDrawer] = useState(false);
   const [showActorsDrawer, setShowActorsDrawer] = useState(false);
+  
+  // Operating actors modal
+  const [operatingActors, setOperatingActors] = useState<OperatingActor[]>([]);
+  const [showOperatingActorsModal, setShowOperatingActorsModal] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -40,6 +55,16 @@ export default function EventDashboard() {
           targetEvent = activeEvents[0] || null;
         }
         setEvent(targetEvent);
+        
+        // Load dashboard meta and counts
+        if (targetEvent) {
+          const [meta, gapCounts] = await Promise.all([
+            gapService.getDashboardMeta(targetEvent.id),
+            gapService.getCounts(targetEvent.id),
+          ]);
+          setDashboardMeta(meta);
+          setCounts(gapCounts);
+        }
       } catch (error) {
         console.error("Error loading event:", error);
       } finally {
@@ -53,14 +78,30 @@ export default function EventDashboard() {
     window.location.href = `/admin/event-dashboard/${newEventId}`;
   };
 
-  const handleViewGap = (gap: GapWithDetails) => {
+  const handleViewSignals = async (gap: GapWithDetails) => {
     setSelectedGap(gap);
-    setShowGapDrawer(true);
+    // Fetch signals for this gap
+    const signals = await gapService.getSignalsForGap(gap.sector_id, gap.capacity_type_id);
+    setSignalsForModal(signals);
+    setShowSignalsModal(true);
   };
 
-  const handleViewActors = (gap: GapWithDetails) => {
+  const handleActivateActors = (gap: GapWithDetails) => {
     setSelectedGap(gap);
     setShowActorsDrawer(true);
+  };
+
+  const handleViewSectorDetails = (sectorId: string) => {
+    // For now, open gap drawer with first gap in sector
+    // In future, could open a sector-specific drawer
+    console.log("View sector details:", sectorId);
+  };
+
+  const handleOpenOperatingActorsModal = async () => {
+    if (!event) return;
+    const actors = await gapService.getOperatingActors(event.id);
+    setOperatingActors(actors);
+    setShowOperatingActorsModal(true);
   };
 
   // Loading state
@@ -68,10 +109,10 @@ export default function EventDashboard() {
     return (
       <div className="space-y-6 animate-fade-in">
         <Skeleton className="h-16 w-full" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24" />)}
+        <Skeleton className="h-10 w-full" />
+        <div className="space-y-4">
+          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-48" />)}
         </div>
-        <Skeleton className="h-64" />
       </div>
     );
   }
@@ -92,26 +133,57 @@ export default function EventDashboard() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header con evento y fase */}
+      {/* Header con evento, fase, última señal, confianza */}
       <EventHeader 
         event={event} 
         phase="unstable"
         allEvents={allEvents}
         onEventChange={handleEventChange}
+        lastSignal={dashboardMeta?.lastSignal}
+        globalConfidence={dashboardMeta?.globalConfidence}
       />
       
-      {/* 4 métricas: sectores, críticas, parciales, operando */}
-      <GapMetrics eventId={event.id} />
+      {/* Chips de filtro clickeables */}
+      <FilterChips
+        counts={{
+          sectorsWithGaps: counts?.sectorsWithGaps || 0,
+          critical: counts?.critical || 0,
+          partial: counts?.partial || 0,
+          operatingActors: dashboardMeta?.operatingCount || 0,
+        }}
+        activeFilters={activeFilters}
+        onFilterChange={setActiveFilters}
+        onOpenActorsModal={handleOpenOperatingActorsModal}
+      />
       
-      {/* Lista priorizada de brechas */}
-      <ImmediateAttention 
+      {/* Lista de sectores con gaps */}
+      <SectorGapList
         eventId={event.id}
-        onViewGap={handleViewGap}
-        onViewActors={handleViewActors}
+        activeFilters={activeFilters}
+        onViewSectorDetails={handleViewSectorDetails}
+        onViewSignals={handleViewSignals}
+        onActivateActors={handleActivateActors}
       />
       
-      {/* Sectores monitoreados (collapse) */}
-      <MonitoredSectors eventId={event.id} />
+      {/* Modal de señales */}
+      <SignalsModal
+        gap={selectedGap}
+        signals={signalsForModal}
+        open={showSignalsModal}
+        onOpenChange={setShowSignalsModal}
+      />
+      
+      {/* Modal de actores operando */}
+      <OperatingActorsModal
+        actors={operatingActors}
+        open={showOperatingActorsModal}
+        onOpenChange={setShowOperatingActorsModal}
+        onViewGap={(gapId) => {
+          setShowOperatingActorsModal(false);
+          // Could navigate to gap or open drawer
+          console.log("View gap:", gapId);
+        }}
+      />
       
       {/* Drawer de detalle de brecha */}
       <GapDetailDrawer 
