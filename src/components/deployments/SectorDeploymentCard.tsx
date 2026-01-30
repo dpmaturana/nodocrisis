@@ -30,33 +30,33 @@ interface SectorDeploymentCardProps {
 const sectorStateConfig = {
   critical: {
     status: "gap-critical" as const,
-    label: "Sector crítico",
-    microcopy: "Brecha sigue activa según señales disponibles",
+    label: "Critical sector",
+    microcopy: "Gap remains active based on available signals",
   },
   partial: {
     status: "gap-partial" as const,
-    label: "Brecha parcial",
-    microcopy: "Cobertura insuficiente en algunas capacidades",
+    label: "Partial gap",
+    microcopy: "Insufficient coverage across some capabilities",
   },
   contained: {
     status: "gap-active" as const,
-    label: "Sector contenido",
-    microcopy: "Situación estabilizada por ahora",
+    label: "Contained sector",
+    microcopy: "Situation stabilized for now",
   },
 };
 
 const phaseConfig = {
   preparing: {
     status: "deploy-confirmed" as const,
-    label: "Preparándose para operar",
+    label: "Preparing to operate",
   },
   operating: {
     status: "deploy-operating" as const,
-    label: "Operando",
+    label: "Operating",
   },
   stabilizing: {
     status: "gap-active" as const,
-    label: "En monitoreo",
+    label: "Under monitoring",
   },
 };
 
