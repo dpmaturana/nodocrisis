@@ -19,14 +19,23 @@ import type {
 
 // ============== CAPACITY TYPES ==============
 export const MOCK_CAPACITY_TYPES: CapacityType[] = [
-  { id: "cap-1", name: "Agua y Bomberos", icon: "droplet", description: "Recursos hídricos y combate de incendios", created_at: new Date().toISOString() },
-  { id: "cap-2", name: "Transporte", icon: "truck", description: "Vehículos y logística de movilización", created_at: new Date().toISOString() },
-  { id: "cap-3", name: "Salud", icon: "heart", description: "Atención médica y ambulancias", created_at: new Date().toISOString() },
-  { id: "cap-4", name: "Albergue", icon: "home", description: "Refugio temporal para afectados", created_at: new Date().toISOString() },
-  { id: "cap-5", name: "Alimentación", icon: "utensils", description: "Provisión de alimentos y agua potable", created_at: new Date().toISOString() },
-  { id: "cap-6", name: "Maquinaria Pesada", icon: "cog", description: "Retroexcavadoras, grúas y equipos pesados", created_at: new Date().toISOString() },
-  { id: "cap-7", name: "Comunicaciones", icon: "radio", description: "Equipos de radio y telecomunicaciones", created_at: new Date().toISOString() },
-  { id: "cap-8", name: "Búsqueda y Rescate", icon: "search", description: "Equipos especializados SAR", created_at: new Date().toISOString() },
+  { id: "cap-1", name: "Evacuación y traslado", icon: "move", description: "Desplazamiento seguro de personas desde zonas de riesgo hacia lugares seguros.", created_at: new Date().toISOString() },
+  { id: "cap-2", name: "Búsqueda y rescate", icon: "search", description: "Localización y asistencia de personas atrapadas, desaparecidas o aisladas.", created_at: new Date().toISOString() },
+  { id: "cap-3", name: "Protección y seguridad básica", icon: "shield", description: "Medidas para reducir riesgos inmediatos a la integridad física de las personas.", created_at: new Date().toISOString() },
+  { id: "cap-4", name: "Atención médica de emergencia", icon: "heart-pulse", description: "Atención médica inmediata a personas lesionadas o en riesgo vital.", created_at: new Date().toISOString() },
+  { id: "cap-5", name: "Salud mental y apoyo psicosocial", icon: "brain", description: "Apoyo emocional y psicológico a personas afectadas por la emergencia.", created_at: new Date().toISOString() },
+  { id: "cap-6", name: "Agua potable", icon: "droplet", description: "Acceso a agua segura para consumo humano en cantidad suficiente.", created_at: new Date().toISOString() },
+  { id: "cap-7", name: "Saneamiento e higiene", icon: "spray-can", description: "Servicios básicos de saneamiento e higiene para prevenir riesgos sanitarios.", created_at: new Date().toISOString() },
+  { id: "cap-8", name: "Alimentación", icon: "utensils", description: "Acceso oportuno a alimentos adecuados para la población afectada.", created_at: new Date().toISOString() },
+  { id: "cap-9", name: "Alojamiento / refugio", icon: "home", description: "Soluciones temporales de alojamiento seguro y protección ambiental.", created_at: new Date().toISOString() },
+  { id: "cap-10", name: "Transporte", icon: "truck", description: "Movilización de personas, insumos y equipos necesarios para la respuesta.", created_at: new Date().toISOString() },
+  { id: "cap-11", name: "Distribución de suministros", icon: "package", description: "Entrega organizada de insumos esenciales a población o puntos de atención.", created_at: new Date().toISOString() },
+  { id: "cap-12", name: "Almacenamiento", icon: "warehouse", description: "Resguardo seguro y organizado de insumos y equipos durante la respuesta.", created_at: new Date().toISOString() },
+  { id: "cap-13", name: "Energía", icon: "zap", description: "Provisión o restablecimiento de energía eléctrica o combustible para operaciones críticas.", created_at: new Date().toISOString() },
+  { id: "cap-14", name: "Comunicaciones", icon: "radio", description: "Habilitar canales operativos de comunicación entre actores y comunidades afectadas.", created_at: new Date().toISOString() },
+  { id: "cap-15", name: "Catastro de información", icon: "clipboard-list", description: "Recopilación y síntesis de información relevante para la toma de decisiones.", created_at: new Date().toISOString() },
+  { id: "cap-16", name: "Control de incendios", icon: "flame", description: "Contención y mitigación de incendios activos que amenazan a personas o entorno.", created_at: new Date().toISOString() },
+  { id: "cap-17", name: "Gestión de materiales peligrosos", icon: "alert-triangle", description: "Manejo y mitigación de riesgos asociados a sustancias peligrosas.", created_at: new Date().toISOString() },
 ];
 
 // ============== EVENTS ==============
