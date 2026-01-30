@@ -13,7 +13,7 @@ export default function CreateEventAI() {
   const { isAdmin, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+
   const [inputText, setInputText] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -64,9 +64,9 @@ export default function CreateEventAI() {
   return (
     <div className="container max-w-2xl py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Nueva Emergencia</h1>
+        <h1 className="text-3xl font-bold tracking-tight">New Emergency</h1>
         <p className="text-muted-foreground mt-2">
-          Describe la situación y la IA generará una propuesta inicial para activar la coordinación.
+          Describe the situation and the AI will create an initial proposal to activate de coordination.
         </p>
       </div>
 
@@ -74,16 +74,17 @@ export default function CreateEventAI() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            Generación Asistida por IA
+            Generation assisted by IA
           </CardTitle>
           <CardDescription>
-            Ingresa una descripción breve de la emergencia. La IA analizará el texto y sugerirá sectores afectados y capacidades requeridas.
+            Enter a brief description of the emergency. The IA will analyze the text and suggest impacted sectors and
+            required capabilities.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">
             <label htmlFor="input-text" className="text-sm font-medium">
-              Describe la emergencia
+              Describe the emergency
             </label>
             <Textarea
               id="input-text"
@@ -94,7 +95,7 @@ export default function CreateEventAI() {
               disabled={isGenerating}
             />
             <p className="text-xs text-muted-foreground">
-              Puedes pegar texto de noticias, reportes o describir la situación en tus propias palabras.
+              You can paste news links, reports o describe the situation in your own words.
             </p>
           </div>
 
@@ -108,12 +109,12 @@ export default function CreateEventAI() {
               {isGenerating ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Analizando situación...
+                  Analizing the situation...
                 </>
               ) : (
                 <>
                   <Sparkles className="h-4 w-4" />
-                  Generar propuesta inicial
+                  Generate initial proposal
                 </>
               )}
             </Button>
@@ -130,7 +131,7 @@ export default function CreateEventAI() {
             <Link to="/admin/coordination?tab=eventos">
               <Button variant="outline" className="w-full gap-2">
                 <FileText className="h-4 w-4" />
-                Crear evento manualmente
+                Create event manually
               </Button>
             </Link>
           </div>
@@ -140,12 +141,12 @@ export default function CreateEventAI() {
       {/* Tips section */}
       <Card className="mt-6 bg-muted/30 border-border/50">
         <CardContent className="pt-6">
-          <h3 className="font-semibold mb-3">Consejos para mejores resultados:</h3>
+          <h3 className="font-semibold mb-3">Advices to improve the results:</h3>
           <ul className="text-sm text-muted-foreground space-y-2">
-            <li>• Incluye la ubicación geográfica (región, comunas, sectores)</li>
-            <li>• Menciona el tipo de emergencia (incendio, inundación, etc.)</li>
-            <li>• Si hay fuentes de información, inclúyelas en el texto</li>
-            <li>• La IA generará una propuesta que podrás editar antes de confirmar</li>
+            <li>• Include the location (region, commune, sector)</li>
+            <li>• Mention the type of emergency (wildfire, Flood, Massive Accident etc.)</li>
+            <li>• If you have informational sources. include them in the text</li>
+            <li>• The IA will generate a proposal that you would be able to edit before confirmation </li>
           </ul>
         </CardContent>
       </Card>
