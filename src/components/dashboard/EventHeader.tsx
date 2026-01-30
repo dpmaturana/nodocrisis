@@ -80,7 +80,7 @@ export function EventHeader({
         {/* Global confidence */}
         <Badge variant="outline" className={cn("font-normal", confidenceConfig.bg, confidenceConfig.text)}>
           <ShieldCheck className="w-3 h-3 mr-1.5" />
-          Confidence {confidenceConfig.label}
+          Confianza {confidenceConfig.label}
         </Badge>
 
         {/* Event switcher */}
