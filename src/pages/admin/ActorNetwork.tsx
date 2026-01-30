@@ -16,13 +16,13 @@ export default function ActorNetwork() {
   const [showDrawer, setShowDrawer] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingActor, setEditingActor] = useState<ActorWithDetails | null>(null);
-  
+
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [capacityFilter, setCapacityFilter] = useState<string | null>(null);
   const [regionFilter, setRegionFilter] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<ActorType | null>(null);
-  
+
   const { toast } = useToast();
 
   const loadActors = async () => {
@@ -83,7 +83,7 @@ export default function ActorNetwork() {
       await actorNetworkService.setStatus(actorId, status);
       toast({
         title: "Estado actualizado",
-        description: `Actor marcado como ${status === 'active' ? 'activo' : 'inactivo'}`,
+        description: `Actor marcado como ${status === "active" ? "activo" : "inactivo"}`,
       });
       loadActors();
       // Update selected actor if open
@@ -107,15 +107,15 @@ export default function ActorNetwork() {
         <div>
           <div className="flex items-center gap-2">
             <Users className="h-6 w-6 text-muted-foreground" />
-            <h1 className="text-2xl font-semibold">Red de Actores</h1>
+            <h1 className="text-2xl font-semibold">Organizational network</h1>
           </div>
           <p className="text-muted-foreground mt-1">
-            Gestión estructural de capacidades. Registro de actores, capacidades, zonas habituales y contactos.
+            Structured capacity management. Registry of organizations, capabilities, operating areas, and contacts.
           </p>
         </div>
         <Button onClick={handleCreateActor} className="shrink-0">
           <Plus className="h-4 w-4 mr-2" />
-          Registrar Actor
+          Register new Organization
         </Button>
       </div>
 
@@ -134,21 +134,11 @@ export default function ActorNetwork() {
       {/* List */}
       <div className="space-y-3 mt-6">
         {loading ? (
-          <div className="text-center py-12 text-muted-foreground">
-            Cargando actores...
-          </div>
+          <div className="text-center py-12 text-muted-foreground">Loading organizations...</div>
         ) : actors.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            No se encontraron actores con los filtros seleccionados
-          </div>
+          <div className="text-center py-12 text-muted-foreground">No results found for the selected filters</div>
         ) : (
-          actors.map((actor) => (
-            <ActorRow
-              key={actor.actor.id}
-              actor={actor}
-              onView={() => handleViewActor(actor)}
-            />
-          ))
+          actors.map((actor) => <ActorRow key={actor.actor.id} actor={actor} onView={() => handleViewActor(actor)} />)
         )}
       </div>
 
@@ -162,11 +152,7 @@ export default function ActorNetwork() {
       />
 
       {/* Create/Edit Form */}
-      <ActorForm
-        actor={editingActor}
-        open={showForm}
-        onClose={handleFormClose}
-      />
+      <ActorForm actor={editingActor} open={showForm} onClose={handleFormClose} />
     </div>
   );
 }
