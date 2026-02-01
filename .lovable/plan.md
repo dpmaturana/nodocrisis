@@ -1,242 +1,348 @@
 
-# Plan: Translate UI to English
+# Plan: MapView Sticky Component with Smart Tooltips
 
 ## Overview
 
-Translate all user-facing text from Spanish to English across the application. This includes:
-- Page titles and descriptions
-- Button labels and actions
-- Form labels and placeholders
-- Toast messages
-- Status labels and badges
-- Modal/dialog content
-- Empty states and error messages
+Build a `MapView` component for NodoCrisis that displays sector pins on a map with role-aware tooltips (NGO vs Admin) and bidirectional synchronization with sector cards.
 
-## Scope Analysis
+## Technical Architecture
 
-Based on codebase exploration, the following files contain Spanish text:
+### New Dependencies
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `react-leaflet` | ^4.2.1 | React bindings for Leaflet |
+| `leaflet` | ^1.9.4 | Map rendering library |
+| `@types/leaflet` | ^1.9.8 | TypeScript definitions |
 
-### Pages (12 files)
-| File | Estimated Strings |
-|------|-------------------|
-| `src/pages/Auth.tsx` | ~20 |
-| `src/pages/Dashboard.tsx` | ~25 |
-| `src/pages/Events.tsx` | ~15 |
-| `src/pages/EventDetail.tsx` | ~35 |
-| `src/pages/Sectors.tsx` | ~20 |
-| `src/pages/MyCapabilities.tsx` | ~30 |
-| `src/pages/MyDeployments.tsx` | ~15 |
-| `src/pages/admin/ActorNetwork.tsx` | ~15 |
-| `src/pages/admin/Coordination.tsx` | ~50 |
-| `src/pages/admin/CreateEventAI.tsx` | ~25 |
-| `src/pages/admin/EventDashboard.tsx` | ~10 |
-| `src/pages/admin/SituationReport.tsx` | ~40 |
+### New Files
+| File | Description |
+|------|-------------|
+| `src/components/map/MapView.tsx` | Main map component with pins and tooltips |
+| `src/components/map/SectorPin.tsx` | Individual pin with hover/click behavior |
+| `src/components/map/SectorTooltip.tsx` | Role-aware tooltip content |
+| `src/hooks/useSectorFocus.ts` | State management for map-list sync |
 
-### Layout Components (3 files)
-| File | Estimated Strings |
-|------|-------------------|
-| `src/components/layout/AppSidebar.tsx` | ~15 |
-| `src/components/layout/ActorHeader.tsx` | ~5 |
-| `src/components/layout/ActorLayout.tsx` | ~5 |
+### Modified Files
+| File | Changes |
+|------|---------|
+| `src/pages/Sectors.tsx` | Integrate MapView above card list |
+| `src/components/sectors/SectorCard.tsx` | Add `id` attribute for scroll targeting, hover callbacks |
 
-### Feature Components (~20 files)
-| Category | Files | Estimated Strings |
-|----------|-------|-------------------|
-| Sectors | 3 files | ~40 |
-| Deployments | 4 files | ~45 |
-| Actors | 8 files | ~60 |
-| Dashboard | 7 files | ~50 |
-| Reports | 3 files | ~25 |
+## Component Design
 
-### Other Files
-| File | Estimated Strings |
-|------|-------------------|
-| `src/services/mock/data.ts` | ~20 (capacity type descriptions) |
-| `src/types/database.ts` | ~15 (label constants) |
-| `src/hooks/use-toast.ts` | ~5 |
+### 1. MapView Props Interface
 
-## Translation Mapping (Key Examples)
-
-### Navigation and Headers
-| Spanish | English |
-|---------|---------|
-| Dashboard | Dashboard |
-| Eventos | Events |
-| Sectores | Sectors |
-| Mis Capacidades | My Capabilities |
-| Mis Despliegues | My Deployments |
-| Red de Actores | Actor Network |
-| Coordinación | Coordination |
-| Nueva Emergencia | New Emergency |
-| Configuración | Settings |
-| Cerrar sesión | Sign Out |
-
-### Actions and Buttons
-| Spanish | English |
-|---------|---------|
-| Agregar | Add |
-| Guardar | Save |
-| Cancelar | Cancel |
-| Confirmar | Confirm |
-| Crear | Create |
-| Editar | Edit |
-| Eliminar | Delete |
-| Descartar | Discard |
-| Inscribirme | Enroll |
-| Ver detalles | View details |
-| Buscar | Search |
-
-### Status Labels
-| Spanish | English |
-|---------|---------|
-| Activo | Active |
-| Cerrado | Closed |
-| Crítico | Critical |
-| Parcial | Partial |
-| Contenido | Contained |
-| Disponible | Available |
-| Limitada | Limited |
-| No disponible | Unavailable |
-| Operando | Operating |
-| Confirmado | Confirmed |
-| Finalizado | Finished |
-
-### Form Labels
-| Spanish | English |
-|---------|---------|
-| Nombre | Name |
-| Correo electrónico | Email |
-| Contraseña | Password |
-| Organización | Organization |
-| Descripción | Description |
-| Cantidad | Quantity |
-| Unidad | Unit |
-| Disponibilidad | Availability |
-| Notas | Notes |
-
-### Toast Messages
-| Spanish | English |
-|---------|---------|
-| Capacidad agregada | Capability added |
-| Error al guardar | Error saving |
-| Inscripción exitosa | Enrollment successful |
-| Operación finalizada | Operation finished |
-| Borrador guardado | Draft saved |
-
-## Implementation Order
-
-### Batch 1: Core Pages (4-5 credits)
-1. `src/pages/Auth.tsx`
-2. `src/pages/Dashboard.tsx`
-3. `src/pages/Events.tsx`
-4. `src/pages/Sectors.tsx`
-5. `src/pages/MyCapabilities.tsx`
-6. `src/pages/MyDeployments.tsx`
-
-### Batch 2: Admin Pages (2-3 credits)
-1. `src/pages/admin/ActorNetwork.tsx`
-2. `src/pages/admin/Coordination.tsx`
-3. `src/pages/admin/CreateEventAI.tsx`
-4. `src/pages/admin/SituationReport.tsx`
-5. `src/pages/admin/EventDashboard.tsx`
-6. `src/pages/EventDetail.tsx`
-
-### Batch 3: Layout and Navigation (1 credit)
-1. `src/components/layout/AppSidebar.tsx`
-2. `src/components/layout/ActorHeader.tsx`
-3. `src/components/layout/ActorLayout.tsx`
-
-### Batch 4: Sector Components (1-2 credits)
-1. `src/components/sectors/SectorCard.tsx`
-2. `src/components/sectors/SectorDetailDrawer.tsx`
-3. `src/components/sectors/EnrollmentModal.tsx`
-
-### Batch 5: Deployment Components (1-2 credits)
-1. `src/components/deployments/SectorDeploymentCard.tsx`
-2. `src/components/deployments/CapabilityRow.tsx`
-3. `src/components/deployments/FieldStatusReport.tsx`
-4. `src/components/deployments/CompletedReportView.tsx`
-
-### Batch 6: Actor Components (1-2 credits)
-1. `src/components/actors/ActorForm.tsx`
-2. `src/components/actors/ActorRow.tsx`
-3. `src/components/actors/ActorDetailDrawer.tsx`
-4. `src/components/actors/ActorListFilters.tsx`
-5. `src/components/actors/CapabilityDeclaredList.tsx`
-6. `src/components/actors/HabitualZonesList.tsx`
-7. Other actor components
-
-### Batch 7: Dashboard and Report Components (1 credit)
-1. `src/components/dashboard/SectorCardAdmin.tsx`
-2. `src/components/dashboard/GapRow.tsx`
-3. `src/components/dashboard/FilterChips.tsx`
-4. `src/components/reports/SuggestedSectorCard.tsx`
-5. `src/components/reports/CapabilityToggleList.tsx`
-
-### Batch 8: Data and Types (1 credit)
-1. `src/services/mock/data.ts` (capacity type names/descriptions)
-2. `src/types/database.ts` (label constants like `ACTOR_TYPE_LABELS`)
-
-## Special Considerations
-
-### Date Formatting
-Replace Spanish locale imports:
 ```typescript
-// Before
-import { es } from "date-fns/locale";
-format(date, "d MMM yyyy", { locale: es })
+interface MapViewProps {
+  viewerRole: "ngo" | "admin";
+  orgCapabilities: string[];  // Capability names for NGO filtering
+  sectors: MapSector[];
+  focusedSectorId?: string;
+  onSectorFocus?: (sectorId: string | null) => void;
+  onSectorClick?: (sectorId: string) => void;
+}
 
-// After
-format(date, "d MMM yyyy")  // Uses default English
+interface MapSector {
+  id: string;
+  name: string;
+  status: "critical" | "partial" | "operating";
+  lat?: number;
+  lng?: number;
+  gaps: MapGap[];
+}
+
+interface MapGap {
+  capabilityName: string;
+  coverage: "none" | "partial" | "full";
+  severity: "critical" | "partial";
+}
 ```
 
-### Branding
-Keep the app name **"NodoCrisis"** unchanged - it's a proper noun/brand name.
+### 2. Layout Structure
 
-### Capacity Types
-These are currently hardcoded in Spanish in `src/services/mock/data.ts`. They need translation:
-- "Evacuacion y traslado" -> "Evacuation and transport"
-- "Busqueda y rescate" -> "Search and rescue"
-- "Atencion medica de emergencia" -> "Emergency medical care"
-- etc.
+The map will be sticky at the top (25-35% viewport height) with cards scrolling beneath:
 
-### Type Constants
-Update label mappings in `src/types/database.ts`:
+```
++------------------------------------------+
+|  [HEADER: Where your organization...]    |
++------------------------------------------+
+|                                          |
+|              STICKY MAP                  |
+|         (25-35vh, z-index: 10)           |
+|                                          |
++------------------------------------------+
+|                                          |
+|           SCROLLABLE CARDS               |
+|         (id="sector-{sectorId}")         |
+|                                          |
++------------------------------------------+
+```
+
+### 3. Pin Rendering Logic
+
+- Only render pins for sectors with valid `lat` and `lng` values
+- Pin color based on `sector.status`:
+  - `critical` = Red (`#EF4444`, gap-critical)
+  - `partial` = Orange (`#F59E0B`, warning)
+  - `operating` = Green (`#22C55E`, coverage)
+
+### 4. Tooltip Content by Role
+
+**Admin View:**
+```
+San Carlos Rural
+🔴 Critical sector
+Missing: Water, Fire control, Transport (+2)
+```
+
+**NGO View:**
+```
+San Carlos Rural
+🔴 Critical sector
+You can provide: Transport, Food (+1)
+Other gaps in sector: +3
+```
+
+Tooltip logic:
+1. Filter gaps where `coverage !== "full"`
+2. Sort: `severity === "critical"` first, then alphabetically by `capabilityName`
+3. Show max 3, then `(+N more)`
+4. For NGO: intersect with `orgCapabilities`, show "Other gaps" count separately
+
+### 5. Map-List Synchronization
+
+| Action | Map Response | List Response |
+|--------|--------------|---------------|
+| Hover pin | Show tooltip, highlight pin | Highlight card border (no scroll) |
+| Click pin | Center map on pin | Scroll to card, highlight 2s |
+| Hover card | Center map, highlight pin | - |
+| Click card | - | Open detail drawer |
+
+### 6. Scroll Implementation
+
 ```typescript
-// Before
-export const ACTOR_TYPE_LABELS: Record<ActorType, string> = {
-  ong: "ONG",
-  government: "Gobierno",
-  private: "Empresa Privada",
-  // ...
-};
-
-// After
-export const ACTOR_TYPE_LABELS: Record<ActorType, string> = {
-  ong: "NGO",
-  government: "Government",
-  private: "Private Company",
-  // ...
+const scrollToCard = (sectorId: string) => {
+  const card = document.getElementById(`sector-${sectorId}`);
+  if (card) {
+    const headerOffset = 48; // Account for sticky header
+    const mapHeight = window.innerHeight * 0.3; // ~30vh
+    const elementPosition = card.getBoundingClientRect().top;
+    const offsetPosition = elementPosition + window.pageYOffset - headerOffset - mapHeight - 16;
+    
+    window.scrollTo({ top: offsetPosition, behavior: "smooth" });
+    
+    // Highlight animation
+    card.classList.add("ring-2", "ring-primary", "ring-offset-2");
+    setTimeout(() => {
+      card.classList.remove("ring-2", "ring-primary", "ring-offset-2");
+    }, 2000);
+  }
 };
 ```
 
-## Estimated Effort
+## Implementation Steps
 
-| Batch | Files | Credits |
-|-------|-------|---------|
-| 1 - Core Pages | 6 | 2-3 |
-| 2 - Admin Pages | 6 | 2-3 |
-| 3 - Layout | 3 | 1 |
-| 4 - Sectors | 3 | 1 |
-| 5 - Deployments | 4 | 1-2 |
-| 6 - Actors | 7+ | 1-2 |
-| 7 - Dashboard/Reports | 5 | 1 |
-| 8 - Data/Types | 2 | 1 |
-| **Total** | **~36** | **~10-14** |
+### Step 1: Install Dependencies
+Add `react-leaflet`, `leaflet`, and `@types/leaflet` to the project.
 
-## Technical Notes
+### Step 2: Add Leaflet CSS
+Import Leaflet styles in `index.css`:
+```css
+@import "leaflet/dist/leaflet.css";
+```
 
-- No i18n library needed - direct string replacement
-- Parallel file edits will be used within each batch for efficiency
-- All file edits use `lov-line-replace` for precision
-- Testing after each batch recommended to catch any missed strings
+### Step 3: Create useSectorFocus Hook
+Manage synchronized focus state between map and list:
+```typescript
+export function useSectorFocus() {
+  const [focusedSectorId, setFocusedSectorId] = useState<string | null>(null);
+  const [highlightedCardId, setHighlightedCardId] = useState<string | null>(null);
+  
+  const scrollToCard = (sectorId: string) => { /* ... */ };
+  
+  return { focusedSectorId, highlightedCardId, setFocusedSectorId, scrollToCard };
+}
+```
+
+### Step 4: Create MapView Component
+
+Main component structure:
+```typescript
+export function MapView({ viewerRole, orgCapabilities, sectors, ... }: MapViewProps) {
+  const validSectors = sectors.filter(s => s.lat != null && s.lng != null);
+  
+  // Calculate map center from valid sectors
+  const center = useMemo(() => { /* ... */ }, [validSectors]);
+  
+  return (
+    <div className="sticky top-0 z-10 h-[30vh] min-h-[200px] max-h-[35vh] rounded-lg overflow-hidden border">
+      <MapContainer center={center} zoom={10} className="h-full w-full">
+        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        {validSectors.map(sector => (
+          <SectorPin 
+            key={sector.id}
+            sector={sector}
+            viewerRole={viewerRole}
+            orgCapabilities={orgCapabilities}
+            isFocused={focusedSectorId === sector.id}
+            onHover={() => onSectorFocus?.(sector.id)}
+            onLeave={() => onSectorFocus?.(null)}
+            onClick={() => onSectorClick?.(sector.id)}
+          />
+        ))}
+      </MapContainer>
+    </div>
+  );
+}
+```
+
+### Step 5: Create SectorPin Component
+
+Custom pin with Leaflet's `CircleMarker` or `Marker`:
+```typescript
+export function SectorPin({ sector, viewerRole, orgCapabilities, isFocused, ... }: SectorPinProps) {
+  const color = getStatusColor(sector.status);
+  
+  return (
+    <CircleMarker
+      center={[sector.lat!, sector.lng!]}
+      radius={isFocused ? 12 : 8}
+      pathOptions={{ color, fillColor: color, fillOpacity: 0.8 }}
+      eventHandlers={{
+        mouseover: onHover,
+        mouseout: onLeave,
+        click: onClick,
+      }}
+    >
+      <Tooltip permanent={false}>
+        <SectorTooltip 
+          sector={sector} 
+          viewerRole={viewerRole} 
+          orgCapabilities={orgCapabilities} 
+        />
+      </Tooltip>
+    </CircleMarker>
+  );
+}
+```
+
+### Step 6: Create SectorTooltip Component
+
+Role-aware tooltip content:
+```typescript
+export function SectorTooltip({ sector, viewerRole, orgCapabilities }: SectorTooltipProps) {
+  const statusIcon = { critical: "🔴", partial: "🟠", operating: "🟢" }[sector.status];
+  const statusLabel = { critical: "Critical sector", partial: "Partial sector", operating: "Operating" }[sector.status];
+  
+  // Filter and sort missing gaps
+  const missingGaps = sector.gaps
+    .filter(g => g.coverage !== "full")
+    .sort((a, b) => { /* critical first, then alphabetical */ });
+  
+  if (viewerRole === "admin") {
+    return <AdminTooltip sector={sector} missingGaps={missingGaps} />;
+  }
+  
+  // NGO view - intersect with orgCapabilities
+  const matchingGaps = missingGaps.filter(g => orgCapabilities.includes(g.capabilityName));
+  const otherGapsCount = missingGaps.length - matchingGaps.length;
+  
+  return <NgoTooltip sector={sector} matchingGaps={matchingGaps} otherGapsCount={otherGapsCount} />;
+}
+```
+
+### Step 7: Integrate into Sectors Page
+
+Update `src/pages/Sectors.tsx`:
+```typescript
+export default function Sectors() {
+  const { focusedSectorId, scrollToCard, setFocusedSectorId } = useSectorFocus();
+  
+  // Transform EnrichedSector[] to MapSector[]
+  const mapSectors = useMemo(() => transformToMapSectors(sectors), [sectors]);
+  
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      
+      {/* Sticky Map */}
+      {mapSectors.length > 0 && (
+        <MapView
+          viewerRole={isAdmin ? "admin" : "ngo"}
+          orgCapabilities={userCapabilities.map(c => c.capacityType?.name)}
+          sectors={mapSectors}
+          focusedSectorId={focusedSectorId}
+          onSectorFocus={setFocusedSectorId}
+          onSectorClick={scrollToCard}
+        />
+      )}
+      
+      {/* Sector Cards with IDs */}
+      {sectors.map(sector => (
+        <div 
+          key={sector.sector.id}
+          id={`sector-${sector.sector.id}`}
+          onMouseEnter={() => setFocusedSectorId(sector.sector.id)}
+          onMouseLeave={() => setFocusedSectorId(null)}
+        >
+          <SectorCard
+            sector={sector}
+            isHighlighted={focusedSectorId === sector.sector.id}
+            // ...existing props
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+### Step 8: Update SectorCard for Highlighting
+
+Add highlight state to `SectorCard.tsx`:
+```typescript
+interface SectorCardProps {
+  // ...existing
+  isHighlighted?: boolean;
+}
+
+// In component:
+<Card className={cn(
+  config.borderClass, 
+  config.bgClass,
+  isHighlighted && "ring-2 ring-primary ring-offset-2 ring-offset-background transition-all duration-300"
+)} />
+```
+
+## Technical Considerations
+
+### Map Tile Attribution
+OpenStreetMap requires attribution. Include in footer of map or corner.
+
+### Default Map Center
+Calculate centroid of all valid sector coordinates. Fallback to Chile center (`-33.45, -70.67`) if no valid coords.
+
+### Zoom Level
+- Default zoom: 10 (shows ~50km radius)
+- When centering on pin: zoom 12 (closer)
+- No aggressive auto-zoom on hover
+
+### Performance
+- Memoize `mapSectors` transformation
+- Use `useMemo` for center calculation
+- Debounce hover events (100ms)
+
+### Mobile Considerations
+- Map height: 25vh on mobile, 30vh on desktop
+- Touch-friendly pin size (min 44px tap target)
+- Scroll-to-card respects safe areas
+
+## Estimated Credits
+- Dependencies + setup: 1 credit
+- MapView + SectorPin + SectorTooltip: 2 credits
+- useSectorFocus hook: 1 credit
+- Sectors.tsx integration: 1 credit
+- SectorCard updates: 1 credit
+- Testing and polish: 1 credit
+
+**Total: 6-8 credits**
