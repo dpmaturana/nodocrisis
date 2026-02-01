@@ -1,91 +1,56 @@
 
+# Plan: Corregir Posicionamiento de Cards Bajo el Mapa Sticky
 
-# Plan: Agregar Mapa al Dashboard de Admin
+## Problema
 
-## Situación Actual
+En la captura se observan dos issues:
+1. **Card anterior visible**: El contenido de la card anterior ("Alimentación — No coverage") aparece visible arriba del mapa cuando está en modo sticky
+2. **Card cortada**: Al hacer scroll, las cards quedan parcialmente ocultas detrás del mapa en lugar de aparecer completas justo debajo
 
-El dashboard de admin (`/admin/event-dashboard`) no incluye el componente `MapView`. Este componente solo está presente en la página `/sectors` que usan los actores/ONGs.
+## Causa Raíz
+
+El contenedor sticky del mapa solo envuelve el mapa + spacer, pero no tiene un fondo sólido que oculte el contenido que pasa por debajo. Además, el spacer `h-6` está dentro del sticky container pero no actúa como "ocultador" visual.
 
 ## Solución
 
-Integrar el mismo componente `MapView` en el `EventDashboard` para que los administradores también puedan ver la ubicación geográfica de los sectores con gaps.
+### 1. Modificar `MapView.tsx` - Agregar fondo sólido al sticky container
 
-## Implementación
+El contenedor sticky necesita un fondo que oculte cualquier contenido que scrollee por debajo:
 
-### 1. Modificar `src/pages/admin/EventDashboard.tsx`
-
-**Agregar imports necesarios:**
 ```tsx
-import { MapView } from "@/components/map";
-import { useSectorFocus } from "@/hooks/useSectorFocus";
-import type { MapSector, MapGap } from "@/components/map/types";
+// Antes
+<div className="sticky top-14 z-10">
+
+// Después  
+<div className="sticky top-14 z-10 bg-background">
 ```
 
-**Agregar estado y hook para el mapa:**
-- Usar `useSectorFocus` para sincronización mapa-cards
-- Transformar los sectores de `SectorWithGaps` a formato `MapSector`
+### 2. Ajustar el cálculo de scroll en `useSectorFocus.ts`
 
-**Agregar el componente MapView:**
-- Posicionarlo entre `FilterChips` y `SectorGapList`
-- Configurar como sticky igual que en `/sectors`
-- Pasar `viewerRole="admin"` para mostrar todos los gaps (sin filtro de capacidades)
+El cálculo actual no considera correctamente el spacer. Necesitamos:
+- Sumar la altura del spacer (24px) al offset
+- Usar la altura real del mapa calculada dinámicamente
 
-### 2. Modificar `src/components/dashboard/SectorGapList.tsx`
-
-Agregar soporte para:
-- `focusedSectorId` - Para resaltar el sector enfocado
-- `onSectorHover` - Callback cuando se hace hover en una card
-- IDs en cada card para scroll automático
-
-## Estructura Visual Resultante
-
-```text
-+----------------------------------+
-|  EventHeader                     |
-+----------------------------------+
-|  FilterChips                     |
-+----------------------------------+
-|  ┌──────────────────────────┐   |
-|  │     MapView (sticky)      │   |
-|  │   - Pins por sector       │   |
-|  │   - Colores por severidad │   |
-|  └──────────────────────────┘   |
-+----------------------------------+
-|  SectorCardAdmin #1              |
-|  SectorCardAdmin #2              |
-|  ...                             |
-+----------------------------------+
+```tsx
+// Ajustes en el cálculo
+const headerOffset = 56; // h-14
+const mapHeight = window.innerHeight * (mapHeightVh / 100);
+const spacerHeight = 24; // h-6 spacer debajo del mapa
+const totalStickyHeight = headerOffset + mapHeight + spacerHeight;
 ```
 
 ## Archivos a Modificar
 
-| Archivo | Cambios |
-|---------|---------|
-| `src/pages/admin/EventDashboard.tsx` | Agregar MapView, useSectorFocus, transformar datos a MapSector |
-| `src/components/dashboard/SectorGapList.tsx` | Agregar props para sincronización con mapa |
-| `src/components/dashboard/SectorCardAdmin.tsx` | Agregar prop `isHighlighted` y eventos de hover |
+| Archivo | Cambio |
+|---------|--------|
+| `src/components/map/MapView.tsx` | Agregar `bg-background` al sticky container |
+| `src/hooks/useSectorFocus.ts` | Ajustar cálculo incluyendo spacer height |
 
-## Detalles Técnicos
+## Resultado Esperado
 
-La transformación de datos para el mapa:
-
-```tsx
-const mapSectors = useMemo((): MapSector[] => {
-  return sectorsWithGaps.map(s => ({
-    id: s.sector.id,
-    name: s.sector.canonical_name,
-    status: s.gapCounts.critical > 0 ? "critical" : "partial",
-    lat: s.sector.latitude,
-    lng: s.sector.longitude,
-    gaps: s.gaps.map(g => ({
-      capabilityName: g.capacityType.name,
-      coverage: g.state === "critical" ? "none" : "partial",
-      severity: g.state,
-    })),
-  }));
-}, [sectorsWithGaps]);
-```
+- El contenido que scrollea quedará completamente oculto detrás del mapa sticky
+- Las cards aparecerán justo debajo del spacer sin quedar cortadas
+- No habrá contenido visible entre el header y el mapa
 
 ## Esfuerzo Estimado
-2-3 créditos
-
+Menos de 1 crédito
