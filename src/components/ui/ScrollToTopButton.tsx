@@ -1,33 +1,49 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface ScrollToTopButtonProps {
+export interface ScrollToTopButtonProps {
   showAfter?: number; // Show after scrolling this many pixels
   className?: string;
+  containerSelector?: string; // Optional container selector for scroll within element
 }
 
 export function ScrollToTopButton({ 
   showAfter = 400,
-  className 
+  className,
+  containerSelector
 }: ScrollToTopButtonProps) {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
+    const container = containerSelector 
+      ? document.querySelector(containerSelector) 
+      : null;
+    
     const handleScroll = () => {
-      setIsVisible(window.scrollY > showAfter);
+      if (container) {
+        setIsVisible(container.scrollTop > showAfter);
+      } else {
+        setIsVisible(window.scrollY > showAfter);
+      }
     };
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
+    const target = container || window;
+    target.addEventListener("scroll", handleScroll, { passive: true });
     handleScroll(); // Check initial position
 
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [showAfter]);
+    return () => target.removeEventListener("scroll", handleScroll);
+  }, [showAfter, containerSelector]);
 
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  const scrollToTop = useCallback(() => {
+    if (containerSelector) {
+      const container = document.querySelector(containerSelector);
+      container?.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [containerSelector]);
 
   if (!isVisible) return null;
 

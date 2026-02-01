@@ -52,7 +52,7 @@ export default function EventDashboard() {
   
   // Map data
   const [sectorsWithGaps, setSectorsWithGaps] = useState<SectorWithGaps[]>([]);
-  const { focusedSectorId, highlightedCardId, setFocusedSectorId, scrollToCard } = useSectorFocus({ containerSelector: "main.overflow-y-auto" });
+  const { focusedSectorId, highlightedCardId, setFocusedSectorId, scrollToCard } = useSectorFocus({ containerSelector: "#sector-cards-container" });
   
   // Transform sectors for map
   const mapSectors = useMemo((): MapSector[] => {
@@ -162,9 +162,9 @@ export default function EventDashboard() {
   }
 
   return (
-    <div className="h-[calc(100vh-56px)] overflow-y-auto animate-fade-in">
-      <div className="p-4 space-y-4">
-        {/* Header con evento, fase, última señal, confianza - FULL WIDTH */}
+    <div className="h-[calc(100vh-56px)] flex flex-col animate-fade-in">
+      {/* Header + Filtros - ancho completo, altura fija */}
+      <div className="shrink-0 p-4 pb-0 space-y-4">
         <EventHeader 
           event={event} 
           phase="unstable"
@@ -174,7 +174,6 @@ export default function EventDashboard() {
           globalConfidence={dashboardMeta?.globalConfidence}
         />
         
-        {/* Chips de filtro clickeables - FULL WIDTH */}
         <FilterChips
           counts={{
             sectorsWithGaps: counts?.sectorsWithGaps || 0,
@@ -186,11 +185,14 @@ export default function EventDashboard() {
           onFilterChange={setActiveFilters}
           onOpenActorsModal={handleOpenOperatingActorsModal}
         />
-        
-        {/* Map - FULL WIDTH */}
-        <div className="h-[300px] rounded-lg overflow-hidden border border-border shadow-md">
+      </div>
+      
+      {/* Contenedor side-by-side */}
+      <div className="flex-1 flex gap-4 p-4 min-h-0">
+        {/* Mapa fijo izquierda - cuadrado, sticky */}
+        <aside className="w-[320px] shrink-0 self-start sticky top-0">
           <MapView
-            variant="fullwidth"
+            variant="sidebar"
             viewerRole="admin"
             orgCapabilities={[]}
             sectors={mapSectors}
@@ -198,25 +200,27 @@ export default function EventDashboard() {
             onSectorFocus={setFocusedSectorId}
             onSectorClick={scrollToCard}
           />
-        </div>
+        </aside>
         
-        {/* Lista de sectores con gaps - 2 COLUMN GRID */}
-        <SectorGapList
-          eventId={event.id}
-          activeFilters={activeFilters}
-          onViewSectorDetails={handleViewSectorDetails}
-          onViewSignals={handleViewSignals}
-          onActivateActors={handleActivateActors}
-          focusedSectorId={focusedSectorId}
-          highlightedCardId={highlightedCardId}
-          onSectorHover={setFocusedSectorId}
-          onSectorsLoaded={setSectorsWithGaps}
-          gridColumns={2}
-        />
+        {/* Panel derecho - scroll independiente */}
+        <main id="sector-cards-container" className="flex-1 overflow-y-auto min-h-0">
+          <SectorGapList
+            eventId={event.id}
+            activeFilters={activeFilters}
+            onViewSectorDetails={handleViewSectorDetails}
+            onViewSignals={handleViewSignals}
+            onActivateActors={handleActivateActors}
+            focusedSectorId={focusedSectorId}
+            highlightedCardId={highlightedCardId}
+            onSectorHover={setFocusedSectorId}
+            onSectorsLoaded={setSectorsWithGaps}
+            gridColumns={2}
+          />
+        </main>
       </div>
       
       {/* Botón flotante para volver arriba */}
-      <ScrollToTopButton showAfter={300} />
+      <ScrollToTopButton showAfter={300} containerSelector="#sector-cards-container" />
       
       {/* Modal de señales */}
       <SignalsModal
