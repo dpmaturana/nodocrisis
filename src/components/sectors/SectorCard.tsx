@@ -10,6 +10,7 @@ interface SectorCardProps {
   sector: EnrichedSector;
   onViewDetails: () => void;
   onEnroll: () => void;
+  isHighlighted?: boolean;
 }
 
 function getCoverageLabel(gap: EnrichedSector["gaps"][0]): string {
@@ -33,7 +34,7 @@ const gapStateConfig = {
   },
 };
 
-export function SectorCard({ sector, onViewDetails, onEnroll }: SectorCardProps) {
+export function SectorCard({ sector, onViewDetails, onEnroll, isHighlighted }: SectorCardProps) {
   const { sector: sectorData, event, state, context, bestMatchGaps } = sector;
 
   const stateConfig = {
@@ -64,7 +65,12 @@ export function SectorCard({ sector, onViewDetails, onEnroll }: SectorCardProps)
 
   return (
     <Card
-      className={`${config.borderClass} ${config.bgClass} hover:shadow-md transition-shadow cursor-pointer`}
+      className={cn(
+        config.borderClass,
+        config.bgClass,
+        "hover:shadow-md transition-all duration-300 cursor-pointer",
+        isHighlighted && "ring-2 ring-primary ring-offset-2 ring-offset-background shadow-lg"
+      )}
       onClick={onViewDetails}
     >
       <CardHeader className="pb-3">
