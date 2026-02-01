@@ -1,23 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useActorMode } from "@/hooks/useActorMode";
+import { useSectorFocus } from "@/hooks/useSectorFocus";
 import { sectorService, capabilityService } from "@/services";
 import type { EnrichedSector } from "@/services/sectorService";
 import type { ActorCapability } from "@/types/database";
+import type { MapSector, MapGap } from "@/components/map/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertTriangle, ArrowLeft, MapPin, Plus } from "lucide-react";
+import { AlertTriangle, ArrowLeft, MapPin, Plus, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown } from "lucide-react";
 import { SectorCard } from "@/components/sectors/SectorCard";
 import { SectorDetailDrawer } from "@/components/sectors/SectorDetailDrawer";
 import { EnrollmentModal } from "@/components/sectors/EnrollmentModal";
+import { MapView } from "@/components/map";
 
 export default function Sectors() {
   const { user, isActor, isAdmin } = useAuth();
   const { isOperating } = useActorMode();
+  const { focusedSectorId, highlightedCardId, setFocusedSectorId, scrollToCard } = useSectorFocus(30);
+  
   const [sectors, setSectors] = useState<EnrichedSector[]>([]);
   const [userCapabilities, setUserCapabilities] = useState<ActorCapability[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,9 +57,45 @@ export default function Sectors() {
   }, [user]);
 
   const handleEnrollmentSuccess = () => {
-    // Navigate to Mode B (Operation) after successful enrollment
     navigate("/my-deployments");
   };
+
+  // Transform EnrichedSector to MapSector format
+  const mapSectors = useMemo((): MapSector[] => {
+    return sectors.map(s => {
+      const status: MapSector["status"] = 
+        s.state === "critical" ? "critical" : 
+        s.state === "partial" ? "partial" : "operating";
+      
+      const gaps: MapGap[] = s.gaps.map(g => ({
+        capabilityName: g.capacityType.name,
+        coverage: g.isUncovered ? "none" : g.isCritical ? "partial" : "full",
+        severity: g.isCritical ? "critical" : "partial",
+      }));
+
+      return {
+        id: s.sector.id,
+        name: s.sector.canonical_name,
+        status,
+        lat: s.sector.latitude ?? undefined,
+        lng: s.sector.longitude ?? undefined,
+        gaps,
+      };
+    });
+  }, [sectors]);
+
+  // Get capability names for NGO filtering
+  const orgCapabilityNames = useMemo(() => {
+    return userCapabilities
+      .filter(c => c.availability !== "unavailable")
+      .map(c => {
+        const capacityType = sectors
+          .flatMap(s => s.gaps)
+          .find(g => g.capacityType.id === c.capacity_type_id);
+        return capacityType?.capacityType.name || "";
+      })
+      .filter(Boolean);
+  }, [userCapabilities, sectors]);
 
   // Separate by relevance to user's capabilities
   const relevantSectors = sectors.filter((s) => s.relevantGaps.length > 0);
@@ -68,6 +108,7 @@ export default function Sectors() {
           <Skeleton className="h-10 w-64 mb-2" />
           <Skeleton className="h-5 w-96" />
         </div>
+        <Skeleton className="h-[30vh] rounded-lg" />
         <div className="space-y-4">
           {[...Array(3)].map((_, i) => (
             <Skeleton key={i} className="h-64" />
@@ -116,6 +157,18 @@ export default function Sectors() {
         </Card>
       )}
 
+      {/* Sticky Map */}
+      {mapSectors.length > 0 && (
+        <MapView
+          viewerRole={isAdmin ? "admin" : "ngo"}
+          orgCapabilities={orgCapabilityNames}
+          sectors={mapSectors}
+          focusedSectorId={focusedSectorId}
+          onSectorFocus={setFocusedSectorId}
+          onSectorClick={scrollToCard}
+        />
+      )}
+
       {/* No match warning (has capabilities but no match) */}
       {userCapabilities.length > 0 && relevantSectors.length === 0 && otherSectors.length > 0 && (
         <Card className="border-warning/50 bg-warning/5">
@@ -138,12 +191,19 @@ export default function Sectors() {
       {relevantSectors.length > 0 && (
         <div className="space-y-4">
           {relevantSectors.map((sector) => (
-            <SectorCard
+            <div
               key={sector.sector.id}
-              sector={sector}
-              onViewDetails={() => setSelectedSector(sector)}
-              onEnroll={() => setEnrollingSector(sector)}
-            />
+              id={`sector-${sector.sector.id}`}
+              onMouseEnter={() => setFocusedSectorId(sector.sector.id)}
+              onMouseLeave={() => setFocusedSectorId(null)}
+            >
+              <SectorCard
+                sector={sector}
+                onViewDetails={() => setSelectedSector(sector)}
+                onEnroll={() => setEnrollingSector(sector)}
+                isHighlighted={highlightedCardId === sector.sector.id || focusedSectorId === sector.sector.id}
+              />
+            </div>
           ))}
         </div>
       )}
@@ -157,12 +217,19 @@ export default function Sectors() {
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-4 pt-2">
             {otherSectors.map((sector) => (
-              <SectorCard
+              <div
                 key={sector.sector.id}
-                sector={sector}
-                onViewDetails={() => setSelectedSector(sector)}
-                onEnroll={() => setEnrollingSector(sector)}
-              />
+                id={`sector-${sector.sector.id}`}
+                onMouseEnter={() => setFocusedSectorId(sector.sector.id)}
+                onMouseLeave={() => setFocusedSectorId(null)}
+              >
+                <SectorCard
+                  sector={sector}
+                  onViewDetails={() => setSelectedSector(sector)}
+                  onEnroll={() => setEnrollingSector(sector)}
+                  isHighlighted={highlightedCardId === sector.sector.id || focusedSectorId === sector.sector.id}
+                />
+              </div>
             ))}
           </CollapsibleContent>
         </Collapsible>
