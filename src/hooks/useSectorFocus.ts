@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 
-export function useSectorFocus(mapHeightVh: number = 30) {
+export function useSectorFocus(mapHeightVh: number = 40) {
   const [focusedSectorId, setFocusedSectorId] = useState<string | null>(null);
   const [highlightedCardId, setHighlightedCardId] = useState<string | null>(null);
   const highlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -15,12 +15,12 @@ export function useSectorFocus(mapHeightVh: number = 30) {
     }
 
     // Calculate offset accounting for sticky elements
-    const headerOffset = 48; // Account for potential sticky header
+    const headerOffset = 56; // ActorHeader height (h-14 = 56px)
     const mapHeight = window.innerHeight * (mapHeightVh / 100);
-    const padding = 16;
+    const extraClearance = 24; // Extra space to fully hide previous card
     
     const elementPosition = card.getBoundingClientRect().top;
-    const offsetPosition = elementPosition + window.pageYOffset - headerOffset - mapHeight - padding;
+    const offsetPosition = elementPosition + window.pageYOffset - headerOffset - mapHeight - extraClearance;
 
     window.scrollTo({ 
       top: Math.max(0, offsetPosition), 

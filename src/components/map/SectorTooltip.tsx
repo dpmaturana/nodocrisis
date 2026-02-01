@@ -44,7 +44,7 @@ export function SectorTooltip({ sector, viewerRole, orgCapabilities }: SectorToo
 
   if (viewerRole === "admin") {
     return (
-      <div className="min-w-[180px] max-w-[280px]">
+<div className="min-w-[180px] max-w-[300px] break-words">
         <div className="font-semibold text-sm mb-1">{sector.name}</div>
         <div className="text-xs mb-2">{icon} {label}</div>
         {missingGaps.length > 0 ? (
@@ -66,7 +66,7 @@ export function SectorTooltip({ sector, viewerRole, orgCapabilities }: SectorToo
   const otherGapsCount = missingGaps.length - matchingGaps.length;
 
   return (
-    <div className="min-w-[180px] max-w-[280px]">
+    <div className="min-w-[180px] max-w-[300px] break-words">
       <div className="font-semibold text-sm mb-1">{sector.name}</div>
       <div className="text-xs mb-2">{icon} {label}</div>
       

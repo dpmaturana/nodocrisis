@@ -187,3 +187,10 @@
     @apply bg-gradient-to-r from-demand-context to-warning bg-clip-text text-transparent;
   }
 }
+
+/* Leaflet tooltip overrides */
+.leaflet-tooltip {
+  max-width: 300px !important;
+  white-space: normal !important;
+  word-wrap: break-word !important;
+}
