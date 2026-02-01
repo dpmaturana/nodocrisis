@@ -20,7 +20,7 @@ import { MapView } from "@/components/map";
 export default function Sectors() {
   const { user, isActor, isAdmin } = useAuth();
   const { isOperating } = useActorMode();
-  const { focusedSectorId, highlightedCardId, setFocusedSectorId, scrollToCard } = useSectorFocus(30);
+  const { focusedSectorId, highlightedCardId, setFocusedSectorId, scrollToCard } = useSectorFocus(40);
   
   const [sectors, setSectors] = useState<EnrichedSector[]>([]);
   const [userCapabilities, setUserCapabilities] = useState<ActorCapability[]>([]);
