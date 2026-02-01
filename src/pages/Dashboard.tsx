@@ -23,11 +23,6 @@ export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Redirect admins to event dashboard
-  if (!authLoading && isAdmin) {
-    return <Navigate to="/admin/event-dashboard" replace />;
-  }
-
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -60,7 +55,12 @@ export default function Dashboard() {
     fetchData();
   }, []);
 
-  if (isLoading) {
+  // Redirect admins to event dashboard (AFTER all hooks)
+  if (!authLoading && isAdmin) {
+    return <Navigate to="/admin/event-dashboard" replace />;
+  }
+
+  if (authLoading || isLoading) {
     return (
       <div className="space-y-6 animate-fade-in">
         <div className="flex items-center justify-between">
