@@ -71,7 +71,7 @@ export function MapView({
 
   if (validSectors.length === 0) {
     return (
-      <div className="sticky top-14 z-10">
+      <div className="sticky top-14 z-10 bg-background">
         <div className="h-[40vh] min-h-[250px] max-h-[45vh] rounded-lg overflow-hidden border border-border bg-muted flex items-center justify-center">
           <p className="text-muted-foreground text-sm">No sectors with coordinates available</p>
         </div>
@@ -81,7 +81,7 @@ export function MapView({
   }
 
   return (
-    <div className="sticky top-14 z-10">
+    <div className="sticky top-14 z-10 bg-background">
       <div className="h-[40vh] min-h-[250px] max-h-[45vh] rounded-lg overflow-hidden border border-border shadow-lg">
         <MapContainer
           center={center}
