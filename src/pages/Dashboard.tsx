@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { eventService, deploymentService } from "@/services";
 import { StatCard } from "@/components/ui/StatCard";
@@ -19,9 +19,14 @@ interface DashboardData {
 }
 
 export default function Dashboard() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isLoading: authLoading } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Redirect admins to event dashboard
+  if (!authLoading && isAdmin) {
+    return <Navigate to="/admin/event-dashboard" replace />;
+  }
 
   useEffect(() => {
     const fetchData = async () => {
