@@ -1,6 +1,6 @@
 import { Outlet, Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { AppSidebar } from "./AppSidebar";
+import { AdminTopNav } from "./AdminTopNav";
 import { ActorLayout } from "./ActorLayout";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -38,14 +38,12 @@ export function AppLayout() {
     return <ActorLayout />;
   }
 
-  // Admins use full sidebar layout
+  // Admins use horizontal top nav layout
   return (
-    <div className="flex min-h-screen bg-background">
-      <AppSidebar />
-      <main className="flex-1 ml-64">
-        <div className="p-6">
-          <Outlet />
-        </div>
+    <div className="min-h-screen bg-background">
+      <AdminTopNav />
+      <main>
+        <Outlet />
       </main>
     </div>
   );

@@ -52,7 +52,7 @@ export default function EventDashboard() {
   
   // Map data
   const [sectorsWithGaps, setSectorsWithGaps] = useState<SectorWithGaps[]>([]);
-  const { focusedSectorId, highlightedCardId, setFocusedSectorId, scrollToCard } = useSectorFocus(40);
+  const { focusedSectorId, highlightedCardId, setFocusedSectorId, scrollToCard } = useSectorFocus({ containerSelector: "main.overflow-y-auto" });
   
   // Transform sectors for map
   const mapSectors = useMemo((): MapSector[] => {
@@ -162,52 +162,63 @@ export default function EventDashboard() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header con evento, fase, última señal, confianza */}
-      <EventHeader 
-        event={event} 
-        phase="unstable"
-        allEvents={allEvents}
-        onEventChange={handleEventChange}
-        lastSignal={dashboardMeta?.lastSignal}
-        globalConfidence={dashboardMeta?.globalConfidence}
-      />
-      
-      {/* Chips de filtro clickeables */}
-      <FilterChips
-        counts={{
-          sectorsWithGaps: counts?.sectorsWithGaps || 0,
-          critical: counts?.critical || 0,
-          partial: counts?.partial || 0,
-          operatingActors: dashboardMeta?.operatingCount || 0,
-        }}
-        activeFilters={activeFilters}
-        onFilterChange={setActiveFilters}
-        onOpenActorsModal={handleOpenOperatingActorsModal}
-      />
-      
-      {/* Mapa con sectores */}
-      <MapView
-        viewerRole="admin"
-        orgCapabilities={[]}
-        sectors={mapSectors}
-        focusedSectorId={focusedSectorId}
-        onSectorFocus={setFocusedSectorId}
-        onSectorClick={scrollToCard}
-      />
-      
-      {/* Lista de sectores con gaps */}
-      <SectorGapList
-        eventId={event.id}
-        activeFilters={activeFilters}
-        onViewSectorDetails={handleViewSectorDetails}
-        onViewSignals={handleViewSignals}
-        onActivateActors={handleActivateActors}
-        focusedSectorId={focusedSectorId}
-        highlightedCardId={highlightedCardId}
-        onSectorHover={setFocusedSectorId}
-        onSectorsLoaded={setSectorsWithGaps}
-      />
+    <div className="flex h-[calc(100vh-56px)] animate-fade-in">
+      {/* Left: Fixed sidebar map */}
+      <aside className="w-[320px] shrink-0 p-4 border-r border-border/50">
+        <MapView
+          variant="sidebar"
+          viewerRole="admin"
+          orgCapabilities={[]}
+          sectors={mapSectors}
+          focusedSectorId={focusedSectorId}
+          onSectorFocus={setFocusedSectorId}
+          onSectorClick={scrollToCard}
+        />
+      </aside>
+
+      {/* Right: Scrollable content */}
+      <main className="flex-1 overflow-y-auto">
+        <div className="p-4 space-y-4">
+          {/* Header con evento, fase, última señal, confianza */}
+          <EventHeader 
+            event={event} 
+            phase="unstable"
+            allEvents={allEvents}
+            onEventChange={handleEventChange}
+            lastSignal={dashboardMeta?.lastSignal}
+            globalConfidence={dashboardMeta?.globalConfidence}
+          />
+          
+          {/* Chips de filtro clickeables */}
+          <FilterChips
+            counts={{
+              sectorsWithGaps: counts?.sectorsWithGaps || 0,
+              critical: counts?.critical || 0,
+              partial: counts?.partial || 0,
+              operatingActors: dashboardMeta?.operatingCount || 0,
+            }}
+            activeFilters={activeFilters}
+            onFilterChange={setActiveFilters}
+            onOpenActorsModal={handleOpenOperatingActorsModal}
+          />
+          
+          {/* Lista de sectores con gaps */}
+          <SectorGapList
+            eventId={event.id}
+            activeFilters={activeFilters}
+            onViewSectorDetails={handleViewSectorDetails}
+            onViewSignals={handleViewSignals}
+            onActivateActors={handleActivateActors}
+            focusedSectorId={focusedSectorId}
+            highlightedCardId={highlightedCardId}
+            onSectorHover={setFocusedSectorId}
+            onSectorsLoaded={setSectorsWithGaps}
+          />
+        </div>
+        
+        {/* Botón flotante para volver arriba */}
+        <ScrollToTopButton showAfter={300} />
+      </main>
       
       {/* Modal de señales */}
       <SignalsModal
@@ -243,9 +254,6 @@ export default function EventDashboard() {
         open={showActorsDrawer}
         onOpenChange={setShowActorsDrawer}
       />
-      
-      {/* Botón flotante para volver arriba */}
-      <ScrollToTopButton showAfter={300} />
     </div>
   );
 }

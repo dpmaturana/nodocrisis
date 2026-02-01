@@ -26,6 +26,10 @@ function MapController({
   return null;
 }
 
+interface ExtendedMapViewProps extends MapViewProps {
+  variant?: "stacked" | "sidebar";
+}
+
 export function MapView({
   viewerRole,
   orgCapabilities,
@@ -33,7 +37,8 @@ export function MapView({
   focusedSectorId,
   onSectorFocus,
   onSectorClick,
-}: MapViewProps) {
+  variant = "stacked",
+}: ExtendedMapViewProps) {
   // Filter sectors with valid coordinates
   const validSectors = useMemo(
     () => sectors.filter(s => s.lat != null && s.lng != null),
@@ -69,6 +74,48 @@ export function MapView({
     return 10;
   }, [validSectors]);
 
+  // Sidebar variant: square, fixed position, no sticky
+  if (variant === "sidebar") {
+    if (validSectors.length === 0) {
+      return (
+        <div className="aspect-square rounded-lg overflow-hidden border border-border bg-muted flex items-center justify-center">
+          <p className="text-muted-foreground text-sm text-center px-4">No sectors with coordinates</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="aspect-square rounded-lg overflow-hidden border border-border shadow-md">
+        <MapContainer
+          center={center}
+          zoom={zoom}
+          className="h-full w-full"
+          scrollWheelZoom={true}
+          zoomControl={true}
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          <MapController focusedSectorId={focusedSectorId ?? null} sectors={validSectors} />
+          {validSectors.map(sector => (
+            <SectorPin
+              key={sector.id}
+              sector={sector}
+              viewerRole={viewerRole}
+              orgCapabilities={orgCapabilities}
+              isFocused={focusedSectorId === sector.id}
+              onHover={() => onSectorFocus?.(sector.id)}
+              onLeave={() => onSectorFocus?.(null)}
+              onClick={() => onSectorClick?.(sector.id)}
+            />
+          ))}
+        </MapContainer>
+      </div>
+    );
+  }
+
+  // Stacked variant: original sticky behavior
   if (validSectors.length === 0) {
     return (
       <div className="sticky top-14 z-10 bg-background">
