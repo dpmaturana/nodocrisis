@@ -71,14 +71,14 @@ export function MapView({
 
   if (validSectors.length === 0) {
     return (
-      <div className="sticky top-14 z-10 h-[40vh] min-h-[250px] max-h-[45vh] rounded-lg overflow-hidden border border-border bg-muted flex items-center justify-center">
+      <div className="sticky top-14 z-10 h-[40vh] min-h-[250px] max-h-[45vh] mb-6 rounded-lg overflow-hidden border border-border bg-muted flex items-center justify-center">
         <p className="text-muted-foreground text-sm">No sectors with coordinates available</p>
       </div>
     );
   }
 
   return (
-    <div className="sticky top-14 z-10 h-[40vh] min-h-[250px] max-h-[45vh] rounded-lg overflow-hidden border border-border shadow-lg">
+    <div className="sticky top-14 z-10 h-[40vh] min-h-[250px] max-h-[45vh] mb-6 rounded-lg overflow-hidden border border-border shadow-lg">
       <MapContainer
         center={center}
         zoom={zoom}
