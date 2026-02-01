@@ -13,6 +13,10 @@ interface SectorGapListProps {
   onViewSectorDetails: (sectorId: string) => void;
   onViewSignals: (gap: GapWithDetails) => void;
   onActivateActors: (gap: GapWithDetails) => void;
+  focusedSectorId?: string | null;
+  highlightedCardId?: string | null;
+  onSectorHover?: (sectorId: string | null) => void;
+  onSectorsLoaded?: (sectors: SectorWithGaps[]) => void;
 }
 
 export function SectorGapList({
@@ -21,6 +25,10 @@ export function SectorGapList({
   onViewSectorDetails,
   onViewSignals,
   onActivateActors,
+  focusedSectorId,
+  highlightedCardId,
+  onSectorHover,
+  onSectorsLoaded,
 }: SectorGapListProps) {
   const [sectorsWithGaps, setSectorsWithGaps] = useState<SectorWithGaps[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -31,6 +39,7 @@ export function SectorGapList({
       try {
         const data = await gapService.getGapsGroupedBySector(eventId);
         setSectorsWithGaps(data);
+        onSectorsLoaded?.(data);
       } catch (error) {
         console.error("Error fetching gaps grouped by sector:", error);
       } finally {
@@ -109,6 +118,9 @@ export function SectorGapList({
           onViewDetails={() => onViewSectorDetails(sectorData.sector.id)}
           onViewSignals={onViewSignals}
           onActivateActors={onActivateActors}
+          isHighlighted={highlightedCardId === sectorData.sector.id}
+          onMouseEnter={() => onSectorHover?.(sectorData.sector.id)}
+          onMouseLeave={() => onSectorHover?.(null)}
         />
       ))}
     </div>
