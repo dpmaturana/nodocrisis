@@ -15,6 +15,9 @@ interface SectorCardAdminProps {
   onViewDetails: () => void;
   onViewSignals: (gap: GapWithDetails) => void;
   onActivateActors: (gap: GapWithDetails) => void;
+  isHighlighted?: boolean;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }
 
 export function SectorCardAdmin({
@@ -25,6 +28,9 @@ export function SectorCardAdmin({
   onViewDetails,
   onViewSignals,
   onActivateActors,
+  isHighlighted,
+  onMouseEnter,
+  onMouseLeave,
 }: SectorCardAdminProps) {
   const criticalCount = gaps.filter((g) => g.state === "critical").length;
   const partialCount = gaps.filter((g) => g.state === "partial").length;
@@ -39,10 +45,14 @@ export function SectorCardAdmin({
 
   return (
     <Card
+      id={`sector-${sector.id}`}
       className={cn(
-        "border-l-4",
-        hasCritical ? "border-l-gap-critical" : "border-l-warning"
+        "border-l-4 transition-all duration-300",
+        hasCritical ? "border-l-gap-critical" : "border-l-warning",
+        isHighlighted && "ring-2 ring-primary ring-offset-2"
       )}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
     >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">

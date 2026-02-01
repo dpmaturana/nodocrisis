@@ -1,13 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { eventService, gapService } from "@/services";
 import type { Event, Signal } from "@/types/database";
-import type { GapWithDetails, GapCounts, DashboardMeta, OperatingActor } from "@/services/gapService";
+import type { GapWithDetails, GapCounts, DashboardMeta, OperatingActor, SectorWithGaps } from "@/services/gapService";
 import type { EnrichedSector } from "@/services/sectorService";
 import type { SeverityFilter } from "@/components/dashboard/FilterChips";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Activity } from "lucide-react";
+import { MapView } from "@/components/map";
+import { useSectorFocus } from "@/hooks/useSectorFocus";
+import type { MapSector } from "@/components/map/types";
 
 // Dashboard components
 import { EventHeader } from "@/components/dashboard/EventHeader";
@@ -45,6 +48,26 @@ export default function EventDashboard() {
   // Operating actors modal
   const [operatingActors, setOperatingActors] = useState<OperatingActor[]>([]);
   const [showOperatingActorsModal, setShowOperatingActorsModal] = useState(false);
+  
+  // Map data
+  const [sectorsWithGaps, setSectorsWithGaps] = useState<SectorWithGaps[]>([]);
+  const { focusedSectorId, highlightedCardId, setFocusedSectorId, scrollToCard } = useSectorFocus(40);
+  
+  // Transform sectors for map
+  const mapSectors = useMemo((): MapSector[] => {
+    return sectorsWithGaps.map(s => ({
+      id: s.sector.id,
+      name: s.sector.canonical_name,
+      status: s.gapCounts.critical > 0 ? "critical" : "partial",
+      lat: s.sector.latitude,
+      lng: s.sector.longitude,
+      gaps: s.gaps.map(g => ({
+        capabilityName: g.capacity_type.name,
+        coverage: g.state === "critical" ? "none" as const : "partial" as const,
+        severity: g.state as "critical" | "partial",
+      })),
+    }));
+  }, [sectorsWithGaps]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -162,6 +185,16 @@ export default function EventDashboard() {
         onOpenActorsModal={handleOpenOperatingActorsModal}
       />
       
+      {/* Mapa con sectores */}
+      <MapView
+        viewerRole="admin"
+        orgCapabilities={[]}
+        sectors={mapSectors}
+        focusedSectorId={focusedSectorId}
+        onSectorFocus={setFocusedSectorId}
+        onSectorClick={scrollToCard}
+      />
+      
       {/* Lista de sectores con gaps */}
       <SectorGapList
         eventId={event.id}
@@ -169,6 +202,10 @@ export default function EventDashboard() {
         onViewSectorDetails={handleViewSectorDetails}
         onViewSignals={handleViewSignals}
         onActivateActors={handleActivateActors}
+        focusedSectorId={focusedSectorId}
+        highlightedCardId={highlightedCardId}
+        onSectorHover={setFocusedSectorId}
+        onSectorsLoaded={setSectorsWithGaps}
       />
       
       {/* Modal de señales */}
