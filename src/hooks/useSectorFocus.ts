@@ -17,10 +17,11 @@ export function useSectorFocus(mapHeightVh: number = 40) {
     // Calculate offset accounting for sticky elements
     const headerOffset = 56; // ActorHeader height (h-14 = 56px)
     const mapHeight = window.innerHeight * (mapHeightVh / 100);
-    const extraClearance = 24; // Extra space to fully hide previous card
+    const spacerHeight = 24; // h-6 spacer below the map
+    const totalStickyHeight = headerOffset + mapHeight + spacerHeight;
     
     const elementPosition = card.getBoundingClientRect().top;
-    const offsetPosition = elementPosition + window.pageYOffset - headerOffset - mapHeight - extraClearance;
+    const offsetPosition = elementPosition + window.pageYOffset - totalStickyHeight;
 
     window.scrollTo({ 
       top: Math.max(0, offsetPosition), 
