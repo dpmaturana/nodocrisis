@@ -27,7 +27,7 @@ function MapController({
 }
 
 interface ExtendedMapViewProps extends MapViewProps {
-  variant?: "stacked" | "sidebar";
+  variant?: "stacked" | "sidebar" | "fullwidth";
 }
 
 export function MapView({
@@ -112,6 +112,45 @@ export function MapView({
           ))}
         </MapContainer>
       </div>
+    );
+  }
+
+  // Fullwidth variant: full width, fixed height, no sticky
+  if (variant === "fullwidth") {
+    if (validSectors.length === 0) {
+      return (
+        <div className="h-full w-full bg-muted flex items-center justify-center">
+          <p className="text-muted-foreground text-sm text-center px-4">No sectors with coordinates</p>
+        </div>
+      );
+    }
+
+    return (
+      <MapContainer
+        center={center}
+        zoom={zoom}
+        className="h-full w-full"
+        scrollWheelZoom={true}
+        zoomControl={true}
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        <MapController focusedSectorId={focusedSectorId ?? null} sectors={validSectors} />
+        {validSectors.map(sector => (
+          <SectorPin
+            key={sector.id}
+            sector={sector}
+            viewerRole={viewerRole}
+            orgCapabilities={orgCapabilities}
+            isFocused={focusedSectorId === sector.id}
+            onHover={() => onSectorFocus?.(sector.id)}
+            onLeave={() => onSectorFocus?.(null)}
+            onClick={() => onSectorClick?.(sector.id)}
+          />
+        ))}
+      </MapContainer>
     );
   }
 

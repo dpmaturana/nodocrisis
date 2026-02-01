@@ -17,6 +17,7 @@ interface SectorGapListProps {
   highlightedCardId?: string | null;
   onSectorHover?: (sectorId: string | null) => void;
   onSectorsLoaded?: (sectors: SectorWithGaps[]) => void;
+  gridColumns?: 1 | 2;
 }
 
 export function SectorGapList({
@@ -29,6 +30,7 @@ export function SectorGapList({
   highlightedCardId,
   onSectorHover,
   onSectorsLoaded,
+  gridColumns = 1,
 }: SectorGapListProps) {
   const [sectorsWithGaps, setSectorsWithGaps] = useState<SectorWithGaps[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -106,8 +108,12 @@ export function SectorGapList({
     );
   }
 
+  const gridClass = gridColumns === 2 
+    ? "grid grid-cols-1 md:grid-cols-2 gap-4" 
+    : "space-y-4";
+
   return (
-    <div className="space-y-4">
+    <div className={gridClass}>
       {filteredSectors.map((sectorData) => (
         <SectorCardAdmin
           key={sectorData.sector.id}

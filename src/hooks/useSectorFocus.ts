@@ -23,29 +23,14 @@ export function useSectorFocus(options: UseSectorFocusOptions = {}) {
       clearTimeout(highlightTimeoutRef.current);
     }
 
-    // If we have a container selector, scroll within that container
-    if (containerSelector) {
-      const container = document.querySelector(containerSelector);
-      if (container) {
-        const cardRect = card.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
-        const scrollTop = container.scrollTop + (cardRect.top - containerRect.top) - 16;
-        
-        container.scrollTo({ 
-          top: Math.max(0, scrollTop), 
-          behavior: "smooth" 
-        });
-      }
-    } else {
-      // Original window scroll behavior
-      const elementPosition = card.getBoundingClientRect().top;
-      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+    // Scroll card into view with offset
+    const elementPosition = card.getBoundingClientRect().top;
+    const offsetPosition = elementPosition + window.pageYOffset - headerOffset - 100;
 
-      window.scrollTo({ 
-        top: Math.max(0, offsetPosition), 
-        behavior: "smooth" 
-      });
-    }
+    window.scrollTo({ 
+      top: Math.max(0, offsetPosition), 
+      behavior: "smooth" 
+    });
 
     // Set highlight state
     setHighlightedCardId(sectorId);
