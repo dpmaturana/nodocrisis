@@ -1,6 +1,15 @@
 import { useState, useCallback, useRef } from "react";
 
-export function useSectorFocus(mapHeightVh: number = 40) {
+interface UseSectorFocusOptions {
+  // For sidebar layout, we scroll within a container, not the window
+  containerSelector?: string;
+  // Header offset for stacked layout
+  headerOffset?: number;
+}
+
+export function useSectorFocus(options: UseSectorFocusOptions = {}) {
+  const { containerSelector, headerOffset = 56 } = options;
+  
   const [focusedSectorId, setFocusedSectorId] = useState<string | null>(null);
   const [highlightedCardId, setHighlightedCardId] = useState<string | null>(null);
   const highlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -14,19 +23,29 @@ export function useSectorFocus(mapHeightVh: number = 40) {
       clearTimeout(highlightTimeoutRef.current);
     }
 
-    // Calculate offset accounting for sticky elements
-    const headerOffset = 56; // ActorHeader height (h-14 = 56px)
-    const mapHeight = window.innerHeight * (mapHeightVh / 100);
-    const spacerHeight = 24; // h-6 spacer below the map
-    const totalStickyHeight = headerOffset + mapHeight + spacerHeight;
-    
-    const elementPosition = card.getBoundingClientRect().top;
-    const offsetPosition = elementPosition + window.pageYOffset - totalStickyHeight;
+    // If we have a container selector, scroll within that container
+    if (containerSelector) {
+      const container = document.querySelector(containerSelector);
+      if (container) {
+        const cardRect = card.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const scrollTop = container.scrollTop + (cardRect.top - containerRect.top) - 16;
+        
+        container.scrollTo({ 
+          top: Math.max(0, scrollTop), 
+          behavior: "smooth" 
+        });
+      }
+    } else {
+      // Original window scroll behavior
+      const elementPosition = card.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
 
-    window.scrollTo({ 
-      top: Math.max(0, offsetPosition), 
-      behavior: "smooth" 
-    });
+      window.scrollTo({ 
+        top: Math.max(0, offsetPosition), 
+        behavior: "smooth" 
+      });
+    }
 
     // Set highlight state
     setHighlightedCardId(sectorId);
@@ -35,7 +54,7 @@ export function useSectorFocus(mapHeightVh: number = 40) {
     highlightTimeoutRef.current = setTimeout(() => {
       setHighlightedCardId(null);
     }, 2000);
-  }, [mapHeightVh]);
+  }, [containerSelector, headerOffset]);
 
   const handleSectorHover = useCallback((sectorId: string | null) => {
     setFocusedSectorId(sectorId);
