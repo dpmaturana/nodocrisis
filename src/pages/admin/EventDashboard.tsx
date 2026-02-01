@@ -162,63 +162,61 @@ export default function EventDashboard() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-56px)] animate-fade-in">
-      {/* Left: Fixed sidebar map */}
-      <aside className="w-[320px] shrink-0 p-4 border-r border-border/50">
-        <MapView
-          variant="sidebar"
-          viewerRole="admin"
-          orgCapabilities={[]}
-          sectors={mapSectors}
-          focusedSectorId={focusedSectorId}
-          onSectorFocus={setFocusedSectorId}
-          onSectorClick={scrollToCard}
+    <div className="h-[calc(100vh-56px)] overflow-y-auto animate-fade-in">
+      <div className="p-4 space-y-4">
+        {/* Header con evento, fase, última señal, confianza - FULL WIDTH */}
+        <EventHeader 
+          event={event} 
+          phase="unstable"
+          allEvents={allEvents}
+          onEventChange={handleEventChange}
+          lastSignal={dashboardMeta?.lastSignal}
+          globalConfidence={dashboardMeta?.globalConfidence}
         />
-      </aside>
-
-      {/* Right: Scrollable content */}
-      <main className="flex-1 overflow-y-auto">
-        <div className="p-4 space-y-4">
-          {/* Header con evento, fase, última señal, confianza */}
-          <EventHeader 
-            event={event} 
-            phase="unstable"
-            allEvents={allEvents}
-            onEventChange={handleEventChange}
-            lastSignal={dashboardMeta?.lastSignal}
-            globalConfidence={dashboardMeta?.globalConfidence}
-          />
-          
-          {/* Chips de filtro clickeables */}
-          <FilterChips
-            counts={{
-              sectorsWithGaps: counts?.sectorsWithGaps || 0,
-              critical: counts?.critical || 0,
-              partial: counts?.partial || 0,
-              operatingActors: dashboardMeta?.operatingCount || 0,
-            }}
-            activeFilters={activeFilters}
-            onFilterChange={setActiveFilters}
-            onOpenActorsModal={handleOpenOperatingActorsModal}
-          />
-          
-          {/* Lista de sectores con gaps */}
-          <SectorGapList
-            eventId={event.id}
-            activeFilters={activeFilters}
-            onViewSectorDetails={handleViewSectorDetails}
-            onViewSignals={handleViewSignals}
-            onActivateActors={handleActivateActors}
+        
+        {/* Chips de filtro clickeables - FULL WIDTH */}
+        <FilterChips
+          counts={{
+            sectorsWithGaps: counts?.sectorsWithGaps || 0,
+            critical: counts?.critical || 0,
+            partial: counts?.partial || 0,
+            operatingActors: dashboardMeta?.operatingCount || 0,
+          }}
+          activeFilters={activeFilters}
+          onFilterChange={setActiveFilters}
+          onOpenActorsModal={handleOpenOperatingActorsModal}
+        />
+        
+        {/* Map - FULL WIDTH */}
+        <div className="h-[300px] rounded-lg overflow-hidden border border-border shadow-md">
+          <MapView
+            variant="fullwidth"
+            viewerRole="admin"
+            orgCapabilities={[]}
+            sectors={mapSectors}
             focusedSectorId={focusedSectorId}
-            highlightedCardId={highlightedCardId}
-            onSectorHover={setFocusedSectorId}
-            onSectorsLoaded={setSectorsWithGaps}
+            onSectorFocus={setFocusedSectorId}
+            onSectorClick={scrollToCard}
           />
         </div>
         
-        {/* Botón flotante para volver arriba */}
-        <ScrollToTopButton showAfter={300} />
-      </main>
+        {/* Lista de sectores con gaps - 2 COLUMN GRID */}
+        <SectorGapList
+          eventId={event.id}
+          activeFilters={activeFilters}
+          onViewSectorDetails={handleViewSectorDetails}
+          onViewSignals={handleViewSignals}
+          onActivateActors={handleActivateActors}
+          focusedSectorId={focusedSectorId}
+          highlightedCardId={highlightedCardId}
+          onSectorHover={setFocusedSectorId}
+          onSectorsLoaded={setSectorsWithGaps}
+          gridColumns={2}
+        />
+      </div>
+      
+      {/* Botón flotante para volver arriba */}
+      <ScrollToTopButton showAfter={300} />
       
       {/* Modal de señales */}
       <SignalsModal
