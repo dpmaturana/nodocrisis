@@ -20,6 +20,7 @@ import { SignalsModal } from "@/components/dashboard/SignalsModal";
 import { OperatingActorsModal } from "@/components/dashboard/OperatingActorsModal";
 import { AvailableActorsDrawer } from "@/components/dashboard/AvailableActorsDrawer";
 import { SectorDetailDrawer } from "@/components/sectors/SectorDetailDrawer";
+import { ScrollToTopButton } from "@/components/ui/ScrollToTopButton";
 
 export default function EventDashboard() {
   const { eventId } = useParams<{ eventId: string }>();
@@ -242,6 +243,9 @@ export default function EventDashboard() {
         open={showActorsDrawer}
         onOpenChange={setShowActorsDrawer}
       />
+      
+      {/* Botón flotante para volver arriba */}
+      <ScrollToTopButton showAfter={300} />
     </div>
   );
 }
