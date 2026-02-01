@@ -1,43 +1,91 @@
 
 
-# Plan: Add Fixed Spacing Below Sticky Map
+# Plan: Agregar Mapa al Dashboard de Admin
 
-## Problem
+## Situación Actual
 
-When the map becomes sticky (fixed at the top), the visual gap between the map and the first card disappears. This creates a jarring UX where content feels cramped against the map edge.
+El dashboard de admin (`/admin/event-dashboard`) no incluye el componente `MapView`. Este componente solo está presente en la página `/sectors` que usan los actores/ONGs.
 
-## Solution
+## Solución
 
-Add a bottom margin to the MapView component that matches the `space-y-6` (24px / 1.5rem) gap used throughout the page. This ensures consistent spacing whether the map is in its normal position or sticky.
+Integrar el mismo componente `MapView` en el `EventDashboard` para que los administradores también puedan ver la ubicación geográfica de los sectores con gaps.
 
-## Implementation
+## Implementación
 
-### File: `src/components/map/MapView.tsx`
+### 1. Modificar `src/pages/admin/EventDashboard.tsx`
 
-Add `mb-6` (margin-bottom: 1.5rem = 24px) to the map container div. This matches the `space-y-6` spacing used in the Sectors page.
-
-**Changes to line 74 (empty state):**
+**Agregar imports necesarios:**
 ```tsx
-// Before
-<div className="sticky top-14 z-10 h-[40vh] min-h-[250px] max-h-[45vh] rounded-lg overflow-hidden border border-border bg-muted flex items-center justify-center">
-
-// After
-<div className="sticky top-14 z-10 h-[40vh] min-h-[250px] max-h-[45vh] mb-6 rounded-lg overflow-hidden border border-border bg-muted flex items-center justify-center">
+import { MapView } from "@/components/map";
+import { useSectorFocus } from "@/hooks/useSectorFocus";
+import type { MapSector, MapGap } from "@/components/map/types";
 ```
 
-**Changes to line 81 (main map container):**
-```tsx
-// Before
-<div className="sticky top-14 z-10 h-[40vh] min-h-[250px] max-h-[45vh] rounded-lg overflow-hidden border border-border shadow-lg">
+**Agregar estado y hook para el mapa:**
+- Usar `useSectorFocus` para sincronización mapa-cards
+- Transformar los sectores de `SectorWithGaps` a formato `MapSector`
 
-// After  
-<div className="sticky top-14 z-10 h-[40vh] min-h-[250px] max-h-[45vh] mb-6 rounded-lg overflow-hidden border border-border shadow-lg">
+**Agregar el componente MapView:**
+- Posicionarlo entre `FilterChips` y `SectorGapList`
+- Configurar como sticky igual que en `/sectors`
+- Pasar `viewerRole="admin"` para mostrar todos los gaps (sin filtro de capacidades)
+
+### 2. Modificar `src/components/dashboard/SectorGapList.tsx`
+
+Agregar soporte para:
+- `focusedSectorId` - Para resaltar el sector enfocado
+- `onSectorHover` - Callback cuando se hace hover en una card
+- IDs en cada card para scroll automático
+
+## Estructura Visual Resultante
+
+```text
++----------------------------------+
+|  EventHeader                     |
++----------------------------------+
+|  FilterChips                     |
++----------------------------------+
+|  ┌──────────────────────────┐   |
+|  │     MapView (sticky)      │   |
+|  │   - Pins por sector       │   |
+|  │   - Colores por severidad │   |
+|  └──────────────────────────┘   |
++----------------------------------+
+|  SectorCardAdmin #1              |
+|  SectorCardAdmin #2              |
+|  ...                             |
++----------------------------------+
 ```
 
-## Result
+## Archivos a Modificar
 
-The map will maintain a consistent 24px gap below it at all times, matching the spacing between cards and other page elements. This creates a visually clean separation even when the map is in sticky mode.
+| Archivo | Cambios |
+|---------|---------|
+| `src/pages/admin/EventDashboard.tsx` | Agregar MapView, useSectorFocus, transformar datos a MapSector |
+| `src/components/dashboard/SectorGapList.tsx` | Agregar props para sincronización con mapa |
+| `src/components/dashboard/SectorCardAdmin.tsx` | Agregar prop `isHighlighted` y eventos de hover |
 
-## Estimated Effort
-Less than 1 credit
+## Detalles Técnicos
+
+La transformación de datos para el mapa:
+
+```tsx
+const mapSectors = useMemo((): MapSector[] => {
+  return sectorsWithGaps.map(s => ({
+    id: s.sector.id,
+    name: s.sector.canonical_name,
+    status: s.gapCounts.critical > 0 ? "critical" : "partial",
+    lat: s.sector.latitude,
+    lng: s.sector.longitude,
+    gaps: s.gaps.map(g => ({
+      capabilityName: g.capacityType.name,
+      coverage: g.state === "critical" ? "none" : "partial",
+      severity: g.state,
+    })),
+  }));
+}, [sectorsWithGaps]);
+```
+
+## Esfuerzo Estimado
+2-3 créditos
 
