@@ -41,24 +41,25 @@ Your job:
 - Suggest an event name, event type, and a short summary.
 - Suggest operational sectors (affected zones).
 - Suggest critical capabilities required at the EVENT level.
+- ALL output text (event name, summary, sector names, descriptions) MUST be in ENGLISH regardless of the input language.
 
 Return ONLY valid JSON. No markdown. No explanations.
 
 Event types (choose closest):
-"incendio_forestal","inundacion","terremoto","tsunami","aluvion","sequia","temporal","accidente_masivo","emergencia_sanitaria","otro"
+"wildfire","flood","earthquake","tsunami","landslide","drought","storm","mass_accident","health_emergency","other"
 
 SECTORS RULES (CRITICAL):
 - Sectors must be GRANULAR and OPERATIONALLY SPECIFIC.
 - Use municipalities, named neighborhoods, specific road segments, river basins, or named infrastructure.
-- NEVER use broad regions like "Andalucía" or "Southern Spain".
-- Good examples: "Écija – zona urbana inundada", "Ruta A-92 tramo km 180-210", "Ribera del Guadalquivir – Lora del Río", "Barriada La Paz – Málaga"
-- Bad examples: "Andalucía", "Zonas rurales", "Carreteras afectadas"
+- NEVER use broad regions like "Southern England" or "East Coast".
+- Good examples: "Somerset – River Parrett floodplain", "A303 segment km 12-18", "York – Huntington Road area", "Carlisle – Warwick Road neighbourhood"
+- Bad examples: "England", "Rural areas", "Affected roads"
 - If the input text or news snippets mention specific places, USE THEM.
 - If no specific places are available, infer plausible municipalities/zones from the geographic context.
 - Include approximate latitude and longitude for each sector if possible.
 
 CAPABILITIES — use ONLY these exact names (from the system's standardized taxonomy):
-"Agua potable","Alimentación","Almacenamiento","Alojamiento / refugio","Atención médica de emergencia","Búsqueda y rescate","Catastro de información","Comunicaciones","Control de incendios","Distribución de suministros","Energía","Evacuación y traslado","Gestión de materiales peligrosos","Protección y seguridad básica","Salud mental y apoyo psicosocial","Saneamiento e higiene","Transporte"
+"Drinking water","Food supply","Storage","Shelter","Emergency medical care","Search and rescue","Information registry","Communications","Fire control","Supply distribution","Energy","Evacuation and transport","Hazardous materials management","Basic protection and security","Mental health and psychosocial support","Sanitation and hygiene","Transport"
 
 Output schema:
 {
@@ -78,7 +79,7 @@ Output schema:
 Rules:
 - Be conservative. If uncertain, lower confidence.
 - "include" should default to true for suggestions.
-- "sources" should be short strings summarizing which snippets were used (e.g., "El País: <title>").
+- "sources" should be short strings summarizing which snippets were used (e.g., "Sky News: <title>").
 - Do not invent facts not supported by admin text + snippets.
 - Suggest 3-8 sectors and 3-8 capabilities.
 `;
