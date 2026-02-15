@@ -35,6 +35,7 @@ export default function EventDashboard() {
   
   // Filter state
   const [activeFilters, setActiveFilters] = useState<SeverityFilter[]>([]);
+  const [activeCapacityFilters, setActiveCapacityFilters] = useState<string[]>([]);
   
   // Modal/drawer states
   const [selectedGap, setSelectedGap] = useState<GapWithDetails | null>(null);
@@ -68,6 +69,19 @@ export default function EventDashboard() {
         severity: g.state as "critical" | "partial",
       })),
     }));
+  }, [sectorsWithGaps]);
+
+  // Extract unique capacity types for filter dropdown
+  const capacityOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    sectorsWithGaps.forEach(s => {
+      s.gaps.forEach(g => {
+        if (g.capacity_type?.id && g.capacity_type?.name) {
+          map.set(g.capacity_type.id, g.capacity_type.name);
+        }
+      });
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   }, [sectorsWithGaps]);
 
   useEffect(() => {
@@ -167,11 +181,8 @@ export default function EventDashboard() {
       <div className="shrink-0 p-4 pb-0 space-y-4">
         <EventHeader 
           event={event} 
-          phase="unstable"
           allEvents={allEvents}
           onEventChange={handleEventChange}
-          lastSignal={dashboardMeta?.lastSignal}
-          globalConfidence={dashboardMeta?.globalConfidence}
         />
         
         <FilterChips
@@ -184,6 +195,9 @@ export default function EventDashboard() {
           activeFilters={activeFilters}
           onFilterChange={setActiveFilters}
           onOpenActorsModal={handleOpenOperatingActorsModal}
+          capacityOptions={capacityOptions}
+          activeCapacityFilters={activeCapacityFilters}
+          onCapacityFilterChange={setActiveCapacityFilters}
         />
       </div>
       
@@ -207,6 +221,7 @@ export default function EventDashboard() {
           <SectorGapList
             eventId={event.id}
             activeFilters={activeFilters}
+            activeCapacityFilters={activeCapacityFilters}
             onViewSectorDetails={handleViewSectorDetails}
             onViewSignals={handleViewSignals}
             onActivateActors={handleActivateActors}
