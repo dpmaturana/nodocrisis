@@ -82,6 +82,36 @@ export type Database = {
         }
         Relationships: []
       }
+      country_news_sources: {
+        Row: {
+          country_code: string
+          created_at: string
+          created_by: string | null
+          enabled: boolean
+          id: string
+          rss_url: string
+          source_name: string
+        }
+        Insert: {
+          country_code: string
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          id?: string
+          rss_url: string
+          source_name: string
+        }
+        Update: {
+          country_code?: string
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          id?: string
+          rss_url?: string
+          source_name?: string
+        }
+        Relationships: []
+      }
       deployments: {
         Row: {
           actor_id: string
