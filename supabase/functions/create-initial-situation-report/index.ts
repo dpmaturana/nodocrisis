@@ -266,7 +266,29 @@ ${JSON.stringify(news_snippets.slice(0, 10), null, 2)}
       });
     }
 
+    // ---- Evidence-based confidence cap ----
+    // Compute best and average scores from news snippets to cap overall_confidence
+    const snippetScores = news_snippets
+      .map((s: any) => typeof s.score === "number" ? s.score : 0)
+      .sort((a: number, b: number) => b - a);
+
+    const bestScore = snippetScores.length > 0 ? snippetScores[0] : 0;
+
+    let confidenceCap: number;
+    if (snippetScores.length === 0) {
+      confidenceCap = 0.5;   // no news evidence at all
+    } else if (bestScore < 6) {
+      confidenceCap = 0.55;  // very low relevance
+    } else if (bestScore <= 10) {
+      confidenceCap = 0.7;   // moderate relevance
+    } else {
+      confidenceCap = 0.9;   // strong evidence
+    }
+
     // Validate/normalize output defensively
+    const llmConfidence = clamp01(parsed.overall_confidence, 0.5);
+    const cappedConfidence = Math.min(llmConfidence, confidenceCap);
+
     const validated: SituationReportResponse = {
       event_name_suggested: parsed.event_name_suggested || "Unnamed event",
       event_type: parsed.event_type || "otro",
@@ -283,7 +305,7 @@ ${JSON.stringify(news_snippets.slice(0, 10), null, 2)}
         include: c.include !== false,
       })),
       sources: safeArray<any>(parsed.sources).length ? safeArray<any>(parsed.sources) : sourcesForLLM,
-      overall_confidence: clamp01(parsed.overall_confidence, 0.5),
+      overall_confidence: cappedConfidence,
     };
 
     // ---- Step 3: Save draft to initial_situation_reports ----
@@ -333,6 +355,12 @@ ${JSON.stringify(news_snippets.slice(0, 10), null, 2)}
         context: {
           country_code,
           news_snippets: news_snippets.slice(0, max_results),
+          evidence_cap: {
+            best_score: bestScore,
+            confidence_cap: confidenceCap,
+            llm_confidence: llmConfidence,
+            final_confidence: cappedConfidence,
+          },
         },
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
