@@ -44,11 +44,11 @@ export default function CreateEventAI() {
     setIsGenerating(true);
 
     try {
-      // Generate report using mock service (no backend calls)
-      await situationReportService.generate(inputText.trim());
+      // Generate report using the real edge function
+      const report = await situationReportService.generate(inputText.trim());
 
-      // Navigate to draft editing page
-      navigate("/admin/situation-report/draft");
+      // Navigate to the persisted draft by its DB id
+      navigate(`/admin/situation-report/${report.id}`);
     } catch (error: any) {
       console.error("Error generating report:", error);
       toast({

@@ -14,7 +14,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { situationReportService, MOCK_CAPACITY_TYPES } from "@/services";
+import { situationReportService } from "@/services";
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,34 +57,45 @@ export default function SituationReport() {
   const { toast } = useToast();
 
   const [report, setReport] = useState<InitialSituationReport | null>(null);
-  const [capacityTypes] = useState<CapacityType[]>(MOCK_CAPACITY_TYPES);
+  const [capacityTypes, setCapacityTypes] = useState<CapacityType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
 
-  // Determine if we're in draft mode (from mock service) or fetching by ID
-  const isDraftMode = reportId === "draft" || !reportId;
-
   useEffect(() => {
     if (authLoading) return;
 
-    const loadReport = () => {
-      if (isDraftMode) {
-        // Load from mock service's current draft
-        const draft = situationReportService.getCurrentDraft();
-        if (draft) {
-          setReport(draft);
+    const loadReport = async () => {
+      try {
+        if (!reportId || reportId === "draft") {
+          // No valid ID, redirect to create
+          navigate("/admin/create-event");
+          return;
+        }
+
+        const fetched = await situationReportService.fetchById(reportId);
+        if (fetched) {
+          setReport(fetched);
         } else {
-          // No draft available, redirect to create
           navigate("/admin/create-event");
         }
+      } catch (err) {
+        console.error("Error loading report:", err);
+        navigate("/admin/create-event");
+      } finally {
+        setIsLoading(false);
       }
-      // Future: if reportId is a real ID, could fetch from backend
-      setIsLoading(false);
+    };
+
+    // Also fetch capacity types from DB
+    const loadCapacityTypes = async () => {
+      const { data } = await supabase.from("capacity_types").select("*");
+      if (data) setCapacityTypes(data as CapacityType[]);
     };
 
     loadReport();
-  }, [reportId, authLoading, isDraftMode, navigate]);
+    loadCapacityTypes();
+  }, [reportId, authLoading, navigate]);
 
   if (authLoading || isLoading) {
     return (
@@ -130,8 +142,8 @@ export default function SituationReport() {
     setReport((prev) => {
       if (!prev) return prev;
       const updated = { ...prev, ...updates };
-      // Also update in service
-      situationReportService.updateDraft(updates);
+      // Persist to DB in background
+      situationReportService.updateDraft(prev.id, updates);
       return updated;
     });
   };
@@ -140,7 +152,13 @@ export default function SituationReport() {
     if (!report) return;
     setIsSaving(true);
     try {
-      await situationReportService.saveDraft(report);
+      await situationReportService.updateDraft(report.id, {
+        event_name_suggested: report.event_name_suggested,
+        event_type: report.event_type,
+        summary: report.summary,
+        suggested_sectors: report.suggested_sectors,
+        suggested_capabilities: report.suggested_capabilities,
+      });
       toast({ title: "Borrador guardado" });
     } catch (error: any) {
       toast({
@@ -156,7 +174,7 @@ export default function SituationReport() {
   const handleDiscard = async () => {
     if (!report) return;
     try {
-      await situationReportService.discard();
+      await situationReportService.discard(report.id);
       toast({ title: "Reporte descartado" });
       navigate("/admin/create-event");
     } catch (error: any) {
@@ -173,7 +191,7 @@ export default function SituationReport() {
     setIsConfirming(true);
 
     try {
-      const { eventId } = await situationReportService.confirm(report);
+      const { eventId } = await situationReportService.confirm(report.id);
 
       toast({
         title: "¡Coordinación activada!",
