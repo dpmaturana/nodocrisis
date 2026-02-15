@@ -1,144 +1,158 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { XMLParser } from "https://esm.sh/fast-xml-parser@4.4.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SYSTEM_PROMPT = `Eres un analista de inteligencia de emergencias. Tu tarea es buscar en tu conocimiento sobre publicaciones recientes en X (Twitter) y otras fuentes de noticias relacionadas con la consulta de emergencia proporcionada.
+// Hardcoded starter feeds (Spain + global)
+const ES_DEFAULT_FEEDS = [
+  { name: "El País", rss_url: "https://elpais.com/rss/elpais/portada.xml" },
+  { name: "RTVE", rss_url: "https://www.rtve.es/rss/temas_noticias.xml" },
+  { name: "Europa Press", rss_url: "https://www.europapress.es/rss/rss.aspx" },
+  { name: "BBC", rss_url: "https://feeds.bbci.co.uk/news/rss.xml?edition=int" },
+  { name: "The Guardian", rss_url: "https://www.theguardian.com/world/rss" },
+];
 
-Debes responder ÚNICAMENTE con JSON válido con esta estructura:
-{
-  "tweets": [
-    {
-      "author": "nombre o @handle del autor",
-      "text": "contenido del tweet o noticia",
-      "date": "fecha aproximada ISO 8601",
-      "metrics": { "likes": 0, "retweets": 0, "replies": 0 },
-      "relevance": 0.95,
-      "source": "X" | "news" | "official"
-    }
-  ],
-  "summary": "Resumen ejecutivo de 2-3 oraciones sobre la situación según las fuentes encontradas",
-  "query_used": "la consulta original",
-  "sources_count": 5,
-  "confidence": 0.8
+function normalizeText(s: string) {
+  return (s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-Genera entre 5 y 15 resultados relevantes. Prioriza fuentes oficiales (ONEMI, SENAPRED, Bomberos, etc.) y medios verificados. Incluye métricas estimadas cuando sea posible. Si no encuentras información específica, indica confianza baja y menciona que los datos son limitados.
+function keywordsFromQuery(q: string): string[] {
+  const stop = new Set([
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "of",
+    "to",
+    "in",
+    "on",
+    "at",
+    "for",
+    "from",
+    "is",
+    "are",
+    "there",
+    "right",
+    "now",
+  ]);
+  const tokens = normalizeText(q)
+    .split(" ")
+    .filter((t) => t.length >= 3 && !stop.has(t));
+  // Keep unique
+  return Array.from(new Set(tokens)).slice(0, 12);
+}
 
-Responde ÚNICAMENTE con JSON válido, sin markdown ni explicaciones adicionales.`;
+function scoreItem(title: string, desc: string, keywords: string[]) {
+  const t = normalizeText(title);
+  const d = normalizeText(desc);
+  let score = 0;
+  for (const k of keywords) {
+    if (t.includes(k)) score += 4; // title matches matter more
+    if (d.includes(k)) score += 1;
+  }
+  return score;
+}
+
+async function fetchRssItems(feedUrl: string) {
+  const res = await fetch(feedUrl, { headers: { "User-Agent": "NodoCrisis/1.0" } });
+  if (!res.ok) throw new Error(`RSS fetch failed (${res.status}) for ${feedUrl}`);
+  const xml = await res.text();
+
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: "",
+    trimValues: true,
+  });
+
+  const parsed = parser.parse(xml);
+
+  // RSS 2.0: parsed.rss.channel.item
+  const channel = parsed?.rss?.channel;
+  const itemsRaw = channel?.item;
+
+  const items = Array.isArray(itemsRaw) ? itemsRaw : itemsRaw ? [itemsRaw] : [];
+
+  return items.map((it: any) => ({
+    title: it.title ?? "",
+    link: it.link ?? "",
+    pubDate: it.pubDate ?? it.updated ?? null,
+    description: it.description ?? it["content:encoded"] ?? "",
+  }));
+}
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { query, max_results } = await req.json();
+    const { country_code, query_text, max_items } = await req.json();
 
-    if (!query || typeof query !== "string" || query.trim().length === 0) {
-      return new Response(
-        JSON.stringify({ error: "Se requiere un campo 'query' con la búsqueda" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (!query_text || typeof query_text !== "string") {
+      return new Response(JSON.stringify({ error: "query_text is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.error("LOVABLE_API_KEY is not configured");
-      return new Response(
-        JSON.stringify({ error: "Configuración de IA no disponible" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const feeds = country_code === "ES" || !country_code ? ES_DEFAULT_FEEDS : ES_DEFAULT_FEEDS;
+    const keywords = keywordsFromQuery(query_text);
 
-    const limit = Math.min(Math.max(max_results || 10, 1), 20);
-
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: `Busca información reciente sobre: "${query}". Genera hasta ${limit} resultados relevantes de X (Twitter) y fuentes de noticias.` },
-        ],
-        temperature: 0.3,
+    // Fetch all feeds in parallel
+    const results = await Promise.allSettled(
+      feeds.map(async (f) => {
+        const items = await fetchRssItems(f.rss_url);
+        return { feed: f, items };
       }),
+    );
+
+    const scored: Array<any> = [];
+
+    for (const r of results) {
+      if (r.status !== "fulfilled") continue;
+      const { feed, items } = r.value;
+
+      for (const it of items.slice(0, 30)) {
+        // only check latest 30 per feed
+        const score = scoreItem(it.title, it.description, keywords);
+        if (score > 0) {
+          scored.push({
+            source_name: feed.name,
+            title: it.title,
+            url: it.link,
+            published_at: it.pubDate,
+            snippet: normalizeText(it.description).slice(0, 280),
+            score,
+          });
+        }
+      }
+    }
+
+    scored.sort((a, b) => b.score - a.score);
+
+    const limit = typeof max_items === "number" ? Math.max(1, Math.min(20, max_items)) : 8;
+
+    return new Response(
+      JSON.stringify({
+        country_code: country_code ?? "ES",
+        query_text,
+        keywords,
+        news_snippets: scored.slice(0, limit),
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Unknown error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Límite de solicitudes excedido. Intenta de nuevo en unos minutos." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "Créditos de IA agotados." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      return new Response(
-        JSON.stringify({ error: "Error al procesar la solicitud de IA" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const aiResponse = await response.json();
-    const content = aiResponse.choices?.[0]?.message?.content;
-
-    if (!content) {
-      console.error("No content in AI response:", aiResponse);
-      return new Response(
-        JSON.stringify({ error: "Respuesta vacía del servicio de IA" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    let parsed;
-    try {
-      const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      parsed = JSON.parse(cleaned);
-    } catch (parseError) {
-      console.error("Failed to parse AI response:", content, parseError);
-      return new Response(
-        JSON.stringify({ error: "Error al interpretar la respuesta de IA" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const validated = {
-      tweets: Array.isArray(parsed.tweets) ? parsed.tweets.map((t: any) => ({
-        author: t.author || "Desconocido",
-        text: t.text || "",
-        date: t.date || null,
-        metrics: t.metrics || { likes: 0, retweets: 0, replies: 0 },
-        relevance: typeof t.relevance === "number" ? Math.min(1, Math.max(0, t.relevance)) : 0.5,
-        source: t.source || "unknown",
-      })) : [],
-      summary: parsed.summary || "",
-      query_used: query,
-      sources_count: parsed.sources_count || 0,
-      confidence: typeof parsed.confidence === "number" ? Math.min(1, Math.max(0, parsed.confidence)) : 0.5,
-    };
-
-    return new Response(
-      JSON.stringify(validated),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  } catch (error) {
-    console.error("Error in collect-news-context:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Error desconocido" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
   }
 });
