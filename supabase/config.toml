@@ -1,5 +1,8 @@
 project_id = "nvjbstcifphohmveiexf"
 
+[functions.create-initial-situation-report]
+verify_jwt = false
+
 [functions.generate-situation-report]
 verify_jwt = true
 
