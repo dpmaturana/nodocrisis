@@ -268,7 +268,7 @@ ${JSON.stringify(news_snippets.slice(0, 10), null, 2)}
         include: s.include !== false,
       })),
       suggested_capabilities: safeArray<any>(parsed.suggested_capabilities).map((c: any) => ({
-        capability_name: c.capability_name || "Unknown",
+        capability_name: c.capability_name || c.name || c.capability || "Unknown",
         confidence: clamp01(c.confidence, 0.5),
         include: c.include !== false,
       })),
