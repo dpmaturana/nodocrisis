@@ -32,9 +32,17 @@ export function SectorCardAdmin({
   onMouseEnter,
   onMouseLeave,
 }: SectorCardAdminProps) {
-  const criticalCount = gaps.filter((g) => g.state === "critical").length;
-  const partialCount = gaps.filter((g) => g.state === "partial").length;
-  const hasCritical = criticalCount > 0;
+  const hasCritical = gaps.some((g) => g.state === "critical");
+  const hasPartial = gaps.some((g) => g.state === "partial");
+  
+  // Determine single sector status
+  const sectorStatus = hasCritical
+    ? { label: "Crítico", color: "text-gap-critical", bg: "bg-gap-critical/20", dot: "bg-gap-critical" }
+    : hasPartial
+    ? { label: "Parcial", color: "text-warning", bg: "bg-warning/20", dot: "bg-warning" }
+    : gaps.length > 0
+    ? { label: "Activo", color: "text-yellow-500", bg: "bg-yellow-500/20", dot: "bg-yellow-500" }
+    : { label: "Contenido", color: "text-coverage", bg: "bg-coverage/20", dot: "bg-coverage" };
 
   // Sort gaps: critical first, then partial - show max 2
   const sortedGaps = [...gaps].sort((a, b) => {
@@ -61,21 +69,11 @@ export function SectorCardAdmin({
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="flex items-center gap-2 min-w-0">
             <h3 className="font-semibold text-sm truncate">{sector.canonical_name}</h3>
-            {/* Inline status badges */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              {criticalCount > 0 && (
-                <span className="flex items-center gap-0.5 text-gap-critical">
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  <span className="text-xs font-medium">{criticalCount}</span>
-                </span>
-              )}
-              {partialCount > 0 && (
-                <span className="flex items-center gap-0.5 text-warning">
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                  <span className="text-xs font-medium">{partialCount}</span>
-                </span>
-              )}
-            </div>
+            {/* Single sector status badge */}
+            <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium shrink-0", sectorStatus.bg, sectorStatus.color)}>
+              <span className={cn("w-2 h-2 rounded-full", sectorStatus.dot)} />
+              {sectorStatus.label}
+            </span>
           </div>
           <Button
             variant="ghost"

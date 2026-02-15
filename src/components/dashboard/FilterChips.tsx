@@ -1,7 +1,12 @@
-import { useState } from "react";
-import { MapPin, AlertCircle, AlertTriangle, Activity, X } from "lucide-react";
+import { MapPin, AlertCircle, AlertTriangle, Activity, X, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 export type SeverityFilter = "critical" | "partial";
@@ -13,14 +18,30 @@ interface FilterCounts {
   operatingActors: number;
 }
 
+interface CapacityOption {
+  id: string;
+  name: string;
+}
+
 interface FilterChipsProps {
   counts: FilterCounts;
   activeFilters: SeverityFilter[];
   onFilterChange: (filters: SeverityFilter[]) => void;
   onOpenActorsModal: () => void;
+  capacityOptions?: CapacityOption[];
+  activeCapacityFilters?: string[];
+  onCapacityFilterChange?: (ids: string[]) => void;
 }
 
-export function FilterChips({ counts, activeFilters, onFilterChange, onOpenActorsModal }: FilterChipsProps) {
+export function FilterChips({
+  counts,
+  activeFilters,
+  onFilterChange,
+  onOpenActorsModal,
+  capacityOptions = [],
+  activeCapacityFilters = [],
+  onCapacityFilterChange,
+}: FilterChipsProps) {
   const toggleFilter = (filter: SeverityFilter) => {
     if (activeFilters.includes(filter)) {
       onFilterChange(activeFilters.filter((f) => f !== filter));
@@ -29,21 +50,31 @@ export function FilterChips({ counts, activeFilters, onFilterChange, onOpenActor
     }
   };
 
-  const clearFilters = () => {
-    onFilterChange([]);
+  const toggleCapacity = (id: string) => {
+    if (!onCapacityFilterChange) return;
+    if (activeCapacityFilters.includes(id)) {
+      onCapacityFilterChange(activeCapacityFilters.filter((c) => c !== id));
+    } else {
+      onCapacityFilterChange([...activeCapacityFilters, id]);
+    }
   };
 
-  const hasActiveFilters = activeFilters.length > 0;
+  const clearFilters = () => {
+    onFilterChange([]);
+    onCapacityFilterChange?.([]);
+  };
+
+  const hasActiveFilters = activeFilters.length > 0 || activeCapacityFilters.length > 0;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {/* Sectors with gaps - info chip, not a filter */}
-      <Badge variant="outline" className="px-3 py-1.5 text-sm font-medium bg-muted/50">
+    <div className="flex items-center gap-2 flex-wrap">
+      {/* Sectors with gaps - static text, NOT a button */}
+      <span className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-muted-foreground">
         <MapPin className="w-4 h-4 mr-1.5" />
-        {counts.sectorsWithGaps} sectors with gaps
-      </Badge>
+        {counts.sectorsWithGaps} sectores con brechas
+      </span>
 
-      {/* Critical gaps filter */}
+      {/* Critical filter */}
       <Badge
         variant="outline"
         className={cn(
@@ -55,10 +86,10 @@ export function FilterChips({ counts, activeFilters, onFilterChange, onOpenActor
         onClick={() => toggleFilter("critical")}
       >
         <AlertCircle className="w-4 h-4 mr-1.5" />
-        {counts.critical} critical
+        {counts.critical} críticos
       </Badge>
 
-      {/* Partial gaps filter */}
+      {/* Partial filter */}
       <Badge
         variant="outline"
         className={cn(
@@ -73,17 +104,37 @@ export function FilterChips({ counts, activeFilters, onFilterChange, onOpenActor
         {counts.partial} parcial
       </Badge>
 
-      {/* Operating actors - opens modal */}
-      <Badge
-        variant="outline"
-        className="px-3 py-1.5 text-sm font-medium cursor-pointer transition-all hover:border-coverage hover:text-coverage"
-        onClick={onOpenActorsModal}
-      >
-        <Activity className="w-4 h-4 mr-1.5" />
-        {counts.operatingActors} organizations operating
-      </Badge>
+      {/* Capacity type filter dropdown */}
+      {capacityOptions.length > 0 && onCapacityFilterChange && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Badge
+              variant="outline"
+              className={cn(
+                "px-3 py-1.5 text-sm font-medium cursor-pointer transition-all",
+                activeCapacityFilters.length > 0 && "border-primary text-primary",
+              )}
+            >
+              Capacidad
+              {activeCapacityFilters.length > 0 && ` (${activeCapacityFilters.length})`}
+              <ChevronDown className="w-3 h-3 ml-1" />
+            </Badge>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="bg-popover">
+            {capacityOptions.map((cap) => (
+              <DropdownMenuCheckboxItem
+                key={cap.id}
+                checked={activeCapacityFilters.includes(cap.id)}
+                onCheckedChange={() => toggleCapacity(cap.id)}
+              >
+                {cap.name}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
 
-      {/* Clear filters button */}
+      {/* Clear filters */}
       {hasActiveFilters && (
         <Button
           variant="ghost"
@@ -92,9 +143,23 @@ export function FilterChips({ counts, activeFilters, onFilterChange, onOpenActor
           className="text-muted-foreground hover:text-foreground"
         >
           <X className="w-4 h-4 mr-1" />
-          Clear filters
+          Limpiar
         </Button>
       )}
+
+      {/* Spacer */}
+      <div className="ml-auto" />
+
+      {/* Operating actors - outline button, visually distinct from filters */}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onOpenActorsModal}
+        className="text-muted-foreground"
+      >
+        <Activity className="w-4 h-4 mr-1.5" />
+        {counts.operatingActors} organizaciones operando
+      </Button>
     </div>
   );
 }

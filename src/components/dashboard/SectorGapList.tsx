@@ -10,6 +10,7 @@ import { AlertCircle } from "lucide-react";
 interface SectorGapListProps {
   eventId: string;
   activeFilters: SeverityFilter[];
+  activeCapacityFilters?: string[];
   onViewSectorDetails: (sectorId: string) => void;
   onViewSignals: (gap: GapWithDetails) => void;
   onActivateActors: (gap: GapWithDetails) => void;
@@ -23,6 +24,7 @@ interface SectorGapListProps {
 export function SectorGapList({
   eventId,
   activeFilters,
+  activeCapacityFilters = [],
   onViewSectorDetails,
   onViewSignals,
   onActivateActors,
@@ -65,18 +67,29 @@ export function SectorGapList({
   // Filter sectors and gaps based on active filters
   const filteredSectors = sectorsWithGaps
     .map((sectorData) => {
-      // If no filters, show all gaps
-      if (activeFilters.length === 0) {
-        return sectorData;
-      }
+      let filteredGaps = sectorData.gaps;
 
       // Filter gaps by severity
-      const filteredGaps = sectorData.gaps.filter((gap) =>
-        activeFilters.includes(gap.state as SeverityFilter)
-      );
+      if (activeFilters.length > 0) {
+        filteredGaps = filteredGaps.filter((gap) =>
+          activeFilters.includes(gap.state as SeverityFilter)
+        );
+      }
 
-      if (filteredGaps.length === 0) {
+      // Filter gaps by capacity type
+      if (activeCapacityFilters.length > 0) {
+        filteredGaps = filteredGaps.filter((gap) =>
+          activeCapacityFilters.includes(gap.capacity_type_id)
+        );
+      }
+
+      if (filteredGaps.length === 0 && (activeFilters.length > 0 || activeCapacityFilters.length > 0)) {
         return null;
+      }
+
+      // If no filters active, show all
+      if (activeFilters.length === 0 && activeCapacityFilters.length === 0) {
+        return sectorData;
       }
 
       return {
