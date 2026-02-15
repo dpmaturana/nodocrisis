@@ -31,7 +31,7 @@ type SituationReportResponse = {
 
 // This prompt creates the "draft suggestions" (sectors + capabilities) based on admin input + news context.
 // Keep it simple and strict: JSON only.
-const SYSTEM_PROMPT = `You are an emergency coordination assistant.
+const SYSTEM_PROMPT = `You are an emergency coordination assistant for NodoCrisis.
 
 You will receive:
 1) an admin's initial incident description
@@ -47,8 +47,18 @@ Return ONLY valid JSON. No markdown. No explanations.
 Event types (choose closest):
 "incendio_forestal","inundacion","terremoto","tsunami","aluvion","sequia","temporal","accidente_masivo","emergencia_sanitaria","otro"
 
-Capabilities (use ONLY these exact strings):
-"agua","alimentos","salud","albergue","transporte","comunicaciones","rescate","logistica","energia","seguridad"
+SECTORS RULES (CRITICAL):
+- Sectors must be GRANULAR and OPERATIONALLY SPECIFIC.
+- Use municipalities, named neighborhoods, specific road segments, river basins, or named infrastructure.
+- NEVER use broad regions like "Andalucía" or "Southern Spain".
+- Good examples: "Écija – zona urbana inundada", "Ruta A-92 tramo km 180-210", "Ribera del Guadalquivir – Lora del Río", "Barriada La Paz – Málaga"
+- Bad examples: "Andalucía", "Zonas rurales", "Carreteras afectadas"
+- If the input text or news snippets mention specific places, USE THEM.
+- If no specific places are available, infer plausible municipalities/zones from the geographic context.
+- Include approximate latitude and longitude for each sector if possible.
+
+CAPABILITIES — use ONLY these exact names (from the system's standardized taxonomy):
+"Agua potable","Alimentación","Almacenamiento","Alojamiento / refugio","Atención médica de emergencia","Búsqueda y rescate","Catastro de información","Comunicaciones","Control de incendios","Distribución de suministros","Energía","Evacuación y traslado","Gestión de materiales peligrosos","Protección y seguridad básica","Salud mental y apoyo psicosocial","Saneamiento e higiene","Transporte"
 
 Output schema:
 {
@@ -56,7 +66,7 @@ Output schema:
   "event_type": string,
   "summary": string,
   "suggested_sectors": [
-    { "name": string, "description": string, "confidence": number, "include": boolean }
+    { "name": string, "description": string, "latitude": number|null, "longitude": number|null, "confidence": number, "include": boolean }
   ],
   "suggested_capabilities": [
     { "capability_name": string, "confidence": number, "include": boolean }
@@ -68,9 +78,9 @@ Output schema:
 Rules:
 - Be conservative. If uncertain, lower confidence.
 - "include" should default to true for suggestions.
-- Sectors should be geographic zones (stations, districts, neighborhoods, access routes, etc.).
 - "sources" should be short strings summarizing which snippets were used (e.g., "El País: <title>").
 - Do not invent facts not supported by admin text + snippets.
+- Suggest 3-8 sectors and 3-8 capabilities.
 `;
 
 function clamp01(n: any, fallback = 0.5) {
