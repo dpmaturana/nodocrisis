@@ -5,6 +5,7 @@ export type StatusType =
   | "critical" | "warning" | "covered" | "sms" | "context" | "uncovered" | "pending"
   // Gap states (PRD-aligned)
   | "gap-critical" | "gap-partial" | "gap-active" | "gap-evaluating"
+  | "need-white" | "need-red" | "need-yellow" | "need-orange" | "need-green"
   // Deployment states (PRD-aligned)
   | "deploy-interested" | "deploy-confirmed" | "deploy-operating" | "deploy-suspended" | "deploy-finished";
 
@@ -74,6 +75,31 @@ const statusConfig: Record<StatusType, { bg: string; text: string; icon: React.E
     bg: "bg-muted",
     text: "text-muted-foreground",
     icon: Clock,
+  },
+  "need-white": {
+    bg: "bg-muted/40",
+    text: "text-muted-foreground",
+    icon: Clock,
+  },
+  "need-red": {
+    bg: "bg-gap-critical/20",
+    text: "text-gap-critical",
+    icon: XCircle,
+  },
+  "need-yellow": {
+    bg: "bg-warning/20",
+    text: "text-warning",
+    icon: AlertTriangle,
+  },
+  "need-orange": {
+    bg: "bg-orange-500/20",
+    text: "text-orange-400",
+    icon: AlertTriangle,
+  },
+  "need-green": {
+    bg: "bg-coverage/20",
+    text: "text-coverage",
+    icon: CheckCircle,
   },
   // Deployment states (PRD-aligned)
   "deploy-interested": {

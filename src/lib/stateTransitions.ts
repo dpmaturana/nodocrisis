@@ -1,5 +1,6 @@
 import type { GapState, DeploymentStatus, AppRole } from "@/types/database";
 import { AlertCircle, AlertTriangle, CheckCircle, Clock, Eye, Check, Activity, Pause } from "lucide-react";
+import { NEED_STATUS_PRESENTATION, mapGapStateToNeedStatus } from "@/lib/needStatus";
 
 // ============= Gap State Transitions =============
 
@@ -23,37 +24,16 @@ export interface StateConfig {
 }
 
 export function getGapStateConfig(state: GapState): StateConfig {
-  const configs: Record<GapState, StateConfig> = {
-    evaluating: {
-      bg: "bg-muted/50",
-      text: "text-muted-foreground",
-      border: "border-muted",
-      icon: Clock,
-      label: "En evaluación",
-    },
-    critical: {
-      bg: "bg-gap-critical/20",
-      text: "text-gap-critical",
-      border: "border-gap-critical/50",
-      icon: AlertCircle,
-      label: "Crítica",
-    },
-    partial: {
-      bg: "bg-warning/20",
-      text: "text-warning",
-      border: "border-warning/50",
-      icon: AlertTriangle,
-      label: "Parcial",
-    },
-    active: {
-      bg: "bg-coverage/20",
-      text: "text-coverage",
-      border: "border-coverage/50",
-      icon: CheckCircle,
-      label: "Activa",
-    },
+  const need = mapGapStateToNeedStatus(state);
+  const presentation = NEED_STATUS_PRESENTATION[need];
+
+  return {
+    bg: presentation.bg,
+    text: presentation.text,
+    border: presentation.border,
+    icon: presentation.icon,
+    label: presentation.label,
   };
-  return configs[state];
 }
 
 // ============= Deployment State Transitions =============

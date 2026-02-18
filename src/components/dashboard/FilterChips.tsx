@@ -86,7 +86,7 @@ export function FilterChips({
         onClick={() => toggleFilter("critical")}
       >
         <AlertCircle className="w-4 h-4 mr-1.5" />
-        {counts.critical} críticos
+        {counts.critical} rojo
       </Badge>
 
       {/* Partial filter */}
@@ -101,7 +101,7 @@ export function FilterChips({
         onClick={() => toggleFilter("partial")}
       >
         <AlertTriangle className="w-4 h-4 mr-1.5" />
-        {counts.partial} parcial
+        {counts.partial} naranja
       </Badge>
 
       {/* Capacity type filter dropdown */}
