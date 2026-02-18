@@ -39,11 +39,7 @@ export function SectorCardAdmin({
     return NEED_STATUS_ORDER.indexOf(aNeed) - NEED_STATUS_ORDER.indexOf(bNeed);
   });
 
-  const sectorNeedStatus =
-    sortedByNeed.length > 0 ? sortedByNeed[0].need_status ?? mapGapStateToNeedStatus(sortedByNeed[0].state) : "GREEN";
-  const sectorStatus = NEED_STATUS_PRESENTATION[sectorNeedStatus];
-
-  // Sort gaps: critical first, then partial - show max 2
+  // Capability-need sorting only (no derived sector status)
   const visibleGaps = sortedByNeed.slice(0, 2);
   const hiddenGapsCount = gaps.length - visibleGaps.length;
 
@@ -52,7 +48,7 @@ export function SectorCardAdmin({
       id={`sector-${sector.id}`}
       className={cn(
         "border-l-4 transition-all duration-300",
-        sectorStatus.border,
+        "border-l-muted",
         isHighlighted && "ring-2 ring-primary ring-offset-2 ring-offset-background"
       )}
       onMouseEnter={onMouseEnter}
@@ -63,10 +59,9 @@ export function SectorCardAdmin({
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="flex items-center gap-2 min-w-0">
             <h3 className="font-semibold text-sm truncate">{sector.canonical_name}</h3>
-            {/* Single sector status badge */}
-            <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium shrink-0", sectorStatus.bg, sectorStatus.text)}>
-              <span className={cn("w-2 h-2 rounded-full", sectorStatus.dot)} />
-              {sectorStatus.shortLabel}
+            {/* Sector meta (without derived severity) */}
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium shrink-0 bg-muted/40 text-muted-foreground">
+              {gaps.length} capacidad{gaps.length === 1 ? "" : "es"}
             </span>
           </div>
           <Button
