@@ -47,8 +47,8 @@ Your job:
 
 Return ONLY valid JSON. No markdown. No explanations.
 
-Event types (choose closest):
-"wildfire","flood","earthquake","tsunami","landslide","drought","storm","mass_accident","health_emergency","other"
+Event types (use EXACTLY one of these values):
+"incendio_forestal","inundacion","terremoto","tsunami","aluvion","sequia","temporal","accidente_masivo","emergencia_sanitaria","otro"
 
 SECTORS RULES (CRITICAL):
 - Sectors must be GRANULAR and OPERATIONALLY SPECIFIC.
