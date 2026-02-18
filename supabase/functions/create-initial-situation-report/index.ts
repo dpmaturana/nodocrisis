@@ -257,6 +257,15 @@ NEWS SNIPPETS (pre-validated, relevant to this incident):
 ${JSON.stringify(news_snippets.slice(0, 10), null, 2)}
 `;
 
+    // ---- Step 2: Call Lovable LLM for suggestions ----
+    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+    if (!lovableKey) {
+      return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const llmResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
