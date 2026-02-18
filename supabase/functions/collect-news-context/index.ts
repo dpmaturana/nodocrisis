@@ -178,19 +178,29 @@ async function summarizeWithLovable(query: string, items: NewsItem[]) {
   }));
 
   const system = `You summarize news context for crisis coordination.
+
+CRITICAL ANCHOR RULE:
+- The admin input defines the target incident and location.
+- ONLY summarize snippets that clearly refer to the SAME incident/location as the admin input.
+- If the snippets appear to be about a different place or different incident, DO NOT switch topics.
+- In that case, return a summary that says the news evidence does not confirm the admin incident.
+
 Return ONLY valid JSON.
 
 Output schema:
 {
-  "summary": string,              // 1-3 sentences
-  "key_points": string[],         // 3-7 bullets max
-  "confidence": number,           // 0-1
-  "used": { "id": string, "why": string }[] // references to the provided ids
+  "summary": string,            // 1-3 sentences
+  "key_points": string[],       // 3-7 bullets max
+  "confidence": number,         // 0-1 (based on evidence match)
+  "used": [{ "id": string, "why": string }],  // references to provided snippet ids
+  "location_match": boolean,    // true only if location matches admin input
+  "mismatch_reason": string | null
 }
 
 Rules:
 - Be conservative: if uncertain, say so and lower confidence.
-- Do NOT invent facts not supported by the snippets.`;
+- Do NOT invent facts not supported by the snippets.
+- confidence must be LOW (<0.5) if location_match is false.`;
 
   const user = `Query: "${query}"
 
