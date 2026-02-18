@@ -35,13 +35,15 @@ const SYSTEM_PROMPT = `You are an emergency coordination assistant for NodoCrisi
 
 You will receive:
 1) an admin's initial incident description
-2) a list of relevant news snippets from trusted sources (already collected)
+2) pre-validated news snippets (already filtered for relevance — trust them)
+3) a NEWS EVIDENCE STATUS section indicating how many relevant snippets were found
 
 Your job:
 - Suggest an event name, event type, and a short summary.
 - Suggest operational sectors (affected zones).
 - Suggest critical capabilities required at the EVENT level.
 - ALL output text (event name, summary, sector names, descriptions) MUST be in ENGLISH regardless of the input language.
+- If NEWS EVIDENCE STATUS says no relevant snippets were found, generate based on the admin description alone.
 
 Return ONLY valid JSON. No markdown. No explanations.
 
@@ -180,7 +182,7 @@ serve(async (req) => {
         query: input_text,
         max_results,
         // If your collect function supports summarize, you can enable later:
-        summarize: false,
+        summarize: true,
       }),
     });
 
@@ -193,22 +195,54 @@ serve(async (req) => {
     }
 
     const collected = await collectResp.json();
-    const news_snippets = safeArray<any>(collected.news_snippets);
+    const allSnippets = safeArray<any>(collected.news_snippets);
+    const summary = collected.summary ?? null; // from anchor-rule pre-screening
 
-    // Build a compact “sources list” for the LLM (titles only)
+    // ---- Filter snippets based on pre-screening ----
+    let news_snippets: any[];
+    let locationMatch: boolean | null = null;
+
+    if (summary) {
+      locationMatch = summary.location_match === true;
+
+      if (!locationMatch) {
+        // Pre-screening says snippets don't match the incident — drop all
+        news_snippets = [];
+      } else {
+        // Keep only snippets referenced in summary.used[]
+        const usedIds = new Set(
+          safeArray<any>(summary.used).map((u: any) => u.id)
+        );
+        if (usedIds.size > 0) {
+          news_snippets = allSnippets.filter((_: any, idx: number) =>
+            usedIds.has(`news_${idx + 1}`)
+          );
+        } else {
+          news_snippets = allSnippets; // used[] empty but match=true → keep all
+        }
+      }
+    } else {
+      // No summary (key missing or failure) — fall back to all snippets
+      news_snippets = allSnippets;
+    }
+
+    // Build a compact "sources list" for the LLM (titles only)
     const sourcesForLLM: string[] = news_snippets.slice(0, 10).map((s: any) => {
       const src = s.source_name ?? "Unknown";
       const title = s.title ?? "";
       return `${src}: ${title}`.slice(0, 180);
     });
 
-    // ---- Step 2: Call Lovable LLM for suggestions ----
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!lovableKey) {
-      return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not configured" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Build evidence status block for the prompt
+    let evidenceStatus: string;
+    if (news_snippets.length === 0) {
+      evidenceStatus = `NEWS EVIDENCE STATUS:
+- No relevant news snippets were found for this incident.
+- Generate sectors and capabilities based on the admin description alone.`;
+    } else {
+      evidenceStatus = `NEWS EVIDENCE STATUS:
+- Relevant snippets found: ${news_snippets.length} (out of ${allSnippets.length} collected)
+- Location match: ${locationMatch ?? "unknown"}`;
     }
 
     const userPrompt = `ADMIN INCIDENT TEXT:
@@ -217,7 +251,9 @@ serve(async (req) => {
 COUNTRY:
 ${country_code}
 
-NEWS SNIPPETS (trusted sources, may be partial):
+${evidenceStatus}
+
+NEWS SNIPPETS (pre-validated, relevant to this incident):
 ${JSON.stringify(news_snippets.slice(0, 10), null, 2)}
 `;
 
@@ -268,22 +304,26 @@ ${JSON.stringify(news_snippets.slice(0, 10), null, 2)}
     }
 
     // ---- Evidence-based confidence cap ----
-    // Compute best and average scores from news snippets to cap overall_confidence
-    const snippetScores = news_snippets
-      .map((s: any) => typeof s.score === "number" ? s.score : 0)
-      .sort((a: number, b: number) => b - a);
-
-    const bestScore = snippetScores.length > 0 ? snippetScores[0] : 0;
-
+    // Primary gate: if pre-screening said location doesn't match, hard cap at 0.40
     let confidenceCap: number;
-    if (snippetScores.length === 0) {
-      confidenceCap = 0.5;   // no news evidence at all
-    } else if (bestScore < 6) {
-      confidenceCap = 0.55;  // very low relevance
-    } else if (bestScore <= 10) {
-      confidenceCap = 0.7;   // moderate relevance
+
+    if (locationMatch === false || news_snippets.length === 0) {
+      confidenceCap = 0.40;  // no relevant evidence for this incident
     } else {
-      confidenceCap = 0.9;   // strong evidence
+      // Secondary: score-based cap on the filtered snippets
+      const snippetScores = news_snippets
+        .map((s: any) => typeof s.score === "number" ? s.score : 0)
+        .sort((a: number, b: number) => b - a);
+
+      const bestScore = snippetScores.length > 0 ? snippetScores[0] : 0;
+
+      if (bestScore < 6) {
+        confidenceCap = 0.55;
+      } else if (bestScore <= 10) {
+        confidenceCap = 0.7;
+      } else {
+        confidenceCap = 0.9;
+      }
     }
 
     // Validate/normalize output defensively
@@ -318,6 +358,9 @@ ${JSON.stringify(news_snippets.slice(0, 10), null, 2)}
         collected_at: new Date().toISOString(),
         feeds_used: collected.feeds_used ?? null,
         snippets: news_snippets.slice(0, max_results),
+        all_collected_count: allSnippets.length,
+        location_match: locationMatch,
+        mismatch_reason: summary?.mismatch_reason ?? null,
       },
     ];
 
@@ -356,8 +399,9 @@ ${JSON.stringify(news_snippets.slice(0, 10), null, 2)}
         context: {
           country_code,
           news_snippets: news_snippets.slice(0, max_results),
+          all_collected_count: allSnippets.length,
+          location_match: locationMatch,
           evidence_cap: {
-            best_score: bestScore,
             confidence_cap: confidenceCap,
             llm_confidence: llmConfidence,
             final_confidence: cappedConfidence,
