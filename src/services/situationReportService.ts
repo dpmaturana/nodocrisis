@@ -94,21 +94,119 @@ export const situationReportService = {
   },
 
   /**
-   * Confirm report and create event
+   * Confirm report and create event, sectors and capacity needs in the DB
    */
   async confirm(reportId: string): Promise<{ eventId: string }> {
-    // For now, mark as confirmed. Event materialization can be expanded later.
-    const { data, error } = await supabase
+    // 1. Fetch the full report
+    const { data: report, error: reportError } = await supabase
       .from("initial_situation_reports")
-      .update({ status: "confirmed" as any })
+      .select("*")
       .eq("id", reportId)
+      .single();
+
+    if (reportError) throw new Error(reportError.message);
+
+    // 2. Insert a new event row
+    const { data: event, error: eventError } = await supabase
+      .from("events")
+      .insert({
+        name: report.event_name_suggested || "Nuevo Evento",
+        type: report.event_type,
+        status: "active",
+      })
       .select()
       .single();
 
-    if (error) throw new Error(error.message);
+    if (eventError) throw new Error(eventError.message);
 
-    // Return the report id as a placeholder eventId until full materialization is built
-    return { eventId: data.id };
+    const newEventId = event.id;
+
+    // 3. Insert sectors (only those with include === true)
+    const suggestedSectors: Array<{ name: string; confidence: number; include: boolean }> =
+      Array.isArray(report.suggested_sectors)
+        ? (report.suggested_sectors as Array<{ name: string; confidence: number; include: boolean }>)
+        : [];
+
+    const insertedSectorIds: string[] = [];
+
+    for (const sector of suggestedSectors.filter((s) => s.include)) {
+      const { data: insertedSector, error: sectorError } = await supabase
+        .from("sectors")
+        .insert({
+          event_id: newEventId,
+          canonical_name: sector.name,
+          status: "unresolved",
+          source: "ai_suggested",
+          confidence: sector.confidence,
+        })
+        .select("id")
+        .single();
+
+      if (sectorError) {
+        console.error(`Failed to insert sector "${sector.name}":`, sectorError.message);
+      } else if (insertedSector) {
+        insertedSectorIds.push(insertedSector.id);
+      }
+    }
+
+    // 4. Insert capacity needs (sector_needs_context) per sector × included capability
+    const suggestedCapabilities: Array<{ capability_name: string; include: boolean }> =
+      Array.isArray(report.suggested_capabilities)
+        ? (report.suggested_capabilities as Array<{ capability_name: string; include: boolean }>)
+        : [];
+    const includedCapabilities = suggestedCapabilities.filter((c) => c.include);
+
+    if (includedCapabilities.length > 0 && insertedSectorIds.length > 0) {
+      // Resolve capability names to capacity_type IDs
+      const { data: capacityTypes } = await supabase
+        .from("capacity_types")
+        .select("id, name");
+
+      if (capacityTypes && capacityTypes.length > 0) {
+        const needsToInsert: {
+          event_id: string;
+          sector_id: string;
+          capacity_type_id: string;
+          level: "medium";
+          source: string;
+        }[] = [];
+
+        for (const sectorId of insertedSectorIds) {
+          for (const cap of includedCapabilities) {
+            const ct = capacityTypes.find(
+              (c) => c.name.toLowerCase() === cap.capability_name.toLowerCase()
+            );
+            if (ct) {
+              needsToInsert.push({
+                event_id: newEventId,
+                sector_id: sectorId,
+                capacity_type_id: ct.id,
+                level: "medium",
+                source: "situation_report",
+              });
+            }
+          }
+        }
+
+        if (needsToInsert.length > 0) {
+          const { error: needsError } = await supabase.from("sector_needs_context").insert(needsToInsert);
+          if (needsError) {
+            console.error("Failed to insert capacity needs:", needsError.message);
+          }
+        }
+      }
+    }
+
+    // 5. Mark report as confirmed and link to the new event
+    const { error: updateError } = await supabase
+      .from("initial_situation_reports")
+      .update({ status: "confirmed" as any, linked_event_id: newEventId })
+      .eq("id", reportId);
+
+    if (updateError) throw new Error(updateError.message);
+
+    // 6. Return the real event ID
+    return { eventId: newEventId };
   },
 };
 
