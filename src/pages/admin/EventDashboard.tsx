@@ -21,6 +21,7 @@ import { SectorGapList } from "@/components/dashboard/SectorGapList";
 import { SignalsModal } from "@/components/dashboard/SignalsModal";
 import { OperatingActorsModal } from "@/components/dashboard/OperatingActorsModal";
 import { AvailableActorsDrawer } from "@/components/dashboard/AvailableActorsDrawer";
+import { ActivityLogModal } from "@/components/dashboard/ActivityLogModal";
 import { SectorDetailDrawer } from "@/components/sectors/SectorDetailDrawer";
 import { ScrollToTopButton } from "@/components/ui/ScrollToTopButton";
 
@@ -44,6 +45,10 @@ export default function EventDashboard() {
   const [signalsForModal, setSignalsForModal] = useState<Signal[]>([]);
   const [showSignalsModal, setShowSignalsModal] = useState(false);
   const [showActorsDrawer, setShowActorsDrawer] = useState(false);
+  
+  // Activity log modal
+  const [activityLogGap, setActivityLogGap] = useState<GapWithDetails | null>(null);
+  const [showActivityLogModal, setShowActivityLogModal] = useState(false);
   
   // Sector detail drawer
   const [selectedSector, setSelectedSector] = useState<EnrichedSector | null>(null);
@@ -136,6 +141,11 @@ export default function EventDashboard() {
   const handleActivateActors = (gap: GapWithDetails) => {
     setSelectedGap(gap);
     setShowActorsDrawer(true);
+  };
+
+  const handleViewActivityLog = (gap: GapWithDetails) => {
+    setActivityLogGap(gap);
+    setShowActivityLogModal(true);
   };
 
   const handleViewSectorDetails = async (sectorId: string) => {
@@ -231,6 +241,7 @@ export default function EventDashboard() {
             onViewSectorDetails={handleViewSectorDetails}
             onViewSignals={handleViewSignals}
             onActivateActors={handleActivateActors}
+            onViewActivityLog={handleViewActivityLog}
             focusedSectorId={focusedSectorId}
             highlightedCardId={highlightedCardId}
             onSectorHover={setFocusedSectorId}
@@ -276,6 +287,13 @@ export default function EventDashboard() {
         gap={selectedGap}
         open={showActorsDrawer}
         onOpenChange={setShowActorsDrawer}
+      />
+      
+      {/* Modal de registro de actividad */}
+      <ActivityLogModal
+        gap={activityLogGap}
+        open={showActivityLogModal}
+        onOpenChange={setShowActivityLogModal}
       />
     </div>
   );

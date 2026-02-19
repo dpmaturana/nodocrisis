@@ -1,4 +1,4 @@
-import { Eye, Users } from "lucide-react";
+import { Eye, Users, ScrollText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { GapWithDetails } from "@/services/gapService";
@@ -20,6 +20,7 @@ interface GapRowProps {
   dominantSignalTypes: SignalType[];
   onViewSignals: () => void;
   onActivateActors: () => void;
+  onViewActivityLog?: () => void;
 }
 
 function getCoverageText(gap: GapWithDetails): string {
@@ -41,7 +42,7 @@ function formatSignalTypes(types: SignalType[]): string {
   return `${firstTypes.map((t) => SIGNAL_TYPE_COPY[t]).join(", ")} y ${SIGNAL_TYPE_COPY[lastType].toLowerCase()}`;
 }
 
-export function GapRow({ gap, dominantSignalTypes, onViewSignals, onActivateActors }: GapRowProps) {
+export function GapRow({ gap, dominantSignalTypes, onViewSignals, onActivateActors, onViewActivityLog }: GapRowProps) {
   const needStatus = gap.need_status ?? mapGapStateToNeedStatus(gap.state);
   const presentation = NEED_STATUS_PRESENTATION[needStatus];
   const Icon = presentation.icon;
@@ -80,6 +81,17 @@ export function GapRow({ gap, dominantSignalTypes, onViewSignals, onActivateActo
           <Eye className="w-4 h-4 mr-1" />
           See signals
         </Button>
+        {onViewActivityLog && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onViewActivityLog}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <ScrollText className="w-4 h-4 mr-1" />
+            Activity log
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="sm"

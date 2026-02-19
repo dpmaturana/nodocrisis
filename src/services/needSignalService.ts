@@ -88,7 +88,9 @@ class LegacySignalExtractor implements NeedExtractionModel {
             ? "Institutional"
             : payload.signal_type === "field_report"
             ? "NGO"
-            : "Social/News",
+            : payload.signal_type === "context"
+            ? "Original Context"
+            : "Twitter",
       },
       timestamp: payload.created_at,
       classifications: [
@@ -168,7 +170,7 @@ export const needSignalService = {
 
     for (const signal of params.signals) {
       await engine.processRawInput({
-        source_type: signal.signal_type === "official" ? "institutional" : signal.signal_type === "field_report" ? "ngo" : "social_news",
+        source_type: signal.signal_type === "official" ? "institutional" : signal.signal_type === "field_report" ? "ngo" : signal.signal_type === "context" ? "original_context" : "twitter",
         source_name: signal.source,
         timestamp: signal.created_at,
         text: JSON.stringify({

@@ -171,7 +171,7 @@ describe("NeedLevelEngine", () => {
 
     const engine = new NeedLevelEngine(repo, extractor, new StaticEvaluator({ ...baseEval, proposed_status: "GREEN" }));
 
-    await engine.processRawInput({ source_type: "social_news", source_name: "news", timestamp: now, text: "risk" });
+    await engine.processRawInput({ source_type: "twitter", source_name: "news", timestamp: now, text: "risk" });
     const state = await repo.getNeedState("sec-1", "cap-1");
     expect(state?.current_status).toBe("YELLOW");
   });

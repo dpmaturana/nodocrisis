@@ -14,6 +14,7 @@ interface SectorGapListProps {
   onViewSectorDetails: (sectorId: string) => void;
   onViewSignals: (gap: GapWithDetails) => void;
   onActivateActors: (gap: GapWithDetails) => void;
+  onViewActivityLog?: (gap: GapWithDetails) => void;
   focusedSectorId?: string | null;
   highlightedCardId?: string | null;
   onSectorHover?: (sectorId: string | null) => void;
@@ -28,6 +29,7 @@ export function SectorGapList({
   onViewSectorDetails,
   onViewSignals,
   onActivateActors,
+  onViewActivityLog,
   focusedSectorId,
   highlightedCardId,
   onSectorHover,
@@ -141,6 +143,7 @@ export function SectorGapList({
           onViewDetails={() => onViewSectorDetails(sectorData.sector.id)}
           onViewSignals={onViewSignals}
           onActivateActors={onActivateActors}
+          onViewActivityLog={onViewActivityLog}
           isHighlighted={highlightedCardId === sectorData.sector.id}
           onMouseEnter={() => onSectorHover?.(sectorData.sector.id)}
           onMouseLeave={() => onSectorHover?.(null)}
