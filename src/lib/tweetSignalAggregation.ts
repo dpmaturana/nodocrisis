@@ -412,6 +412,6 @@ export function tweetAuthorReliability(
     case "ngo":
       return "NGO";
     default:
-      return "Social/News";
+      return "Twitter";
   }
 }

@@ -1,19 +1,5 @@
-import { simulateDelay } from "./mock/delay";
-import {
-  getDeploymentsByActorId,
-  addDeployment,
-  updateDeploymentStatus,
-  getEventById,
-  getSectorById,
-  getCapacityTypeById,
-  getActorsInSector,
-  MOCK_SECTOR_CAPABILITY_MATRIX,
-  MOCK_SECTOR_CONTEXT,
-  MOCK_DEPLOYMENTS,
-  getOperatingCount as mockGetOperatingCount,
-} from "./mock/data";
+import { supabase } from "@/integrations/supabase/client";
 import type { Deployment, DeploymentStatus, Event, Sector, CapacityType } from "@/types/database";
-import type { ActorInSector, SectorContext } from "./mock/data";
 
 export interface DeploymentWithDetails extends Deployment {
   event?: Event;
@@ -24,8 +10,19 @@ export interface DeploymentWithDetails extends Deployment {
 export type OperatingPhase = "preparing" | "operating" | "stabilizing";
 export type SectorState = "critical" | "partial" | "contained";
 
-// Re-export types for consumers
-export type { ActorInSector, SectorContext };
+export interface ActorInSector {
+  id: string;
+  name: string;
+  role: string;
+  capacity: string;
+  status: DeploymentStatus;
+}
+
+export interface SectorContext {
+  keyPoints: string[];
+  extendedContext: string;
+  operationalSummary: string;
+}
 
 export interface SectorDeploymentGroup {
   sector: Sector;
@@ -37,100 +34,112 @@ export interface SectorDeploymentGroup {
   otherActors: ActorInSector[];
 }
 
-function determineSectorState(sectorId: string): SectorState {
-  const matrix = MOCK_SECTOR_CAPABILITY_MATRIX[sectorId];
-  if (!matrix) return "partial";
-  
-  const levels = Object.values(matrix);
+async function determineSectorState(sectorId: string): Promise<SectorState> {
+  const { data: needs } = await supabase
+    .from("sector_needs_context")
+    .select("level")
+    .eq("sector_id", sectorId);
+
+  if (!needs || needs.length === 0) return "partial";
+
+  const levels = needs.map((n) => n.level);
   if (levels.includes("critical")) return "critical";
-  if (levels.every(v => v === "low" || v === "covered")) return "contained";
+  if (levels.every((v) => v === "low")) return "contained";
   return "partial";
 }
 
-function determineOperatingPhase(deployments: DeploymentWithDetails[], sectorState: SectorState): OperatingPhase {
-  const hasOperating = deployments.some(d => d.status === "operating");
-  const allOperating = deployments.every(d => d.status === "operating");
-  
+function determineOperatingPhase(
+  deployments: DeploymentWithDetails[],
+  sectorState: SectorState,
+): OperatingPhase {
+  const hasOperating = deployments.some((d) => d.status === "operating");
+  const allOperating = deployments.every((d) => d.status === "operating");
+
   if (hasOperating && allOperating && sectorState === "contained") {
     return "stabilizing";
   }
-  if (hasOperating) {
-    return "operating";
-  }
+  if (hasOperating) return "operating";
   return "preparing";
 }
 
 function sortSectorGroups(groups: SectorDeploymentGroup[]): SectorDeploymentGroup[] {
-  const phaseOrder: Record<OperatingPhase, number> = {
-    operating: 0,
-    preparing: 1,
-    stabilizing: 2,
-  };
-  
-  const stateOrder: Record<SectorState, number> = {
-    critical: 0,
-    partial: 1,
-    contained: 2,
-  };
-  
+  const phaseOrder: Record<OperatingPhase, number> = { operating: 0, preparing: 1, stabilizing: 2 };
+  const stateOrder: Record<SectorState, number> = { critical: 0, partial: 1, contained: 2 };
+
   return groups.sort((a, b) => {
-    if (phaseOrder[a.operatingPhase] !== phaseOrder[b.operatingPhase]) {
+    if (phaseOrder[a.operatingPhase] !== phaseOrder[b.operatingPhase])
       return phaseOrder[a.operatingPhase] - phaseOrder[b.operatingPhase];
-    }
-    if (stateOrder[a.sectorState] !== stateOrder[b.sectorState]) {
+    if (stateOrder[a.sectorState] !== stateOrder[b.sectorState])
       return stateOrder[a.sectorState] - stateOrder[b.sectorState];
-    }
-    const aLatest = Math.max(...a.deployments.map(d => new Date(d.updated_at).getTime()));
-    const bLatest = Math.max(...b.deployments.map(d => new Date(d.updated_at).getTime()));
+    const aLatest = Math.max(...a.deployments.map((d) => new Date(d.updated_at).getTime()));
+    const bLatest = Math.max(...b.deployments.map((d) => new Date(d.updated_at).getTime()));
     return bLatest - aLatest;
   });
 }
 
 export const deploymentService = {
   async getMyDeployments(actorId: string): Promise<DeploymentWithDetails[]> {
-    await simulateDelay(200);
-    
-    const deployments = getDeploymentsByActorId(actorId);
-    
-    return deployments.map(d => ({
+    const { data, error } = await supabase
+      .from("deployments")
+      .select("*, events(*), sectors(*), capacity_types:capacity_type_id(*)") 
+      .eq("actor_id", actorId);
+
+    if (error) throw error;
+    if (!data) return [];
+
+    return data.map((d: any) => ({
       ...d,
-      event: getEventById(d.event_id),
-      sector: getSectorById(d.sector_id),
-      capacity_type: getCapacityTypeById(d.capacity_type_id),
+      event: d.events ?? undefined,
+      sector: d.sectors ?? undefined,
+      capacity_type: d.capacity_types ?? undefined,
+      events: undefined,
+      sectors: undefined,
+      capacity_types: undefined,
     }));
   },
 
   async getMyDeploymentsGrouped(actorId: string): Promise<SectorDeploymentGroup[]> {
-    await simulateDelay(300);
-    
     const deployments = await this.getMyDeployments(actorId);
-    
+
     // Group by sector
     const sectorMap = new Map<string, DeploymentWithDetails[]>();
-    
     deployments.forEach((d) => {
       const existing = sectorMap.get(d.sector_id) || [];
       existing.push(d);
       sectorMap.set(d.sector_id, existing);
     });
-    
-    // Build groups
+
     const groups: SectorDeploymentGroup[] = [];
-    
-    sectorMap.forEach((sectorDeployments, sectorId) => {
+
+    for (const [sectorId, sectorDeployments] of sectorMap.entries()) {
       const sector = sectorDeployments[0]?.sector;
       const event = sectorDeployments[0]?.event;
-      
-      if (!sector || !event) return;
-      
-      const sectorState = determineSectorState(sectorId);
+      if (!sector || !event) continue;
+
+      const sectorState = await determineSectorState(sectorId);
       const operatingPhase = determineOperatingPhase(sectorDeployments, sectorState);
-      const sectorContext = MOCK_SECTOR_CONTEXT[sectorId] || {
+
+      const sectorContext: SectorContext = {
         keyPoints: [],
         extendedContext: "",
         operationalSummary: `Sector ${sector.canonical_name} - ${event.name}`,
       };
-      
+
+      // Fetch other actors in this sector
+      const { data: otherDeps } = await supabase
+        .from("deployments")
+        .select("id, status, actor_id, capacity_types:capacity_type_id(name), profiles:actor_id(full_name, organization_name)")
+        .eq("sector_id", sectorId)
+        .neq("actor_id", actorId);
+
+      const otherActors: ActorInSector[] = (otherDeps || []).map((d: any) => ({
+        id: d.actor_id,
+        name: d.profiles?.full_name || d.profiles?.organization_name || "Actor",
+        role: "actor",
+        capacity: d.capacity_types?.name || "Sin especificar",
+        status: d.status,
+      }));
+
       groups.push({
         sector,
         event,
@@ -138,12 +147,10 @@ export const deploymentService = {
         sectorContext,
         deployments: sectorDeployments,
         operatingPhase,
-        otherActors: getActorsInSector(sectorId).filter(a => 
-          !sectorDeployments.some(d => d.id === a.id)
-        ),
+        otherActors,
       });
-    });
-    
+    }
+
     return sortSectorGroups(groups);
   },
 
@@ -152,76 +159,93 @@ export const deploymentService = {
     eventId: string,
     sectorId: string,
     capacityTypeId: string,
-    notes?: string
+    notes?: string,
   ): Promise<Deployment> {
-    await simulateDelay(300);
-    
-    // Check if already enrolled
-    const existing = MOCK_DEPLOYMENTS.find(
-      d => d.actor_id === actorId && 
-           d.sector_id === sectorId && 
-           d.capacity_type_id === capacityTypeId &&
-           d.status !== "finished"
-    );
-    
-    if (existing) {
+    // Check for existing active deployment
+    const { data: existing } = await supabase
+      .from("deployments")
+      .select("id")
+      .eq("actor_id", actorId)
+      .eq("sector_id", sectorId)
+      .eq("capacity_type_id", capacityTypeId)
+      .not("status", "eq", "finished")
+      .limit(1);
+
+    if (existing && existing.length > 0) {
       throw new Error("Ya estás inscrito en este sector con esta capacidad");
     }
-    
-    return addDeployment({
-      event_id: eventId,
-      sector_id: sectorId,
-      capacity_type_id: capacityTypeId,
-      actor_id: actorId,
-      status: "interested",
-      notes: notes || null,
-      verified: false,
-    });
+
+    const { data, error } = await supabase
+      .from("deployments")
+      .insert({
+        actor_id: actorId,
+        event_id: eventId,
+        sector_id: sectorId,
+        capacity_type_id: capacityTypeId,
+        status: "interested",
+        notes: notes || null,
+        verified: false,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   },
 
   async updateStatus(id: string, status: DeploymentStatus): Promise<void> {
-    await simulateDelay(200);
-    updateDeploymentStatus(id, status);
+    const { error } = await supabase
+      .from("deployments")
+      .update({ status })
+      .eq("id", id);
+    if (error) throw error;
   },
 
   async updateStatusWithNote(id: string, status: DeploymentStatus, notes?: string): Promise<void> {
-    await simulateDelay(200);
-    updateDeploymentStatus(id, status);
-    // Notes are ignored in mock version
+    const update: any = { status };
+    if (notes !== undefined) update.notes = notes;
+    const { error } = await supabase
+      .from("deployments")
+      .update(update)
+      .eq("id", id);
+    if (error) throw error;
   },
 
   async markSectorAsOperating(sectorId: string, actorId: string): Promise<void> {
-    await simulateDelay(200);
-    
-    MOCK_DEPLOYMENTS.forEach(d => {
-      if (d.sector_id === sectorId && 
-          d.actor_id === actorId && 
-          (d.status === "interested" || d.status === "confirmed")) {
-        d.status = "operating";
-        d.updated_at = new Date().toISOString();
-      }
-    });
+    const { error } = await supabase
+      .from("deployments")
+      .update({ status: "operating" as DeploymentStatus })
+      .eq("sector_id", sectorId)
+      .eq("actor_id", actorId)
+      .in("status", ["interested", "confirmed"]);
+    if (error) throw error;
   },
 
   async getActiveCount(): Promise<number> {
-    await simulateDelay(100);
-    return MOCK_DEPLOYMENTS.filter(d => d.status === "operating").length;
+    const { count, error } = await supabase
+      .from("deployments")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "operating");
+    if (error) throw error;
+    return count ?? 0;
   },
 
   async getOperatingCount(eventId: string): Promise<number> {
-    await simulateDelay(100);
-    return mockGetOperatingCount(eventId);
+    const { count, error } = await supabase
+      .from("deployments")
+      .select("*", { count: "exact", head: true })
+      .eq("event_id", eventId)
+      .eq("status", "operating");
+    if (error) throw error;
+    return count ?? 0;
   },
 
   async markAsOperating(
     id: string,
     feedbackType: "yes" | "insufficient" | "suspended",
-    notes?: string
+    notes?: string,
   ): Promise<void> {
-    await simulateDelay(200);
-    
     let status: DeploymentStatus;
-
     switch (feedbackType) {
       case "yes":
       case "insufficient":
@@ -231,7 +255,12 @@ export const deploymentService = {
         status = "suspended";
         break;
     }
-
-    updateDeploymentStatus(id, status);
+    const update: any = { status };
+    if (notes) update.notes = notes;
+    const { error } = await supabase
+      .from("deployments")
+      .update(update)
+      .eq("id", id);
+    if (error) throw error;
   },
 };
