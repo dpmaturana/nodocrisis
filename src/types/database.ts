@@ -41,6 +41,7 @@ export interface Profile {
 export interface Event {
   id: string;
   name: string;
+  population_affected: number | null;
   type: string | null;
   description: string | null;
   location: string | null;
@@ -55,6 +56,7 @@ export interface Event {
 export interface CapacityType {
   id: string;
   name: string;
+  criticality_level: 'life_threatening' | 'high' | 'medium' | 'low';
   description: string | null;
   icon: string | null;
   created_at: string;
@@ -64,6 +66,7 @@ export interface Sector {
   id: string;
   event_id: string;
   canonical_name: string;
+  population_affected: number | null;
   aliases: string[] | null;
   latitude: number | null;
   longitude: number | null;
