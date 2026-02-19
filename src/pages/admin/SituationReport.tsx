@@ -228,7 +228,7 @@ export default function SituationReport() {
     updateReport({
       suggested_sectors: [
         ...report.suggested_sectors,
-        { ...sector, name: `${sector.name} (copia)`, confidence: 1 },
+        { ...sector, name: `${sector.name} (copia)`, latitude: null, longitude: null, confidence: 1 },
       ],
     });
   };
@@ -240,6 +240,8 @@ export default function SituationReport() {
         {
           name: "Nuevo sector",
           description: "",
+          latitude: null,
+          longitude: null,
           confidence: 1,
           include: true,
         },

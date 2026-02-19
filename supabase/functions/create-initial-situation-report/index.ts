@@ -9,6 +9,8 @@ const corsHeaders = {
 type SuggestedSector = {
   name: string;
   description: string;
+  latitude: number | null;
+  longitude: number | null;
   confidence: number;
   include: boolean;
 };
@@ -61,7 +63,7 @@ SECTORS RULES (CRITICAL):
 - Include approximate latitude and longitude for each sector if possible.
 
 CAPABILITIES — use ONLY these exact names (from the system's standardized taxonomy):
-"Drinking water","Food supply","Storage","Shelter","Emergency medical care","Search and rescue","Information registry","Communications","Fire control","Supply distribution","Energy","Evacuation and transport","Hazardous materials management","Basic protection and security","Mental health and psychosocial support","Sanitation and hygiene","Transport"
+{{CAPABILITY_LIST}}
 
 Output schema:
 {
@@ -257,7 +259,7 @@ NEWS SNIPPETS (pre-validated, relevant to this incident):
 ${JSON.stringify(news_snippets.slice(0, 10), null, 2)}
 `;
 
-    // ---- Step 2: Call Lovable LLM for suggestions ----
+    // ---- Step 2: Fetch capabilities dynamically & call LLM ----
     const lovableKey = Deno.env.get("LOVABLE_API_KEY");
     if (!lovableKey) {
       return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not configured" }), {
@@ -265,6 +267,17 @@ ${JSON.stringify(news_snippets.slice(0, 10), null, 2)}
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Fetch standardized capability names from DB
+    const { data: capTypes } = await supabaseAdmin
+      .from("capacity_types")
+      .select("name");
+    const capList = capTypes && capTypes.length > 0
+      ? capTypes.map((c: any) => `"${c.name}"`).join(",")
+      : '"Drinking water","Food supply","Shelter","Emergency medical care","Search and rescue","Communications","Transport"';
+
+    // Inject dynamic capability list into prompt
+    const finalSystemPrompt = SYSTEM_PROMPT.replace("{{CAPABILITY_LIST}}", capList);
 
     const llmResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -275,7 +288,7 @@ ${JSON.stringify(news_snippets.slice(0, 10), null, 2)}
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: finalSystemPrompt },
           { role: "user", content: userPrompt },
         ],
         temperature: 0.2,
@@ -346,6 +359,8 @@ ${JSON.stringify(news_snippets.slice(0, 10), null, 2)}
       suggested_sectors: safeArray<any>(parsed.suggested_sectors).map((s: any) => ({
         name: s.name || "Unknown sector",
         description: s.description || "",
+        latitude: typeof s.latitude === "number" ? s.latitude : null,
+        longitude: typeof s.longitude === "number" ? s.longitude : null,
         confidence: clamp01(s.confidence, 0.5),
         include: s.include !== false,
       })),

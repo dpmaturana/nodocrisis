@@ -169,7 +169,7 @@ export const situationReportService = {
           event_id: string;
           sector_id: string;
           capacity_type_id: string;
-          level: string;
+          level: "critical" | "high" | "medium" | "low";
           source: string;
         }[] = [];
 
@@ -180,7 +180,7 @@ export const situationReportService = {
             );
             if (ct) {
               const confidence = cap.confidence ?? 0;
-              const level =
+              const level: "critical" | "high" | "medium" | "low" =
                 confidence >= 0.75 ? "critical" :
                 confidence >= 0.5  ? "high"     :
                 confidence >= 0.25 ? "medium"   : "low";
@@ -209,8 +209,8 @@ export const situationReportService = {
     const reportSources = Array.isArray(report.sources) ? report.sources : [];
     const newsContext = reportSources.find(
       (s: any) => s && s.kind === "news_context"
-    );
-    if (newsContext && Array.isArray(newsContext.snippets) && newsContext.snippets.length > 0) {
+    ) as any;
+    if (newsContext && Array.isArray(newsContext?.snippets) && newsContext.snippets.length > 0) {
       const signalsToInsert = newsContext.snippets.map((snippet: any) => ({
         event_id: newEventId,
         sector_id: null,
