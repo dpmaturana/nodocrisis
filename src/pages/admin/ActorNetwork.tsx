@@ -28,7 +28,9 @@ export default function ActorNetwork() {
   const { toast } = useToast();
 
   useEffect(() => {
-    capabilityService.getCapacityTypes().then(setCapacityTypes).catch(() => {});
+    capabilityService.getCapacityTypes().then(setCapacityTypes).catch((err) => {
+      console.error("Failed to load capacity types:", err);
+    });
   }, []);
 
   const loadActors = async () => {

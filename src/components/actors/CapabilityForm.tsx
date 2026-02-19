@@ -39,7 +39,9 @@ export function CapabilityForm({ actorId, open, onClose, onSaved }: CapabilityFo
 
   useEffect(() => {
     if (open) {
-      capabilityService.getCapacityTypes().then(setCapacityTypes).catch(() => {});
+      capabilityService.getCapacityTypes().then(setCapacityTypes).catch((err) => {
+        console.error("Failed to load capacity types:", err);
+      });
     }
   }, [open]);
 

@@ -85,7 +85,7 @@ export const sectorService = {
 
   /**
    * Get enriched sectors for sector-centric ONG view.
-   * Queries Supabase first; falls back to mock data for legacy/mock events.
+   * Queries Supabase for real data.
    * Sorted by: severity → match with actor capabilities → impact opportunity
    */
   async getEnrichedSectors(actorId: string): Promise<EnrichedSector[]> {
