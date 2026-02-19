@@ -1,7 +1,7 @@
 import { NEED_STATUS_TRANSITIONS, type NeedStatus } from "@/lib/needStatus";
 
-export type RawSourceType = "institutional" | "ngo" | "social_news";
-export type SourceReliability = "Institutional" | "NGO" | "Social/News";
+export type RawSourceType = "twitter" | "institutional" | "ngo" | "original_context";
+export type SourceReliability = "Twitter" | "Institutional" | "NGO" | "Original Context";
 
 export type ClassificationType =
   | "SIGNAL_DEMAND_INCREASE"
@@ -78,7 +78,8 @@ export const defaultNeedEngineConfig: NeedEngineConfig = {
   sourceWeights: {
     Institutional: 1,
     NGO: 1,
-    "Social/News": 0.4,
+    Twitter: 0.4,
+    "Original Context": 1,
   },
   thresholds: {
     demandEscalation: 1,

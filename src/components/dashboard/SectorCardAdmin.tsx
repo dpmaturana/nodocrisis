@@ -1,4 +1,4 @@
-import { ChevronRight, Eye, Users } from "lucide-react";
+import { ChevronRight, Eye, Users, ScrollText } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -24,6 +24,7 @@ interface SectorCardAdminProps {
   onViewDetails: () => void;
   onViewSignals: (gap: GapWithDetails) => void;
   onActivateActors: (gap: GapWithDetails) => void;
+  onViewActivityLog?: (gap: GapWithDetails) => void;
   isHighlighted?: boolean;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
@@ -37,6 +38,7 @@ export function SectorCardAdmin({
   onViewDetails,
   onViewSignals,
   onActivateActors,
+  onViewActivityLog,
   isHighlighted,
   onMouseEnter,
   onMouseLeave,
@@ -135,6 +137,21 @@ export function SectorCardAdmin({
                       </TooltipTrigger>
                       <TooltipContent>Ver señales</TooltipContent>
                     </Tooltip>
+                    {onViewActivityLog && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => onViewActivityLog(gap)}
+                          >
+                            <ScrollText className="w-3 h-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Registro de actividad</TooltipContent>
+                      </Tooltip>
+                    )}
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
