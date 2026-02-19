@@ -20,4 +20,6 @@ export interface MapViewProps {
   focusedSectorId?: string | null;
   onSectorFocus?: (sectorId: string | null) => void;
   onSectorClick?: (sectorId: string) => void;
+  /** Optional [lat, lng] used when no sectors have coordinates. */
+  fallbackCenter?: [number, number];
 }

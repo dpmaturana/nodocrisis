@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { eventService, gapService } from "@/services";
 import { mapGapStateToNeedStatus } from "@/lib/needStatus";
+import { geocodeLocation } from "@/lib/geocode";
 import type { Event, Signal } from "@/types/database";
 import type { GapWithDetails, GapCounts, DashboardMeta, OperatingActor, SectorWithGaps } from "@/services/gapService";
 import type { EnrichedSector } from "@/services/sectorService";
@@ -217,6 +218,7 @@ export default function EventDashboard() {
             focusedSectorId={focusedSectorId}
             onSectorFocus={setFocusedSectorId}
             onSectorClick={scrollToCard}
+            fallbackCenter={geocodeLocation(event?.location)}
           />
         </aside>
         
