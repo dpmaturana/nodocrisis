@@ -141,6 +141,8 @@ export interface SmsMessage {
 export interface SuggestedSector {
   name: string;
   description: string;
+  latitude: number | null;
+  longitude: number | null;
   confidence: number;
   include: boolean;
 }

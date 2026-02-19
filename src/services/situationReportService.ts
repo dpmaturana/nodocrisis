@@ -122,9 +122,9 @@ export const situationReportService = {
     const newEventId = event.id;
 
     // 3. Insert sectors (only those with include === true)
-    const suggestedSectors: Array<{ name: string; confidence: number; include: boolean }> =
+    const suggestedSectors: Array<{ name: string; latitude?: number | null; longitude?: number | null; confidence: number; include: boolean }> =
       Array.isArray(report.suggested_sectors)
-        ? (report.suggested_sectors as Array<{ name: string; confidence: number; include: boolean }>)
+        ? (report.suggested_sectors as Array<{ name: string; latitude?: number | null; longitude?: number | null; confidence: number; include: boolean }>)
         : [];
 
     const insertedSectorIds: string[] = [];
@@ -138,6 +138,8 @@ export const situationReportService = {
           status: "unresolved",
           source: "ai_suggested",
           confidence: sector.confidence,
+          latitude: sector.latitude ?? null,
+          longitude: sector.longitude ?? null,
         })
         .select("id")
         .single();
@@ -150,9 +152,9 @@ export const situationReportService = {
     }
 
     // 4. Insert capacity needs (sector_needs_context) per sector × included capability
-    const suggestedCapabilities: Array<{ capability_name: string; include: boolean }> =
+    const suggestedCapabilities: Array<{ capability_name: string; confidence: number; include: boolean }> =
       Array.isArray(report.suggested_capabilities)
-        ? (report.suggested_capabilities as Array<{ capability_name: string; include: boolean }>)
+        ? (report.suggested_capabilities as Array<{ capability_name: string; confidence: number; include: boolean }>)
         : [];
     const includedCapabilities = suggestedCapabilities.filter((c) => c.include);
 
@@ -167,7 +169,7 @@ export const situationReportService = {
           event_id: string;
           sector_id: string;
           capacity_type_id: string;
-          level: "medium";
+          level: string;
           source: string;
         }[] = [];
 
@@ -177,11 +179,16 @@ export const situationReportService = {
               (c) => c.name.toLowerCase() === cap.capability_name.toLowerCase()
             );
             if (ct) {
+              const confidence = cap.confidence ?? 0;
+              const level =
+                confidence >= 0.75 ? "critical" :
+                confidence >= 0.5  ? "high"     :
+                confidence >= 0.25 ? "medium"   : "low";
               needsToInsert.push({
                 event_id: newEventId,
                 sector_id: sectorId,
                 capacity_type_id: ct.id,
-                level: "medium",
+                level,
                 source: "situation_report",
               });
             }
@@ -197,7 +204,29 @@ export const situationReportService = {
       }
     }
 
-    // 5. Mark report as confirmed and link to the new event
+    // 5. Insert news signals from report sources
+    const MAX_SNIPPET_SCORE = 15; // expected max relevance score from news search
+    const reportSources = Array.isArray(report.sources) ? report.sources : [];
+    const newsContext = reportSources.find(
+      (s: any) => s && s.kind === "news_context"
+    );
+    if (newsContext && Array.isArray(newsContext.snippets) && newsContext.snippets.length > 0) {
+      const signalsToInsert = newsContext.snippets.map((snippet: any) => ({
+        event_id: newEventId,
+        sector_id: null,
+        signal_type: "news",
+        source: snippet.title || snippet.source || "News",
+        content: snippet.summary || snippet.content || snippet.title,
+        confidence: snippet.score ? Math.min(snippet.score / MAX_SNIPPET_SCORE, 1) : 0.5,
+        level: "event",
+      }));
+      const { error: signalsError } = await supabase.from("signals").insert(signalsToInsert);
+      if (signalsError) {
+        console.error("Failed to insert news signals:", signalsError.message);
+      }
+    }
+
+    // 6. Mark report as confirmed and link to the new event
     const { error: updateError } = await supabase
       .from("initial_situation_reports")
       .update({ status: "confirmed" as any, linked_event_id: newEventId })
@@ -205,7 +234,7 @@ export const situationReportService = {
 
     if (updateError) throw new Error(updateError.message);
 
-    // 6. Return the real event ID
+    // 7. Return the real event ID
     return { eventId: newEventId };
   },
 };

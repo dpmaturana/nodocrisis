@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ChevronRight, Eye, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,9 +52,9 @@ export function SectorCardAdmin({
     ? (sortedByNeed[0].need_status ?? mapGapStateToNeedStatus(sortedByNeed[0].state))
     : "WHITE";
 
-  // Capability-need sorting only (no derived sector status)
-  const visibleGaps = sortedByNeed.slice(0, 2);
-  const hiddenGapsCount = gaps.length - visibleGaps.length;
+  const [showAll, setShowAll] = useState(false);
+  const visibleGaps = showAll ? sortedByNeed : sortedByNeed.slice(0, 2);
+  const hiddenGapsCount = sortedByNeed.length - 2;
 
   return (
     <Card
@@ -152,10 +153,21 @@ export function SectorCardAdmin({
                 </div>
               );
             })}
-            {hiddenGapsCount > 0 && (
-              <p className="text-xs text-muted-foreground pl-4">
+            {!showAll && hiddenGapsCount > 0 && (
+              <button
+                className="text-xs text-muted-foreground pl-4 hover:text-foreground"
+                onClick={() => setShowAll(true)}
+              >
                 +{hiddenGapsCount} más
-              </p>
+              </button>
+            )}
+            {showAll && (
+              <button
+                className="text-xs text-muted-foreground pl-4 hover:text-foreground"
+                onClick={() => setShowAll(false)}
+              >
+                Ver menos
+              </button>
             )}
           </div>
         )}
