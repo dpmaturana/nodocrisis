@@ -1,59 +1,56 @@
 
 
-# Fix Build Errors and Improve Edge Function
+# Delete All Events and Related Records
 
-## 1. Fix Build Errors (4 files)
+## Overview
+Purge all 9 events and their dependent records from the database. Deletions must happen in dependency order to avoid foreign key violations.
 
-### `src/pages/admin/SituationReport.tsx`
-Add `latitude: null, longitude: null` to the new sector objects in `handleAddSector` and `handleDuplicateSector`.
+## What Gets Deleted
 
-### `src/services/mock/generators.ts`
-Add `latitude: null, longitude: null` to each generated `SuggestedSector`.
+- 7 field reports
+- 7 signals
+- 188 sector needs (context)
+- 36 sectors
+- 32 initial situation reports (unlink from events)
+- 9 events
 
-### `src/services/situationReportService.ts`
-- Cast `level` to `"critical" | "high" | "medium" | "low"` before inserting into `sector_needs_context`.
-- Cast `newsContext` to `any` before accessing `.snippets`.
+## Execution Order
 
-## 2. Preserve Sector Coordinates in Edge Function
+The SQL statements will run in this order using a database migration:
 
-In `supabase/functions/create-initial-situation-report/index.ts`, the validation step (lines 346-351) currently outputs only `name`, `description`, `confidence`, and `include` -- dropping `latitude` and `longitude` that the LLM returns.
+```sql
+-- 1. Delete field reports (references sectors and events)
+DELETE FROM field_reports;
 
-**Fix**: Include `latitude` and `longitude` in the validated sector object:
-```typescript
-suggested_sectors: safeArray(parsed.suggested_sectors).map((s) => ({
-  name: s.name || "Unknown sector",
-  description: s.description || "",
-  latitude: typeof s.latitude === "number" ? s.latitude : null,
-  longitude: typeof s.longitude === "number" ? s.longitude : null,
-  confidence: clamp01(s.confidence, 0.5),
-  include: s.include !== false,
-})),
+-- 2. Delete signals (references sectors and events)
+DELETE FROM signals;
+
+-- 3. Delete sector needs context (references sectors and events)
+DELETE FROM sector_needs_context;
+
+-- 4. Delete sector needs SMS (references sectors and events)
+DELETE FROM sector_needs_sms;
+
+-- 5. Delete event context needs (references events)
+DELETE FROM event_context_needs;
+
+-- 6. Delete deployments (references sectors and events)
+DELETE FROM deployments;
+
+-- 7. Delete sectors (references events)
+DELETE FROM sectors;
+
+-- 8. Unlink and optionally delete situation reports
+UPDATE initial_situation_reports SET linked_event_id = NULL;
+DELETE FROM initial_situation_reports;
+
+-- 9. Delete events
+DELETE FROM events;
 ```
 
-## 3. Fetch Capabilities Dynamically (Optional Improvement)
+All statements use unconditional `DELETE` (no WHERE clause) since the request is to remove everything.
 
-Instead of hardcoding the 17 capability names in the prompt, fetch them from the `capacity_types` table at runtime and inject them into the prompt. This ensures the LLM always uses the current taxonomy.
-
-**Current** (hardcoded in prompt):
-```
-"Drinking water","Food supply","Storage", ...
-```
-
-**Proposed** (dynamic):
-```typescript
-const { data: capTypes } = await supabaseAdmin
-  .from("capacity_types")
-  .select("name");
-const capList = capTypes?.map(c => `"${c.name}"`).join(",") ?? "";
-```
-Then inject `capList` into the SYSTEM_PROMPT template.
-
-## Files Changed
-
-| File | Change |
-|---|---|
-| `src/pages/admin/SituationReport.tsx` | Add `latitude: null, longitude: null` to new sector objects |
-| `src/services/mock/generators.ts` | Add `latitude: null, longitude: null` to generated sectors |
-| `src/services/situationReportService.ts` | Fix `level` type cast; fix `snippets` access via `any` cast |
-| `supabase/functions/create-initial-situation-report/index.ts` | Preserve lat/lng in validated sectors; optionally fetch capabilities dynamically |
-
+## Notes
+- This only affects the **Test** environment database
+- No code changes are needed
+- Mock/in-memory data used by the frontend is unaffected (it lives in `src/services/mock/data.ts`)
