@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -17,8 +17,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { actorNetworkService } from "@/services/actorNetworkService";
-import { MOCK_CAPACITY_TYPES } from "@/services/mock/data";
-import type { CapabilityLevel } from "@/types/database";
+import { capabilityService } from "@/services/capabilityService";
+import type { CapabilityLevel, CapacityType } from "@/types/database";
 import { CAPABILITY_LEVEL_LABELS } from "@/types/database";
 import { useToast } from "@/hooks/use-toast";
 
@@ -34,7 +34,16 @@ export function CapabilityForm({ actorId, open, onClose, onSaved }: CapabilityFo
   const [level, setLevel] = useState<CapabilityLevel>("operational");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [capacityTypes, setCapacityTypes] = useState<CapacityType[]>([]);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (open) {
+      capabilityService.getCapacityTypes().then(setCapacityTypes).catch((err) => {
+        console.error("Failed to load capacity types:", err);
+      });
+    }
+  }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,7 +86,7 @@ export function CapabilityForm({ actorId, open, onClose, onSaved }: CapabilityFo
                 <SelectValue placeholder="Seleccionar capacidad" />
               </SelectTrigger>
               <SelectContent>
-                {MOCK_CAPACITY_TYPES.map((cap) => (
+                {capacityTypes.map((cap) => (
                   <SelectItem key={cap.id} value={cap.id}>
                     {cap.name}
                   </SelectItem>
