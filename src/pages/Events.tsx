@@ -164,6 +164,9 @@ function EventCard({ event, isAdmin }: { event: Event; isAdmin: boolean }) {
                 <span>
                   Started: {format(new Date(event.started_at), "d MMM yyyy")}
                 </span>
+                <span>
+                  Affected: {event.population_affected?.toLocaleString() ?? "N/A"}
+                </span>
               </div>
             </div>
           </div>

@@ -19,23 +19,23 @@ import type {
 
 // ============== CAPACITY TYPES ==============
 export const MOCK_CAPACITY_TYPES: CapacityType[] = [
-  { id: "cap-1", name: "Evacuación y traslado", icon: "move", description: "Desplazamiento seguro de personas desde zonas de riesgo hacia lugares seguros.", created_at: new Date().toISOString() },
-  { id: "cap-2", name: "Búsqueda y rescate", icon: "search", description: "Localización y asistencia de personas atrapadas, desaparecidas o aisladas.", created_at: new Date().toISOString() },
-  { id: "cap-3", name: "Protección y seguridad básica", icon: "shield", description: "Medidas para reducir riesgos inmediatos a la integridad física de las personas.", created_at: new Date().toISOString() },
-  { id: "cap-4", name: "Atención médica de emergencia", icon: "heart-pulse", description: "Atención médica inmediata a personas lesionadas o en riesgo vital.", created_at: new Date().toISOString() },
-  { id: "cap-5", name: "Salud mental y apoyo psicosocial", icon: "brain", description: "Apoyo emocional y psicológico a personas afectadas por la emergencia.", created_at: new Date().toISOString() },
-  { id: "cap-6", name: "Agua potable", icon: "droplet", description: "Acceso a agua segura para consumo humano en cantidad suficiente.", created_at: new Date().toISOString() },
-  { id: "cap-7", name: "Saneamiento e higiene", icon: "spray-can", description: "Servicios básicos de saneamiento e higiene para prevenir riesgos sanitarios.", created_at: new Date().toISOString() },
-  { id: "cap-8", name: "Alimentación", icon: "utensils", description: "Acceso oportuno a alimentos adecuados para la población afectada.", created_at: new Date().toISOString() },
-  { id: "cap-9", name: "Alojamiento / refugio", icon: "home", description: "Soluciones temporales de alojamiento seguro y protección ambiental.", created_at: new Date().toISOString() },
-  { id: "cap-10", name: "Transporte", icon: "truck", description: "Movilización de personas, insumos y equipos necesarios para la respuesta.", created_at: new Date().toISOString() },
-  { id: "cap-11", name: "Distribución de suministros", icon: "package", description: "Entrega organizada de insumos esenciales a población o puntos de atención.", created_at: new Date().toISOString() },
-  { id: "cap-12", name: "Almacenamiento", icon: "warehouse", description: "Resguardo seguro y organizado de insumos y equipos durante la respuesta.", created_at: new Date().toISOString() },
-  { id: "cap-13", name: "Energía", icon: "zap", description: "Provisión o restablecimiento de energía eléctrica o combustible para operaciones críticas.", created_at: new Date().toISOString() },
-  { id: "cap-14", name: "Comunicaciones", icon: "radio", description: "Habilitar canales operativos de comunicación entre actores y comunidades afectadas.", created_at: new Date().toISOString() },
-  { id: "cap-15", name: "Catastro de información", icon: "clipboard-list", description: "Recopilación y síntesis de información relevante para la toma de decisiones.", created_at: new Date().toISOString() },
-  { id: "cap-16", name: "Control de incendios", icon: "flame", description: "Contención y mitigación de incendios activos que amenazan a personas o entorno.", created_at: new Date().toISOString() },
-  { id: "cap-17", name: "Gestión de materiales peligrosos", icon: "alert-triangle", description: "Manejo y mitigación de riesgos asociados a sustancias peligrosas.", created_at: new Date().toISOString() },
+  { id: "cap-1", name: "Evacuación y traslado", criticality_level: "high", icon: "move", description: "Desplazamiento seguro de personas desde zonas de riesgo hacia lugares seguros.", created_at: new Date().toISOString() },
+  { id: "cap-2", name: "Búsqueda y rescate", criticality_level: "life_threatening", icon: "search", description: "Localización y asistencia de personas atrapadas, desaparecidas o aisladas.", created_at: new Date().toISOString() },
+  { id: "cap-3", name: "Protección y seguridad básica", criticality_level: "high", icon: "shield", description: "Medidas para reducir riesgos inmediatos a la integridad física de las personas.", created_at: new Date().toISOString() },
+  { id: "cap-4", name: "Atención médica de emergencia", criticality_level: "life_threatening", icon: "heart-pulse", description: "Atención médica inmediata a personas lesionadas o en riesgo vital.", created_at: new Date().toISOString() },
+  { id: "cap-5", name: "Salud mental y apoyo psicosocial", criticality_level: "medium", icon: "brain", description: "Apoyo emocional y psicológico a personas afectadas por la emergencia.", created_at: new Date().toISOString() },
+  { id: "cap-6", name: "Agua potable", criticality_level: "life_threatening", icon: "droplet", description: "Acceso a agua segura para consumo humano en cantidad suficiente.", created_at: new Date().toISOString() },
+  { id: "cap-7", name: "Saneamiento e higiene", criticality_level: "high", icon: "spray-can", description: "Servicios básicos de saneamiento e higiene para prevenir riesgos sanitarios.", created_at: new Date().toISOString() },
+  { id: "cap-8", name: "Alimentación", criticality_level: "high", icon: "utensils", description: "Acceso oportuno a alimentos adecuados para la población afectada.", created_at: new Date().toISOString() },
+  { id: "cap-9", name: "Alojamiento / refugio", criticality_level: "high", icon: "home", description: "Soluciones temporales de alojamiento seguro y protección ambiental.", created_at: new Date().toISOString() },
+  { id: "cap-10", name: "Transporte", criticality_level: "medium", icon: "truck", description: "Movilización de personas, insumos y equipos necesarios para la respuesta.", created_at: new Date().toISOString() },
+  { id: "cap-11", name: "Distribución de suministros", criticality_level: "medium", icon: "package", description: "Entrega organizada de insumos esenciales a población o puntos de atención.", created_at: new Date().toISOString() },
+  { id: "cap-12", name: "Almacenamiento", criticality_level: "low", icon: "warehouse", description: "Resguardo seguro y organizado de insumos y equipos durante la respuesta.", created_at: new Date().toISOString() },
+  { id: "cap-13", name: "Energía", criticality_level: "high", icon: "zap", description: "Provisión o restablecimiento de energía eléctrica o combustible para operaciones críticas.", created_at: new Date().toISOString() },
+  { id: "cap-14", name: "Comunicaciones", criticality_level: "medium", icon: "radio", description: "Habilitar canales operativos de comunicación entre actores y comunidades afectadas.", created_at: new Date().toISOString() },
+  { id: "cap-15", name: "Catastro de información", criticality_level: "low", icon: "clipboard-list", description: "Recopilación y síntesis de información relevante para la toma de decisiones.", created_at: new Date().toISOString() },
+  { id: "cap-16", name: "Control de incendios", criticality_level: "life_threatening", icon: "flame", description: "Contención y mitigación de incendios activos que amenazan a personas o entorno.", created_at: new Date().toISOString() },
+  { id: "cap-17", name: "Gestión de materiales peligrosos", criticality_level: "life_threatening", icon: "alert-triangle", description: "Manejo y mitigación de riesgos asociados a sustancias peligrosas.", created_at: new Date().toISOString() },
 ];
 
 // ============== EVENTS ==============
@@ -43,6 +43,7 @@ export const MOCK_EVENTS: Event[] = [
   {
     id: "evt-mock-1",
     name: "Incendios Forestales Ñuble 2026",
+    population_affected: 6800,
     type: "incendio_forestal",
     status: "active",
     location: "Región de Ñuble",
@@ -56,6 +57,7 @@ export const MOCK_EVENTS: Event[] = [
   {
     id: "evt-mock-2",
     name: "Temporal Región Metropolitana",
+    population_affected: 2400,
     type: "temporal",
     status: "active",
     location: "Región Metropolitana",
@@ -69,6 +71,7 @@ export const MOCK_EVENTS: Event[] = [
   {
     id: "evt-mock-3",
     name: "Inundación Valdivia 2025",
+    population_affected: 1500,
     type: "inundacion",
     status: "closed",
     location: "Valdivia, Los Ríos",
@@ -88,6 +91,7 @@ export const MOCK_SECTORS: Sector[] = [
   { 
     id: "sec-1", 
     canonical_name: "San Carlos Rural", 
+    population_affected: 1900,
     status: "unresolved", 
     event_id: "evt-mock-1",
     confidence: 0.85,
@@ -101,6 +105,7 @@ export const MOCK_SECTORS: Sector[] = [
   { 
     id: "sec-2", 
     canonical_name: "Chillán Viejo Periurbano", 
+    population_affected: 1200,
     status: "tentative", 
     event_id: "evt-mock-1",
     confidence: 0.72,
@@ -114,6 +119,7 @@ export const MOCK_SECTORS: Sector[] = [
   { 
     id: "sec-3", 
     canonical_name: "Coihueco Centro", 
+    population_affected: 800,
     status: "resolved", 
     event_id: "evt-mock-1",
     confidence: 0.91,
@@ -127,6 +133,7 @@ export const MOCK_SECTORS: Sector[] = [
   { 
     id: "sec-4", 
     canonical_name: "Ñiquén Norte", 
+    population_affected: 1600,
     status: "unresolved", 
     event_id: "evt-mock-1",
     confidence: 0.78,
@@ -141,6 +148,7 @@ export const MOCK_SECTORS: Sector[] = [
   { 
     id: "sec-5", 
     canonical_name: "Maipú Sur", 
+    population_affected: 700,
     status: "unresolved", 
     event_id: "evt-mock-2",
     confidence: 0.80,
@@ -154,6 +162,7 @@ export const MOCK_SECTORS: Sector[] = [
   { 
     id: "sec-6", 
     canonical_name: "Pudahuel Poniente", 
+    population_affected: null,
     status: "tentative", 
     event_id: "evt-mock-2",
     confidence: 0.65,

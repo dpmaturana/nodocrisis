@@ -1,8 +1,9 @@
-import { AlertCircle, AlertTriangle, Eye, Users } from "lucide-react";
+import { Eye, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { GapWithDetails } from "@/services/gapService";
 import type { SignalType } from "@/types/database";
+import { NEED_STATUS_PRESENTATION, mapGapStateToNeedStatus } from "@/lib/needStatus";
 
 const SIGNAL_TYPE_COPY: Record<SignalType, string> = {
   field_report: "Reported by organizations on the ground",
@@ -41,8 +42,9 @@ function formatSignalTypes(types: SignalType[]): string {
 }
 
 export function GapRow({ gap, dominantSignalTypes, onViewSignals, onActivateActors }: GapRowProps) {
-  const isCritical = gap.state === "critical";
-  const Icon = isCritical ? AlertCircle : AlertTriangle;
+  const needStatus = gap.need_status ?? mapGapStateToNeedStatus(gap.state);
+  const presentation = NEED_STATUS_PRESENTATION[needStatus];
+  const Icon = presentation.icon;
   const capacityName = gap.capacity_type?.name || "Capacity";
   const coverageText = getCoverageText(gap);
   const signalTypeText = formatSignalTypes(dominantSignalTypes);
@@ -51,14 +53,14 @@ export function GapRow({ gap, dominantSignalTypes, onViewSignals, onActivateActo
     <div
       className={cn(
         "flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-md border-l-4 bg-muted/30",
-        isCritical ? "border-l-gap-critical" : "border-l-warning",
+        presentation.border,
       )}
     >
       <div className="flex-1 min-w-0">
         {/* Main line: Severity + Capacity — Coverage */}
         <div className="flex items-center gap-2 flex-wrap">
-          <Icon className={cn("w-4 h-4 shrink-0", isCritical ? "text-gap-critical" : "text-warning")} />
-          <span className={cn("font-semibold", isCritical ? "text-gap-critical" : "text-warning")}>{capacityName}</span>
+          <Icon className={cn("w-4 h-4 shrink-0", presentation.text)} />
+          <span className={cn("font-semibold", presentation.text)}>{capacityName}</span>
           <span className="text-muted-foreground">—</span>
           <span className="text-foreground">{coverageText}</span>
         </div>

@@ -134,6 +134,10 @@ export function SectorGapList({
           context={sectorData.context}
           gaps={sectorData.gaps}
           gapSignalTypes={sectorData.gapSignalTypes}
+          sectorNeedStatus={sectorData.sector_need_status}
+          sectorNeedScore={sectorData.sector_need_score}
+          sectorHighUncertainty={sectorData.sector_high_uncertainty}
+          sectorOverrideReasons={sectorData.sector_override_reasons}
           onViewDetails={() => onViewSectorDetails(sectorData.sector.id)}
           onViewSignals={onViewSignals}
           onActivateActors={onActivateActors}

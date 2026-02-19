@@ -36,6 +36,7 @@ export const eventService = {
     await simulateDelay(300);
     return addEvent({
       name: event.name || "Nuevo Evento",
+      population_affected: event.population_affected ?? null,
       type: event.type || null,
       status: "active",
       location: event.location || null,
@@ -109,6 +110,7 @@ export const eventService = {
     return addSector({
       event_id: eventId,
       canonical_name: name,
+      population_affected: null,
       aliases: aliases || null,
       status: "unresolved",
       source: "manual",
