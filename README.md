@@ -1,73 +1,106 @@
-# Welcome to your Lovable project
+# NodoCrisis
 
-## Project info
+A crisis response coordination platform for managing emergency situations. NodoCrisis helps coordinate actors (organizations, volunteers, resources) across geographic sectors, facilitating deployment coordination, capability tracking, and situational awareness during crises.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Features
 
-## How can I edit this code?
+### Actor Views (Protected)
 
-There are several ways of editing your application.
+- **Dashboard** — Overview of active crisis events and key metrics
+- **Events** — Browse, create, and view crisis event details
+- **Sectors** — Geographic sector management and enrollment with interactive maps
+- **My Capabilities** — Declare and manage organizational capabilities
+- **My Deployments** — Track deployments and submit field status reports
 
-**Use Lovable**
+### Admin Views
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+- **Create Event (AI-assisted)** — Generate crisis events with AI assistance
+- **Situation Reports** — Draft and view situational reports
+- **Event Dashboard** — Admin-level event overview and analytics
+- **Coordination** — Coordinate crisis response across actors
+- **Actor Network** — Manage participating organizations
 
-Changes made via Lovable will be committed automatically to this repo.
+### Core Components
 
-**Use your preferred IDE**
+- **Interactive Map** — Leaflet-based sector maps with pins and tooltips
+- **Gap Analysis** — Identify capability gaps in crisis response
+- **Field Reports** — Submit reports from the field, including audio recording
+- **Capability Matrix** — Track and assign capabilities across deployments
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## Tech Stack
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+| Category | Technology |
+|---|---|
+| Framework | [React 18](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/) |
+| Build Tool | [Vite](https://vite.dev/) |
+| Styling | [Tailwind CSS](https://tailwindcss.com/) |
+| UI Components | [shadcn/ui](https://ui.shadcn.com/) (Radix UI primitives) |
+| State & Data | [TanStack React Query](https://tanstack.com/query) |
+| Forms | [React Hook Form](https://react-hook-form.com/) + [Zod](https://zod.dev/) |
+| Backend | [Supabase](https://supabase.com/) (PostgreSQL + Auth) |
+| Maps | [Leaflet](https://leafletjs.com/) + [React Leaflet](https://react-leaflet.js.org/) |
+| Charts | [Recharts](https://recharts.org/) |
+| Testing | [Vitest](https://vitest.dev/) + [Playwright](https://playwright.dev/) + [Testing Library](https://testing-library.com/) |
+| Linting | [ESLint](https://eslint.org/) |
 
-Follow these steps:
+## Project Structure
+
+```
+src/
+├── components/         # UI components
+│   ├── ui/            # shadcn/ui base components
+│   ├── layout/        # App layout, sidebar, header
+│   ├── dashboard/     # Dashboard widgets
+│   ├── map/           # Map visualization
+│   ├── sectors/       # Sector management
+│   ├── actors/        # Actor/organization management
+│   ├── deployments/   # Deployment tracking
+│   ├── reports/       # Situation reports
+│   └── field/         # Field reports (audio recording)
+├── pages/             # Route pages
+│   └── admin/         # Admin-specific pages
+├── services/          # API and business logic
+├── hooks/             # Custom React hooks
+├── types/             # TypeScript type definitions
+├── integrations/      # External service clients (Supabase)
+├── lib/               # Utility functions
+└── test/              # Test files
+supabase/
+├── migrations/        # Database migrations
+└── functions/         # Supabase Edge Functions
+```
+
+## Getting Started
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) (v18+)
+- npm
+
+### Installation
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+# Clone the repository
+git clone https://github.com/dpmaturana/nodocrisis.git
+cd nodocrisis
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Install dependencies
+npm install
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start the development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The app will be available at `http://localhost:8080`.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Available Scripts
 
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+| Script | Description |
+|---|---|
+| `npm run dev` | Start the Vite development server |
+| `npm run build` | Create a production build |
+| `npm run build:dev` | Create a development build |
+| `npm run preview` | Preview the production build |
+| `npm run lint` | Run ESLint |
+| `npm run test` | Run tests once with Vitest |
+| `npm run test:watch` | Run tests in watch mode |
