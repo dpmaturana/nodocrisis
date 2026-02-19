@@ -1,72 +1,79 @@
 
 
-# Fetch Tweets via Grok API + Fix Build Errors
+# Connect Deployment Service to Real Database
 
-## 1. Fix Existing Build Errors (3 changes)
+## Problem
+The `deploymentService.ts` is entirely mock-based. Enrollments write to an in-memory array that:
+- Doesn't persist (lost on page refresh)
+- Uses fake IDs that don't match real DB records
+- Never touches the `deployments` database table
 
-### `src/components/sectors/SectorDetailDrawer.tsx`
-Remove the `population_affected` references (lines 236-252). The `EnrichedSector` type doesn't have this property. Replace with just the `context.estimatedAffected` fallback, or remove the section entirely.
+## Solution
+Rewrite `deploymentService.ts` to use the real database via the existing client, while keeping the same public API so no consumer components need to change.
 
-### `src/services/sectorService.ts`
-The `CapacityType` in `src/types/database.ts` requires `criticality_level`, but the DB `capacity_types` table doesn't have that column. Two options:
-- **Option A (recommended)**: Make `criticality_level` optional in the type (`criticality_level?:`) since the DB doesn't have it.
-- **Option B**: Add the column to the DB.
+## Build Error Fix
+Fix `src/lib/tweetSignalAggregation.ts` line 415: change `"Social/News"` to a valid `SourceReliability` value.
 
-We'll go with Option A: change `criticality_level` to optional in `src/types/database.ts`, which fixes the cast error in `sectorService.ts`.
+## Changes
 
-## 2. Add XAI API Key Secret
+### 1. Fix build error in `src/lib/tweetSignalAggregation.ts`
+- Change the invalid `"Social/News"` literal to a valid `SourceReliability` type value (likely `"low"` or `"medium"` based on the enum definition).
 
-The Grok API requires an API key from xAI (https://console.x.ai). We'll prompt you to add a `XAI_API_KEY` secret before deploying the edge function.
+### 2. Rewrite `src/services/deploymentService.ts`
+Replace all mock data calls with real database queries:
 
-## 3. Create `fetch-tweets` Edge Function
-
-A new edge function at `supabase/functions/fetch-tweets/index.ts` that:
-
-1. Accepts: `{ event_id, query, sector_id? }`
-2. Calls the xAI Responses API (`https://api.x.ai/v1/responses`) with the `x_search` tool to find relevant tweets
-3. Parses the tweet results into the existing `TweetInput` format
-4. Runs the deterministic classification from `tweetSignalAggregation.ts` (inlined in the edge function since it can't import from `src/`)
-5. Stores results as `signals` in the database
-6. Returns the aggregated signal
-
-### API Details
-
-The xAI Responses API with `x_search` tool:
-
-```text
-POST https://api.x.ai/v1/responses
-Authorization: Bearer $XAI_API_KEY
-
-{
-  "model": "grok-3-mini",
-  "tools": [{ "type": "x_search" }],
-  "input": "Find recent tweets about [query] related to emergency/crisis"
-}
+**`getMyDeployments(actorId)`**
+```
+SELECT *, events(*), sectors(*), capacity_types(*)
+FROM deployments
+WHERE actor_id = actorId
 ```
 
-The response contains tweet content in the assistant's message, which we'll parse and classify.
+**`getMyDeploymentsGrouped(actorId)`**
+- Same query, then group results by `sector_id` in JS
+- `determineSectorState`: query `sector_needs_context` for the sector instead of using `MOCK_SECTOR_CAPABILITY_MATRIX`
+- `sectorContext`: use a simple default context (no mock lookup)
+- `otherActors`: query `deployments` for the same sector where `actor_id != actorId`, joined with `profiles`
 
-### Edge Function Flow
+**`enroll(actorId, eventId, sectorId, capacityTypeId, notes)`**
+```
+INSERT INTO deployments (actor_id, event_id, sector_id, capacity_type_id, status, notes)
+VALUES (...)
+```
+- Check for existing active deployment first via a SELECT
 
-```text
-Request --> Auth check --> Call xAI x_search --> Parse tweets
-  --> Classify (regex-based, same as tweetSignalAggregation.ts)
-  --> Store signals in DB --> Return aggregated result
+**`updateStatus(id, status)`** / **`updateStatusWithNote`** / **`markAsOperating`**
+```
+UPDATE deployments SET status = ?, updated_at = now() WHERE id = ?
 ```
 
-## 4. Register in `supabase/config.toml`
-
-```toml
-[functions.fetch-tweets]
-verify_jwt = false
+**`markSectorAsOperating(sectorId, actorId)`**
 ```
+UPDATE deployments
+SET status = 'operating', updated_at = now()
+WHERE sector_id = ? AND actor_id = ? AND status IN ('interested', 'confirmed')
+```
+
+**`getActiveCount()`** / **`getOperatingCount(eventId)`**
+```
+SELECT count(*) FROM deployments WHERE status = 'operating' [AND event_id = ?]
+```
+
+### 3. Remove mock imports
+The rewritten service will no longer import from `./mock/data` for deployment-related functions (mock data files remain for other services that still use them).
+
+## Technical Details
+
+- All queries use `supabase` client from `@/integrations/supabase/client`
+- RLS policies already exist on `deployments` table: users can manage their own, admins can manage all, and anyone authenticated can view
+- The `determineSectorState` function will query `sector_needs_context` to check need levels instead of using a hardcoded matrix
+- The `otherActors` field will query real deployments + profiles for the sector
+- No database schema changes needed -- the `deployments` table already has all required columns
 
 ## Files Changed
 
 | File | Change |
 |---|---|
-| `src/components/sectors/SectorDetailDrawer.tsx` | Remove `population_affected` references |
-| `src/types/database.ts` | Make `criticality_level` optional |
-| `supabase/functions/fetch-tweets/index.ts` | New edge function for xAI tweet fetching |
-| `supabase/config.toml` | Register new function |
+| `src/lib/tweetSignalAggregation.ts` | Fix `"Social/News"` type error |
+| `src/services/deploymentService.ts` | Replace all mock calls with real DB queries |
 
