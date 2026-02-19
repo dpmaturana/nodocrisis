@@ -124,6 +124,9 @@ export default function EventDetail() {
             <span>
               Iniciado: {format(new Date(event.started_at), "d MMMM yyyy, HH:mm", { locale: es })}
             </span>
+            <span>
+              Población afectada: {event.population_affected?.toLocaleString() ?? "Sin dato"}
+            </span>
             <StatusBadge
               status={event.status === "active" ? "warning" : "pending"}
               label={event.status === "active" ? "Activo" : "Cerrado"}

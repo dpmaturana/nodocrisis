@@ -30,6 +30,7 @@ import {
 import { getGapStateConfig } from "@/lib/stateTransitions";
 import { mapGapStateToNeedStatus, NEED_STATUS_ORDER, type NeedStatus } from "@/lib/needStatus";
 import { needSignalService } from "@/services/needSignalService";
+import { computeSectorSeverity, type NeedCriticalityLevel } from "@/lib/sectorNeedAggregation";
 import type { Gap, GapState, Signal, Deployment, Sector, CapacityType, Event, SignalType, SectorGap, NeedLevel } from "@/types/database";
 import type { EnrichedSector } from "./sectorService";
 
@@ -57,6 +58,14 @@ export interface SectorWithGaps {
   hasCritical: boolean;
   gapCounts: { critical: number; partial: number };
   gapSignalTypes: Record<string, SignalType[]>;
+  sector_need_status?: NeedStatus;
+  sector_need_score?: number;
+  sector_high_uncertainty?: boolean;
+  sector_override_reasons?: string[];
+}
+
+function inferNeedCriticality(gap: GapWithDetails): NeedCriticalityLevel {
+  return gap.capacity_type?.criticality_level ?? "medium";
 }
 
 export interface OperatingActor {
@@ -253,8 +262,18 @@ export const gapService = {
         gapSignalTypes[gap.id] = getDominantSignalTypesForGap(gap.sector_id, gap.capacity_type_id);
       });
       
-      const criticalCount = gapsWithDetails.filter(g => g.need_status === 'RED').length;
-      const partialCount = gapsWithDetails.filter(g => g.need_status === 'ORANGE').length;
+      const criticalCount = gaps.filter(g => g.state === 'critical').length;
+      const partialCount = gaps.filter(g => g.state === 'partial').length;
+
+      const sectorPopulation = Math.max(1, sector?.population_affected ?? 1);
+      const sectorAgg = computeSectorSeverity(
+        gapsWithDetails.map((gap) => ({
+          need_id: gap.id,
+          need_status: gap.need_status ?? mapGapStateToNeedStatus(gap.state),
+          criticality_level: inferNeedCriticality(gap),
+          population_weight: sectorPopulation,
+        })),
+      );
       
       return {
         sector: sector!,
@@ -263,11 +282,19 @@ export const gapService = {
         hasCritical: criticalCount > 0,
         gapCounts: { critical: criticalCount, partial: partialCount },
         gapSignalTypes,
+        sector_need_status: sectorAgg.status,
+        sector_need_score: sectorAgg.score,
+        sector_high_uncertainty: sectorAgg.high_uncertainty,
+        sector_override_reasons: sectorAgg.override_reasons,
       };
     });
     
-    // Sort: sectors with critical gaps first, then by number of critical, then partial
+    // Sort by computed sector severity first, then fallback to legacy counters
     return sectorsWithGaps.sort((a, b) => {
+      const scoreA = a.sector_need_score ?? 0;
+      const scoreB = b.sector_need_score ?? 0;
+      if (scoreA !== scoreB) return scoreB - scoreA;
+
       if (a.hasCritical && !b.hasCritical) return -1;
       if (!a.hasCritical && b.hasCritical) return 1;
       if (a.gapCounts.critical !== b.gapCounts.critical) {

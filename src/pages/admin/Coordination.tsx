@@ -33,6 +33,7 @@ export default function Coordination() {
   const [newEventName, setNewEventName] = useState("");
   const [newEventLocation, setNewEventLocation] = useState("");
   const [newEventDescription, setNewEventDescription] = useState("");
+  const [newEventPopulationAffected, setNewEventPopulationAffected] = useState("");
 
   // Form state for new sector
   const [selectedEventForSector, setSelectedEventForSector] = useState(preselectedEventId || "");
@@ -82,6 +83,7 @@ export default function Coordination() {
     try {
       const newEvent = addEvent({
         name: newEventName.trim(),
+        population_affected: newEventPopulationAffected ? Number(newEventPopulationAffected) : null,
         type: null,
         location: newEventLocation.trim() || null,
         description: newEventDescription.trim() || null,
@@ -100,6 +102,7 @@ export default function Coordination() {
       setNewEventName("");
       setNewEventLocation("");
       setNewEventDescription("");
+      setNewEventPopulationAffected("");
       setEvents([...MOCK_EVENTS]);
     } catch (error: any) {
       toast({
@@ -125,6 +128,7 @@ export default function Coordination() {
       addSector({
         event_id: selectedEventForSector,
         canonical_name: newSectorName.trim(),
+        population_affected: null,
         aliases: aliases.length > 0 ? aliases : null,
         status: "unresolved",
         source: "manual",
@@ -266,6 +270,17 @@ export default function Coordination() {
                     rows={3}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="eventPopulationAffected">Población afectada (evento)</Label>
+                  <Input
+                    id="eventPopulationAffected"
+                    type="number"
+                    min={0}
+                    value={newEventPopulationAffected}
+                    onChange={(e) => setNewEventPopulationAffected(e.target.value)}
+                    placeholder="Ej: 12000"
+                  />
+                </div>
                 <Button onClick={handleCreateEvent} disabled={!newEventName.trim() || isSaving}>
                   {isSaving ? "Creando..." : "Crear Evento"}
                 </Button>
@@ -301,6 +316,9 @@ export default function Coordination() {
                             <p className="font-medium">{event.name}</p>
                             <p className="text-sm text-muted-foreground">
                               {event.location || "Sin ubicación"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Población afectada: {event.population_affected?.toLocaleString() ?? "Sin dato"}
                             </p>
                           </div>
                         </div>
