@@ -1,56 +1,72 @@
 
 
-# Delete All Events and Related Records
+# Fetch Tweets via Grok API + Fix Build Errors
 
-## Overview
-Purge all 9 events and their dependent records from the database. Deletions must happen in dependency order to avoid foreign key violations.
+## 1. Fix Existing Build Errors (3 changes)
 
-## What Gets Deleted
+### `src/components/sectors/SectorDetailDrawer.tsx`
+Remove the `population_affected` references (lines 236-252). The `EnrichedSector` type doesn't have this property. Replace with just the `context.estimatedAffected` fallback, or remove the section entirely.
 
-- 7 field reports
-- 7 signals
-- 188 sector needs (context)
-- 36 sectors
-- 32 initial situation reports (unlink from events)
-- 9 events
+### `src/services/sectorService.ts`
+The `CapacityType` in `src/types/database.ts` requires `criticality_level`, but the DB `capacity_types` table doesn't have that column. Two options:
+- **Option A (recommended)**: Make `criticality_level` optional in the type (`criticality_level?:`) since the DB doesn't have it.
+- **Option B**: Add the column to the DB.
 
-## Execution Order
+We'll go with Option A: change `criticality_level` to optional in `src/types/database.ts`, which fixes the cast error in `sectorService.ts`.
 
-The SQL statements will run in this order using a database migration:
+## 2. Add XAI API Key Secret
 
-```sql
--- 1. Delete field reports (references sectors and events)
-DELETE FROM field_reports;
+The Grok API requires an API key from xAI (https://console.x.ai). We'll prompt you to add a `XAI_API_KEY` secret before deploying the edge function.
 
--- 2. Delete signals (references sectors and events)
-DELETE FROM signals;
+## 3. Create `fetch-tweets` Edge Function
 
--- 3. Delete sector needs context (references sectors and events)
-DELETE FROM sector_needs_context;
+A new edge function at `supabase/functions/fetch-tweets/index.ts` that:
 
--- 4. Delete sector needs SMS (references sectors and events)
-DELETE FROM sector_needs_sms;
+1. Accepts: `{ event_id, query, sector_id? }`
+2. Calls the xAI Responses API (`https://api.x.ai/v1/responses`) with the `x_search` tool to find relevant tweets
+3. Parses the tweet results into the existing `TweetInput` format
+4. Runs the deterministic classification from `tweetSignalAggregation.ts` (inlined in the edge function since it can't import from `src/`)
+5. Stores results as `signals` in the database
+6. Returns the aggregated signal
 
--- 5. Delete event context needs (references events)
-DELETE FROM event_context_needs;
+### API Details
 
--- 6. Delete deployments (references sectors and events)
-DELETE FROM deployments;
+The xAI Responses API with `x_search` tool:
 
--- 7. Delete sectors (references events)
-DELETE FROM sectors;
+```text
+POST https://api.x.ai/v1/responses
+Authorization: Bearer $XAI_API_KEY
 
--- 8. Unlink and optionally delete situation reports
-UPDATE initial_situation_reports SET linked_event_id = NULL;
-DELETE FROM initial_situation_reports;
-
--- 9. Delete events
-DELETE FROM events;
+{
+  "model": "grok-3-mini",
+  "tools": [{ "type": "x_search" }],
+  "input": "Find recent tweets about [query] related to emergency/crisis"
+}
 ```
 
-All statements use unconditional `DELETE` (no WHERE clause) since the request is to remove everything.
+The response contains tweet content in the assistant's message, which we'll parse and classify.
 
-## Notes
-- This only affects the **Test** environment database
-- No code changes are needed
-- Mock/in-memory data used by the frontend is unaffected (it lives in `src/services/mock/data.ts`)
+### Edge Function Flow
+
+```text
+Request --> Auth check --> Call xAI x_search --> Parse tweets
+  --> Classify (regex-based, same as tweetSignalAggregation.ts)
+  --> Store signals in DB --> Return aggregated result
+```
+
+## 4. Register in `supabase/config.toml`
+
+```toml
+[functions.fetch-tweets]
+verify_jwt = false
+```
+
+## Files Changed
+
+| File | Change |
+|---|---|
+| `src/components/sectors/SectorDetailDrawer.tsx` | Remove `population_affected` references |
+| `src/types/database.ts` | Make `criticality_level` optional |
+| `supabase/functions/fetch-tweets/index.ts` | New edge function for xAI tweet fetching |
+| `supabase/config.toml` | Register new function |
+
