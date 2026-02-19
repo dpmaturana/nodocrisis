@@ -56,7 +56,7 @@ export interface Event {
 export interface CapacityType {
   id: string;
   name: string;
-  criticality_level: 'life_threatening' | 'high' | 'medium' | 'low';
+  criticality_level?: 'life_threatening' | 'high' | 'medium' | 'low';
   description: string | null;
   icon: string | null;
   created_at: string;
