@@ -9,6 +9,8 @@ const corsHeaders = {
 type SuggestedSector = {
   name: string;
   description: string;
+  latitude: number | null;
+  longitude: number | null;
   confidence: number;
   include: boolean;
 };
@@ -58,7 +60,9 @@ SECTORS RULES (CRITICAL):
 - Bad examples: "England", "Rural areas", "Affected roads"
 - If the input text or news snippets mention specific places, USE THEM.
 - If no specific places are available, infer plausible municipalities/zones from the geographic context.
-- Include approximate latitude and longitude for each sector if possible.
+- You MUST provide latitude and longitude for EVERY sector. Use well-known coordinates for the named place. Never leave both as null.
+- Use decimal degrees (e.g. 51.5074 for London latitude, -0.1278 for London longitude).
+- If you cannot determine exact coordinates, provide your best approximate coordinates for the geographic center of the named area.
 
 CAPABILITIES — use ONLY these exact names (from the system's standardized taxonomy):
 "Drinking water","Food supply","Storage","Shelter","Emergency medical care","Search and rescue","Information registry","Communications","Fire control","Supply distribution","Energy","Evacuation and transport","Hazardous materials management","Basic protection and security","Mental health and psychosocial support","Sanitation and hygiene","Transport"
@@ -346,6 +350,8 @@ ${JSON.stringify(news_snippets.slice(0, 10), null, 2)}
       suggested_sectors: safeArray<any>(parsed.suggested_sectors).map((s: any) => ({
         name: s.name || "Unknown sector",
         description: s.description || "",
+        latitude: typeof s.latitude === "number" ? s.latitude : null,
+        longitude: typeof s.longitude === "number" ? s.longitude : null,
         confidence: clamp01(s.confidence, 0.5),
         include: s.include !== false,
       })),

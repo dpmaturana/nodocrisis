@@ -8,6 +8,8 @@ const corsHeaders = {
 interface SuggestedSector {
   name: string;
   description: string;
+  latitude: number | null;
+  longitude: number | null;
   confidence: number;
   include: boolean;
 }
@@ -38,8 +40,11 @@ Dado un texto que describe una emergencia, debes generar una propuesta JSON con:
 4. **suggested_sectors**: Array de sectores geográficos afectados, cada uno con:
    - name: Nombre del sector
    - description: Breve descripción del área
+   - latitude: Latitud del sector en grados decimales (OBLIGATORIO, nunca null)
+   - longitude: Longitud del sector en grados decimales (OBLIGATORIO, nunca null)
    - confidence: Nivel de confianza (0.0 a 1.0)
    - include: true (por defecto)
+   IMPORTANTE: Siempre incluye latitude y longitude para cada sector. Usa coordenadas conocidas del lugar nombrado. Si no conoces la ubicación exacta, proporciona las coordenadas aproximadas del centro geográfico del área.
 5. **suggested_capabilities**: Array de capacidades críticas requeridas. Usa nombres estándar:
    - Agua/Bomberos
    - Transporte
@@ -150,6 +155,8 @@ serve(async (req) => {
         ? situationReport.suggested_sectors.map(s => ({
             name: s.name || "Sector desconocido",
             description: s.description || "",
+            latitude: typeof s.latitude === "number" ? s.latitude : null,
+            longitude: typeof s.longitude === "number" ? s.longitude : null,
             confidence: typeof s.confidence === "number" ? Math.min(1, Math.max(0, s.confidence)) : 0.5,
             include: s.include !== false,
           }))
