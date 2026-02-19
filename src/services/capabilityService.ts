@@ -35,11 +35,11 @@ export const capabilityService = {
       .eq("user_id", actorId);
 
     if (!error && data && data.length > 0) {
-      return data.map((row: Record<string, unknown>) => {
+      return data.map(row => {
         const { capacity_types, ...cap } = row;
         return {
-          ...(cap as unknown as ActorCapability),
-          capacity_type: (capacity_types as CapacityType) ?? undefined,
+          ...cap as ActorCapability,
+          capacity_type: (capacity_types as CapacityType | null) ?? undefined,
         };
       });
     }

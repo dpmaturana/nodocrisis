@@ -53,6 +53,13 @@ function sortEnrichedSectors(sectors: EnrichedSector[]): EnrichedSector[] {
   });
 }
 
+/** Default context when no detailed context is available */
+const DEFAULT_SECTOR_CONTEXT: SectorContext = {
+  keyPoints: ["Sin información adicional"],
+  extendedContext: "No hay contexto disponible para este sector.",
+  operationalSummary: "Sector sin evaluación detallada.",
+};
+
 /** Build best-match gaps (top 2 relevant, sorted by criticality then gap size) */
 function buildBestMatchGaps(relevantGaps: SectorGap[]): SectorGap[] {
   return [...relevantGaps]
@@ -103,8 +110,8 @@ export const sectorService = {
         .eq("user_id", actorId);
 
       const myCapabilityTypeIds = (dbCaps ?? [])
-        .filter((c: { availability: string }) => c.availability !== "unavailable")
-        .map((c: { capacity_type_id: string }) => c.capacity_type_id);
+        .filter(c => c.availability !== "unavailable")
+        .map(c => c.capacity_type_id);
 
       // Fetch sectors for active events
       const { data: dbSectors } = await supabase
@@ -176,8 +183,7 @@ export const sectorService = {
 
             const level = need.level as NeedLevel;
             const sectorDeployments = deployments.filter(
-              (d: { sector_id: string; capacity_type_id: string }) =>
-                d.sector_id === sector.id && d.capacity_type_id === need.capacity_type_id
+              d => d.sector_id === sector.id && d.capacity_type_id === need.capacity_type_id
             );
 
             const coverage = sectorDeployments.length;
@@ -217,11 +223,7 @@ export const sectorService = {
             sector,
             event,
             state,
-            context: {
-              keyPoints: ["Sin información adicional"],
-              extendedContext: "No hay contexto disponible para este sector.",
-              operationalSummary: "Sector sin evaluación detallada.",
-            },
+            context: DEFAULT_SECTOR_CONTEXT,
             gaps,
             relevantGaps,
             bestMatchGaps: buildBestMatchGaps(relevantGaps),
@@ -296,11 +298,7 @@ export const sectorService = {
         const hasCritical = gaps.some(g => g.isCritical);
         const state: EnrichedSector["state"] = hasCritical ? "critical" : "partial";
 
-        const context = MOCK_SECTOR_CONTEXT[sector.id] || {
-          keyPoints: ["Sin información adicional"],
-          extendedContext: "No hay contexto disponible para este sector.",
-          operationalSummary: "Sector sin evaluación detallada.",
-        };
+        const context = MOCK_SECTOR_CONTEXT[sector.id] || DEFAULT_SECTOR_CONTEXT;
 
         const actorsInSector = getActorsInSector(sector.id);
 
