@@ -1,3 +1,4 @@
+import { supabase } from "@/integrations/supabase/client";
 import { simulateDelay } from "./mock/delay";
 import { 
   MOCK_EVENTS, 
@@ -23,12 +24,24 @@ export const eventService = {
   },
 
   async getActive(): Promise<Event[]> {
-    await simulateDelay(200);
-    return MOCK_EVENTS.filter(e => e.status === "active");
+    const { data, error } = await supabase
+      .from("events")
+      .select("*")
+      .eq("status", "active")
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data ?? []) as Event[];
   },
 
   async getById(id: string): Promise<Event | null> {
-    await simulateDelay(150);
+    const { data, error } = await supabase
+      .from("events")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (data) return data as Event;
+    // Fall back to mock data for legacy mock event IDs
     return getEventById(id) || null;
   },
 

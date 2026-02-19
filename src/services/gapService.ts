@@ -1,3 +1,4 @@
+import { supabase } from "@/integrations/supabase/client";
 import { simulateDelay } from "./mock/delay";
 import {
   MOCK_GAPS,
@@ -80,6 +81,21 @@ export interface DashboardMeta {
   operatingCount: number;
 }
 
+/** Map a DB need_level to a GapState for the frontend */
+function mapNeedLevelToGapState(level: string): GapState {
+  switch (level) {
+    case "critical":
+    case "high":
+      return "critical";
+    case "medium":
+      return "partial";
+    case "low":
+      return "active";
+    default:
+      return "evaluating";
+  }
+}
+
 export const gapService = {
   /**
    * Get only visible gaps (critical + partial) for dashboard
@@ -112,9 +128,95 @@ export const gapService = {
   },
 
   /**
-   * Get gaps grouped by sector for admin dashboard
+   * Get gaps grouped by sector for admin dashboard.
+   * Queries Supabase first; falls back to mock data for legacy mock event IDs.
    */
   async getGapsGroupedBySector(eventId: string): Promise<SectorWithGaps[]> {
+    // Try to fetch real sectors from DB
+    const { data: dbSectors, error: sectorsError } = await supabase
+      .from("sectors")
+      .select("*")
+      .eq("event_id", eventId);
+
+    if (sectorsError || !dbSectors || dbSectors.length === 0) {
+      // Fall back to mock data implementation for mock/legacy events
+      return this._mockGetGapsGroupedBySector(eventId);
+    }
+
+    // Fetch sector_needs_context for this event, joined with capacity_types
+    const { data: needs } = await supabase
+      .from("sector_needs_context")
+      .select("*, capacity_types(*)")
+      .eq("event_id", eventId);
+
+    // Type for the joined query result (Supabase joins append the relation as a nested object)
+    type NeedWithCapType = NonNullable<typeof needs>[number] & {
+      capacity_types: CapacityType | null;
+    };
+    const typedNeeds = (needs ?? []) as NeedWithCapType[];
+
+    // Build sector lookup map
+    const sectorMap = new Map<string, Sector>();
+    dbSectors.forEach((s) => sectorMap.set(s.id, s as unknown as Sector));
+
+    // Group needs by sector_id
+    const needsBySector = new Map<string, NeedWithCapType[]>();
+    typedNeeds.forEach((need) => {
+      if (!needsBySector.has(need.sector_id)) {
+        needsBySector.set(need.sector_id, []);
+      }
+      needsBySector.get(need.sector_id)!.push(need);
+    });
+
+    const result: SectorWithGaps[] = [];
+
+    for (const [sectorId, sectorNeeds] of needsBySector.entries()) {
+      const sector = sectorMap.get(sectorId);
+      if (!sector || !sectorNeeds) continue;
+
+      const gapsWithDetails: GapWithDetails[] = sectorNeeds.map((need) => {
+        const state = mapNeedLevelToGapState(need.level);
+        const needStatus = mapGapStateToNeedStatus(state);
+        return {
+          id: need.id,
+          event_id: need.event_id,
+          sector_id: need.sector_id,
+          capacity_type_id: need.capacity_type_id,
+          state,
+          last_updated_at: need.created_at,
+          signal_count: 0,
+          sector,
+          capacity_type: need.capacity_types ?? undefined,
+          need_status: needStatus,
+        };
+      });
+
+      const criticalCount = gapsWithDetails.filter((g) => g.need_status === "RED").length;
+      const partialCount = gapsWithDetails.filter((g) => g.need_status === "ORANGE").length;
+
+      result.push({
+        sector,
+        context: { keyPoints: [], extendedContext: "", operationalSummary: "" },
+        gaps: gapsWithDetails,
+        hasCritical: criticalCount > 0,
+        gapCounts: { critical: criticalCount, partial: partialCount },
+        gapSignalTypes: {},
+      });
+    }
+
+    // Sort: sectors with critical gaps first
+    return result.sort((a, b) => {
+      if (a.hasCritical && !b.hasCritical) return -1;
+      if (!a.hasCritical && b.hasCritical) return 1;
+      if (a.gapCounts.critical !== b.gapCounts.critical) {
+        return b.gapCounts.critical - a.gapCounts.critical;
+      }
+      return b.gapCounts.partial - a.gapCounts.partial;
+    });
+  },
+
+  /** Mock-based fallback implementation for legacy/mock event IDs */
+  async _mockGetGapsGroupedBySector(eventId: string): Promise<SectorWithGaps[]> {
     await simulateDelay(150);
     const visibleGaps = await this.getVisibleGapsForEvent(eventId);
     

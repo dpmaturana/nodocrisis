@@ -130,7 +130,7 @@ export default function SituationReport() {
           Este reporte ya no puede ser editado.
         </p>
         {report.linked_event_id && (
-          <Button onClick={() => navigate(`/admin/event-dashboard`)}>
+          <Button onClick={() => navigate(`/admin/event-dashboard/${report.linked_event_id}`)}>
             Ver dashboard del evento
           </Button>
         )}
@@ -198,8 +198,8 @@ export default function SituationReport() {
         description: `Evento "${report.event_name_suggested}" creado exitosamente.`,
       });
 
-      // Navigate to mock event dashboard
-      navigate(`/admin/event-dashboard`);
+      // Navigate to the newly created event dashboard
+      navigate(`/admin/event-dashboard/${eventId}`);
     } catch (error: any) {
       console.error("Error confirming report:", error);
       toast({
