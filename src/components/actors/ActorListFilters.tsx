@@ -7,8 +7,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MOCK_CAPACITY_TYPES } from "@/services/mock/data";
 import { CHILE_REGIONS, ACTOR_TYPE_LABELS, type ActorType } from "@/types/database";
+import type { CapacityType } from "@/types/database";
 
 interface ActorListFiltersProps {
   searchQuery: string;
@@ -19,6 +19,7 @@ interface ActorListFiltersProps {
   onRegionChange: (value: string | null) => void;
   typeFilter: ActorType | null;
   onTypeChange: (value: ActorType | null) => void;
+  capacityTypes?: CapacityType[];
 }
 
 export function ActorListFilters({
@@ -30,6 +31,7 @@ export function ActorListFilters({
   onRegionChange,
   typeFilter,
   onTypeChange,
+  capacityTypes = [],
 }: ActorListFiltersProps) {
   return (
     <div className="space-y-3">
@@ -56,7 +58,7 @@ export function ActorListFilters({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas las capacidades</SelectItem>
-            {MOCK_CAPACITY_TYPES.map((cap) => (
+            {capacityTypes.map((cap) => (
               <SelectItem key={cap.id} value={cap.id}>
                 {cap.name}
               </SelectItem>

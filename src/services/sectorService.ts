@@ -1,23 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
-import { simulateDelay } from "./mock/delay";
-import { 
-  MOCK_SECTORS,
-  MOCK_EVENTS,
-  MOCK_CAPACITY_TYPES,
-  MOCK_SECTOR_CAPABILITY_MATRIX,
-  MOCK_DEPLOYMENTS,
-  MOCK_SIGNALS,
-  MOCK_SECTOR_CONTEXT,
-  getCapabilitiesByActorId,
-  getSectorById,
-  getEventById,
-  getCapacityTypeById,
-  getActorsInSector,
-  type SectorContext,
-  type ActorInSector,
-} from "./mock/data";
+import type { SectorContext, ActorInSector } from "./mock/data";
 import type { Sector, Event, CapacityType, SectorGap, NeedLevel, Signal } from "@/types/database";
-import type { NeedLevelExtended } from "./mock/data";
 
 export interface RecommendedSector {
   sector: Sector;
@@ -73,18 +56,31 @@ function buildBestMatchGaps(relevantGaps: SectorGap[]): SectorGap[] {
 
 export const sectorService = {
   async getAll(): Promise<Sector[]> {
-    await simulateDelay(200);
-    return [...MOCK_SECTORS];
+    const { data, error } = await supabase
+      .from("sectors")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data ?? []) as Sector[];
   },
 
   async getById(id: string): Promise<Sector | null> {
-    await simulateDelay(100);
-    return getSectorById(id) || null;
+    const { data, error } = await supabase
+      .from("sectors")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return (data as Sector) ?? null;
   },
 
   async getByEventId(eventId: string): Promise<Sector[]> {
-    await simulateDelay(150);
-    return MOCK_SECTORS.filter(s => s.event_id === eventId);
+    const { data, error } = await supabase
+      .from("sectors")
+      .select("*")
+      .eq("event_id", eventId);
+    if (error) throw new Error(error.message);
+    return (data ?? []) as Sector[];
   },
 
   /**
@@ -99,291 +95,260 @@ export const sectorService = {
       .select("*")
       .eq("status", "active");
 
-    if (dbEvents && dbEvents.length > 0) {
-      const activeEvents = dbEvents as Event[];
-      const eventIds = activeEvents.map(e => e.id);
+    const activeEvents = (dbEvents ?? []) as Event[];
+    if (activeEvents.length === 0) return [];
 
-      // Fetch actor capabilities from DB
-      const { data: dbCaps } = await supabase
-        .from("actor_capabilities")
-        .select("*")
-        .eq("user_id", actorId);
+    const eventIds = activeEvents.map(e => e.id);
 
-      const myCapabilityTypeIds = (dbCaps ?? [])
-        .filter(c => c.availability !== "unavailable")
-        .map(c => c.capacity_type_id);
+    // Fetch actor capabilities from DB
+    const { data: dbCaps } = await supabase
+      .from("actor_capabilities")
+      .select("*")
+      .eq("user_id", actorId);
 
-      // Fetch sectors for active events
-      const { data: dbSectors } = await supabase
-        .from("sectors")
-        .select("*")
-        .in("event_id", eventIds);
-
-      if (dbSectors && dbSectors.length > 0) {
-        const sectors = dbSectors as Sector[];
-        const sectorIds = sectors.map(s => s.id);
-
-        // Fetch needs with capacity type details
-        const { data: dbNeeds } = await supabase
-          .from("sector_needs_context")
-          .select("*, capacity_types(*)")
-          .in("event_id", eventIds);
-
-        type NeedRow = {
-          id: string;
-          event_id: string;
-          sector_id: string;
-          capacity_type_id: string;
-          level: string;
-          capacity_types: CapacityType | null;
-        };
-        const needs = (dbNeeds ?? []) as NeedRow[];
-
-        // Fetch active deployments for these sectors
-        const { data: dbDeployments } = await supabase
-          .from("deployments")
-          .select("*")
-          .in("sector_id", sectorIds)
-          .in("status", ["operating", "confirmed"]);
-
-        const deployments = dbDeployments ?? [];
-
-        // Fetch recent signals for these sectors
-        const { data: dbSignals } = await supabase
-          .from("signals")
-          .select("*")
-          .in("sector_id", sectorIds)
-          .order("created_at", { ascending: false });
-
-        const signals = (dbSignals ?? []) as Signal[];
-
-        // Build event lookup
-        const eventMap = new Map<string, Event>();
-        activeEvents.forEach(e => eventMap.set(e.id, e));
-
-        // Group needs by sector_id
-        const needsBySector = new Map<string, NeedRow[]>();
-        needs.forEach(n => {
-          if (!needsBySector.has(n.sector_id)) needsBySector.set(n.sector_id, []);
-          needsBySector.get(n.sector_id)!.push(n);
-        });
-
-        const enrichedSectors: EnrichedSector[] = [];
-
-        for (const sector of sectors) {
-          const event = eventMap.get(sector.event_id);
-          if (!event) continue;
-
-          const sectorNeeds = needsBySector.get(sector.id) ?? [];
-          const gaps: SectorGap[] = [];
-
-          for (const need of sectorNeeds) {
-            const capType = need.capacity_types;
-            if (!capType) continue;
-
-            const level = need.level as NeedLevel;
-            const sectorDeployments = deployments.filter(
-              d => d.sector_id === sector.id && d.capacity_type_id === need.capacity_type_id
-            );
-
-            const coverage = sectorDeployments.length;
-            const demand = level === "critical" ? 3 : level === "high" ? 2 : 1;
-            const gap = Math.max(0, demand - coverage);
-
-            if (gap > 0) {
-              gaps.push({
-                sector,
-                capacityType: capType,
-                smsDemand: 0,
-                contextDemand: demand,
-                totalDemand: demand,
-                coverage,
-                gap,
-                isUncovered: coverage === 0,
-                isCritical: level === "critical" || level === "high",
-                maxLevel: level,
-              });
-            }
-          }
-
-          if (gaps.length === 0) continue;
-
-          const relevantGaps = gaps.filter(g =>
-            myCapabilityTypeIds.includes(g.capacityType.id)
-          );
-
-          const hasCritical = gaps.some(g => g.isCritical);
-          const state: EnrichedSector["state"] = hasCritical ? "critical" : "partial";
-
-          const sectorSignals = signals
-            .filter(s => s.sector_id === sector.id)
-            .slice(0, 5);
-
-          enrichedSectors.push({
-            sector,
-            event,
-            state,
-            context: DEFAULT_SECTOR_CONTEXT,
-            gaps,
-            relevantGaps,
-            bestMatchGaps: buildBestMatchGaps(relevantGaps),
-            actorsInSector: [],
-            recentSignals: sectorSignals,
-          });
-        }
-
-        return sortEnrichedSectors(enrichedSectors);
-      }
-    }
-
-    // --- Fallback to mock data for legacy/mock events ---
-    return this._mockGetEnrichedSectors(actorId);
-  },
-
-  /** Mock-based fallback for getEnrichedSectors */
-  async _mockGetEnrichedSectors(actorId: string): Promise<EnrichedSector[]> {
-    await simulateDelay(300);
-
-    const activeEvents = MOCK_EVENTS.filter(e => e.status === "active");
-    const myCapabilities = getCapabilitiesByActorId(actorId);
-    const myCapabilityTypeIds = myCapabilities
+    const myCapabilityTypeIds = (dbCaps ?? [])
       .filter(c => c.availability !== "unavailable")
       .map(c => c.capacity_type_id);
-    
+
+    // Fetch sectors for active events
+    const { data: dbSectors } = await supabase
+      .from("sectors")
+      .select("*")
+      .in("event_id", eventIds);
+
+    const sectors = (dbSectors ?? []) as Sector[];
+    if (sectors.length === 0) return [];
+
+    const sectorIds = sectors.map(s => s.id);
+
+    // Fetch needs with capacity type details
+    const { data: dbNeeds } = await supabase
+      .from("sector_needs_context")
+      .select("*, capacity_types(*)")
+      .in("event_id", eventIds);
+
+    type NeedRow = {
+      id: string;
+      event_id: string;
+      sector_id: string;
+      capacity_type_id: string;
+      level: string;
+      capacity_types: CapacityType | null;
+    };
+    const needs = (dbNeeds ?? []) as NeedRow[];
+
+    // Fetch active deployments for these sectors
+    const { data: dbDeployments } = await supabase
+      .from("deployments")
+      .select("*")
+      .in("sector_id", sectorIds)
+      .in("status", ["operating", "confirmed"]);
+
+    const deployments = dbDeployments ?? [];
+
+    // Fetch recent signals for these sectors
+    const { data: dbSignals } = await supabase
+      .from("signals")
+      .select("*")
+      .in("sector_id", sectorIds)
+      .order("created_at", { ascending: false });
+
+    const signals = (dbSignals ?? []) as Signal[];
+
+    // Build event lookup
+    const eventMap = new Map<string, Event>();
+    activeEvents.forEach(e => eventMap.set(e.id, e));
+
+    // Group needs by sector_id
+    const needsBySector = new Map<string, NeedRow[]>();
+    needs.forEach(n => {
+      if (!needsBySector.has(n.sector_id)) needsBySector.set(n.sector_id, []);
+      needsBySector.get(n.sector_id)!.push(n);
+    });
+
     const enrichedSectors: EnrichedSector[] = [];
 
-    for (const event of activeEvents) {
-      const sectors = MOCK_SECTORS.filter(s => s.event_id === event.id);
-      
-      for (const sector of sectors) {
-        const matrix = MOCK_SECTOR_CAPABILITY_MATRIX[sector.id] || {};
-        const gaps: SectorGap[] = [];
+    for (const sector of sectors) {
+      const event = eventMap.get(sector.event_id);
+      if (!event) continue;
 
-        MOCK_CAPACITY_TYPES.forEach(capacity => {
-          const level = matrix[capacity.id] as NeedLevelExtended || "unknown";
-          if (level === "unknown" || level === "covered") return;
+      const sectorNeeds = needsBySector.get(sector.id) ?? [];
+      const gaps: SectorGap[] = [];
 
-          const deployments = MOCK_DEPLOYMENTS.filter(
-            d => d.sector_id === sector.id && 
-                 d.capacity_type_id === capacity.id &&
-                 (d.status === "operating" || d.status === "confirmed")
-          );
+      for (const need of sectorNeeds) {
+        const capType = need.capacity_types;
+        if (!capType) continue;
 
-          const coverage = deployments.length;
-          const demand = level === "critical" ? 3 : level === "high" ? 2 : 1;
-          const gap = Math.max(0, demand - coverage);
-
-          if (gap > 0) {
-            gaps.push({
-              sector,
-              capacityType: capacity,
-              smsDemand: 0,
-              contextDemand: demand,
-              totalDemand: demand,
-              coverage,
-              gap,
-              isUncovered: coverage === 0,
-              isCritical: level === "critical" || level === "high",
-              maxLevel: level as NeedLevel,
-            });
-          }
-        });
-
-        if (gaps.length === 0) continue;
-
-        const relevantGaps = gaps.filter(g => 
-          myCapabilityTypeIds.includes(g.capacityType.id)
+        const level = need.level as NeedLevel;
+        const sectorDeployments = deployments.filter(
+          d => d.sector_id === sector.id && d.capacity_type_id === need.capacity_type_id
         );
 
-        const hasCritical = gaps.some(g => g.isCritical);
-        const state: EnrichedSector["state"] = hasCritical ? "critical" : "partial";
+        const coverage = sectorDeployments.length;
+        const demand = level === "critical" ? 3 : level === "high" ? 2 : 1;
+        const gap = Math.max(0, demand - coverage);
 
-        const context = MOCK_SECTOR_CONTEXT[sector.id] || DEFAULT_SECTOR_CONTEXT;
-
-        const actorsInSector = getActorsInSector(sector.id);
-
-        const recentSignals = MOCK_SIGNALS
-          .filter(s => s.sector_id === sector.id)
-          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          .slice(0, 5);
-
-        enrichedSectors.push({
-          sector,
-          event,
-          state,
-          context,
-          gaps,
-          relevantGaps,
-          bestMatchGaps: buildBestMatchGaps(relevantGaps),
-          actorsInSector,
-          recentSignals,
-        });
+        if (gap > 0) {
+          gaps.push({
+            sector,
+            capacityType: capType,
+            smsDemand: 0,
+            contextDemand: demand,
+            totalDemand: demand,
+            coverage,
+            gap,
+            isUncovered: coverage === 0,
+            isCritical: level === "critical" || level === "high",
+            maxLevel: level,
+          });
+        }
       }
+
+      if (gaps.length === 0) continue;
+
+      const relevantGaps = gaps.filter(g =>
+        myCapabilityTypeIds.includes(g.capacityType.id)
+      );
+
+      const hasCritical = gaps.some(g => g.isCritical);
+      const state: EnrichedSector["state"] = hasCritical ? "critical" : "partial";
+
+      const sectorSignals = signals
+        .filter(s => s.sector_id === sector.id)
+        .slice(0, 5);
+
+      enrichedSectors.push({
+        sector,
+        event,
+        state,
+        context: DEFAULT_SECTOR_CONTEXT,
+        gaps,
+        relevantGaps,
+        bestMatchGaps: buildBestMatchGaps(relevantGaps),
+        actorsInSector: [],
+        recentSignals: sectorSignals,
+      });
     }
 
     return sortEnrichedSectors(enrichedSectors);
   },
 
   async getRecommended(actorId: string): Promise<RecommendedSector[]> {
-    await simulateDelay(300);
-    
-    const activeEvents = MOCK_EVENTS.filter(e => e.status === "active");
-    const myCapabilities = getCapabilitiesByActorId(actorId);
-    const myCapabilityTypeIds = myCapabilities
+    const { data: dbEvents } = await supabase
+      .from("events")
+      .select("*")
+      .eq("status", "active");
+
+    const activeEvents = (dbEvents ?? []) as Event[];
+    if (activeEvents.length === 0) return [];
+
+    const eventIds = activeEvents.map(e => e.id);
+
+    // Fetch actor capabilities from DB
+    const { data: dbCaps } = await supabase
+      .from("actor_capabilities")
+      .select("*")
+      .eq("user_id", actorId);
+
+    const myCapabilityTypeIds = (dbCaps ?? [])
       .filter(c => c.availability !== "unavailable")
       .map(c => c.capacity_type_id);
-    
+
+    // Fetch sectors for active events
+    const { data: dbSectors } = await supabase
+      .from("sectors")
+      .select("*")
+      .in("event_id", eventIds);
+
+    const sectors = (dbSectors ?? []) as Sector[];
+    if (sectors.length === 0) return [];
+
+    // Fetch needs with capacity type details
+    const { data: dbNeeds } = await supabase
+      .from("sector_needs_context")
+      .select("*, capacity_types(*)")
+      .in("event_id", eventIds);
+
+    type NeedRow = {
+      id: string;
+      event_id: string;
+      sector_id: string;
+      capacity_type_id: string;
+      level: string;
+      capacity_types: CapacityType | null;
+    };
+    const needs = (dbNeeds ?? []) as NeedRow[];
+
+    // Fetch active deployments
+    const sectorIds = sectors.map(s => s.id);
+    const { data: dbDeployments } = await supabase
+      .from("deployments")
+      .select("*")
+      .in("sector_id", sectorIds)
+      .in("status", ["operating", "confirmed"]);
+
+    const deployments = dbDeployments ?? [];
+
+    // Build event lookup
+    const eventMap = new Map<string, Event>();
+    activeEvents.forEach(e => eventMap.set(e.id, e));
+
+    // Group needs by sector_id
+    const needsBySector = new Map<string, NeedRow[]>();
+    needs.forEach(n => {
+      if (!needsBySector.has(n.sector_id)) needsBySector.set(n.sector_id, []);
+      needsBySector.get(n.sector_id)!.push(n);
+    });
+
     const recommendations: RecommendedSector[] = [];
 
-    for (const event of activeEvents) {
-      const sectors = MOCK_SECTORS.filter(s => s.event_id === event.id);
-      
-      for (const sector of sectors) {
-        const matrix = MOCK_SECTOR_CAPABILITY_MATRIX[sector.id] || {};
-        const gaps: SectorGap[] = [];
+    for (const sector of sectors) {
+      const event = eventMap.get(sector.event_id);
+      if (!event) continue;
 
-        MOCK_CAPACITY_TYPES.forEach(capacity => {
-          const level = matrix[capacity.id] as NeedLevelExtended || "unknown";
-          if (level === "unknown" || level === "covered") return;
+      const sectorNeeds = needsBySector.get(sector.id) ?? [];
+      const gaps: SectorGap[] = [];
 
-          const deployments = MOCK_DEPLOYMENTS.filter(
-            d => d.sector_id === sector.id && 
-                 d.capacity_type_id === capacity.id &&
-                 (d.status === "operating" || d.status === "confirmed")
-          );
+      for (const need of sectorNeeds) {
+        const capType = need.capacity_types;
+        if (!capType) continue;
 
-          const coverage = deployments.length;
-          const demand = level === "critical" ? 3 : level === "high" ? 2 : 1;
-          const gap = Math.max(0, demand - coverage);
+        const level = need.level as NeedLevel;
+        const sectorDeployments = deployments.filter(
+          d => d.sector_id === sector.id && d.capacity_type_id === need.capacity_type_id
+        );
 
-          if (gap > 0) {
-            gaps.push({
-              sector,
-              capacityType: capacity,
-              smsDemand: 0,
-              contextDemand: demand,
-              totalDemand: demand,
-              coverage,
-              gap,
-              isUncovered: coverage === 0,
-              isCritical: level === "critical" || level === "high",
-              maxLevel: level as NeedLevel,
-            });
-          }
-        });
+        const coverage = sectorDeployments.length;
+        const demand = level === "critical" ? 3 : level === "high" ? 2 : 1;
+        const gap = Math.max(0, demand - coverage);
 
-        if (gaps.length > 0) {
-          const relevantGaps = gaps.filter(g => 
-            myCapabilityTypeIds.includes(g.capacityType.id)
-          );
-
-          recommendations.push({
+        if (gap > 0) {
+          gaps.push({
             sector,
-            event,
-            gaps,
-            relevantGaps,
+            capacityType: capType,
+            smsDemand: 0,
+            contextDemand: demand,
+            totalDemand: demand,
+            coverage,
+            gap,
+            isUncovered: coverage === 0,
+            isCritical: level === "critical" || level === "high",
+            maxLevel: level,
           });
         }
+      }
+
+      if (gaps.length > 0) {
+        const relevantGaps = gaps.filter(g =>
+          myCapabilityTypeIds.includes(g.capacityType.id)
+        );
+
+        recommendations.push({
+          sector,
+          event,
+          gaps,
+          relevantGaps,
+        });
       }
     }
 
@@ -408,11 +373,7 @@ export const sectorService = {
       .select("*")
       .eq("status", "active")
       .order("created_at", { ascending: false });
-    if (!error && data && data.length > 0) {
-      return data as Event[];
-    }
-    // Fallback to mock data
-    await simulateDelay(100);
-    return MOCK_EVENTS.filter(e => e.status === "active");
+    if (error) throw new Error(error.message);
+    return (data ?? []) as Event[];
   },
 };

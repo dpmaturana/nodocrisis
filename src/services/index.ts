@@ -1,5 +1,4 @@
-// Service layer - currently using mock implementations
-// When ready to connect to Supabase, swap implementations here
+// Service layer - connected to Supabase for real data
 
 export { situationReportService } from "./situationReportService";
 export { eventService } from "./eventService";
@@ -11,14 +10,3 @@ export { matrixService } from "./matrixService";
 export { gapService } from "./gapService";
 export type { GapWithDetails, GapCounts } from "./gapService";
 export type { NeedLevelExtended } from "./matrixService";
-
-// Re-export mock data for components that need direct access
-export { 
-  MOCK_CAPACITY_TYPES,
-  MOCK_EVENTS,
-  MOCK_SECTORS,
-  MOCK_ACTIVE_EVENT,
-  MOCK_SECTOR_CAPABILITY_MATRIX,
-  MOCK_DEPLOYMENTS,
-  MOCK_ACTOR_CAPABILITIES,
-} from "./mock/data";

@@ -6,7 +6,8 @@ import { ActorRow } from "@/components/actors/ActorRow";
 import { ActorDetailDrawer } from "@/components/actors/ActorDetailDrawer";
 import { ActorForm } from "@/components/actors/ActorForm";
 import { actorNetworkService } from "@/services/actorNetworkService";
-import type { ActorWithDetails, ActorType, ActorStructuralStatus } from "@/types/database";
+import { capabilityService } from "@/services/capabilityService";
+import type { ActorWithDetails, ActorType, ActorStructuralStatus, CapacityType } from "@/types/database";
 import { useToast } from "@/hooks/use-toast";
 
 export default function ActorNetwork() {
@@ -22,8 +23,13 @@ export default function ActorNetwork() {
   const [capacityFilter, setCapacityFilter] = useState<string | null>(null);
   const [regionFilter, setRegionFilter] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<ActorType | null>(null);
+  const [capacityTypes, setCapacityTypes] = useState<CapacityType[]>([]);
 
   const { toast } = useToast();
+
+  useEffect(() => {
+    capabilityService.getCapacityTypes().then(setCapacityTypes).catch(() => {});
+  }, []);
 
   const loadActors = async () => {
     setLoading(true);
@@ -129,6 +135,7 @@ export default function ActorNetwork() {
         onRegionChange={setRegionFilter}
         typeFilter={typeFilter}
         onTypeChange={setTypeFilter}
+        capacityTypes={capacityTypes}
       />
 
       {/* List */}
