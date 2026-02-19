@@ -142,6 +142,7 @@ export const gapService = {
         capacity_type: getCapacityTypeById(gap.capacity_type_id),
         event: getEventById(gap.event_id),
         coverage: getDeploymentsByGap(gap.sector_id, gap.capacity_type_id),
+        need_status: gap.need_status ?? mapGapStateToNeedStatus(gap.state),
       }));
       
       // Get signal types for each gap
@@ -150,8 +151,8 @@ export const gapService = {
         gapSignalTypes[gap.id] = getDominantSignalTypesForGap(gap.sector_id, gap.capacity_type_id);
       });
       
-      const criticalCount = gaps.filter(g => g.state === 'critical').length;
-      const partialCount = gaps.filter(g => g.state === 'partial').length;
+      const criticalCount = gapsWithDetails.filter(g => g.need_status === 'RED').length;
+      const partialCount = gapsWithDetails.filter(g => g.need_status === 'ORANGE').length;
       
       return {
         sector: sector!,

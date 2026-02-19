@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { eventService, gapService } from "@/services";
+import { mapGapStateToNeedStatus } from "@/lib/needStatus";
 import type { Event, Signal } from "@/types/database";
 import type { GapWithDetails, GapCounts, DashboardMeta, OperatingActor, SectorWithGaps } from "@/services/gapService";
 import type { EnrichedSector } from "@/services/sectorService";
@@ -63,11 +64,14 @@ export default function EventDashboard() {
       status: s.gapCounts.critical > 0 ? "critical" : "partial",
       lat: s.sector.latitude,
       lng: s.sector.longitude,
-      gaps: s.gaps.map(g => ({
-        capabilityName: g.capacity_type.name,
-        coverage: g.state === "critical" ? "none" as const : "partial" as const,
-        severity: g.state as "critical" | "partial",
-      })),
+      gaps: s.gaps.map(g => {
+        const needStatus = g.need_status ?? mapGapStateToNeedStatus(g.state);
+        return {
+          capabilityName: g.capacity_type?.name ?? "",
+          coverage: needStatus === "RED" ? "none" as const : "partial" as const,
+          severity: (needStatus === "RED" ? "critical" : "partial") as "critical" | "partial",
+        };
+      }),
     }));
   }, [sectorsWithGaps]);
 
