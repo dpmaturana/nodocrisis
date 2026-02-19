@@ -1,63 +1,59 @@
 
 
-# Fix: Pre-filter Snippets in collect-news-context (Not in the Main Prompt)
+# Fix Build Errors and Improve Edge Function
 
-## The Problem
+## 1. Fix Build Errors (4 files)
 
-Right now, `collect-news-context` returns ALL snippets with score > 0, even if they're about a completely different location/incident. Then `create-initial-situation-report` passes them all to the LLM and hopes the SYSTEM_PROMPT filters them out. That's backwards -- the context function should do the filtering so only relevant snippets reach the main LLM.
+### `src/pages/admin/SituationReport.tsx`
+Add `latitude: null, longitude: null` to the new sector objects in `handleAddSector` and `handleDuplicateSector`.
 
-## The Fix
+### `src/services/mock/generators.ts`
+Add `latitude: null, longitude: null` to each generated `SuggestedSector`.
 
-### 1. Enable `summarize: true` in `create-initial-situation-report`
+### `src/services/situationReportService.ts`
+- Cast `level` to `"critical" | "high" | "medium" | "low"` before inserting into `sector_needs_context`.
+- Cast `newsContext` to `any` before accessing `.snippets`.
 
-Change line 183 from `summarize: false` to `summarize: true`. This activates the anchor-rule LLM pass in `collect-news-context` that already exists and already returns `location_match` and `mismatch_reason`.
+## 2. Preserve Sector Coordinates in Edge Function
 
-### 2. Filter snippets based on the summary result (in `create-initial-situation-report`)
+In `supabase/functions/create-initial-situation-report/index.ts`, the validation step (lines 346-351) currently outputs only `name`, `description`, `confidence`, and `include` -- dropping `latitude` and `longitude` that the LLM returns.
 
-After getting the response from `collect-news-context`, check the `summary` object:
-
-- If `summary.location_match === false`: drop ALL snippets (or keep zero). Pass an empty snippets array to the main LLM.
-- If `summary.location_match === true`: keep only the snippets referenced in `summary.used[]` (the ones the pre-screening LLM confirmed are relevant).
-- If `summary` is null (LLM key missing or failure): fall back to current behavior (pass all snippets).
-
-### 3. Pass the quality signal to the main LLM prompt
-
-Update the `userPrompt` template in `create-initial-situation-report` to include:
-
-```text
-NEWS EVIDENCE STATUS:
-- Relevant snippets found: X (out of Y collected)
-- Location match: true/false
+**Fix**: Include `latitude` and `longitude` in the validated sector object:
+```typescript
+suggested_sectors: safeArray(parsed.suggested_sectors).map((s) => ({
+  name: s.name || "Unknown sector",
+  description: s.description || "",
+  latitude: typeof s.latitude === "number" ? s.latitude : null,
+  longitude: typeof s.longitude === "number" ? s.longitude : null,
+  confidence: clamp01(s.confidence, 0.5),
+  include: s.include !== false,
+})),
 ```
 
-When no relevant snippets survive filtering, the section becomes:
+## 3. Fetch Capabilities Dynamically (Optional Improvement)
 
-```text
-NEWS EVIDENCE STATUS:
-- No relevant news snippets were found for this incident.
-- Generate sectors and capabilities based on the admin description alone.
+Instead of hardcoding the 17 capability names in the prompt, fetch them from the `capacity_types` table at runtime and inject them into the prompt. This ensures the LLM always uses the current taxonomy.
+
+**Current** (hardcoded in prompt):
+```
+"Drinking water","Food supply","Storage", ...
 ```
 
-### 4. Adjust confidence cap based on filtering outcome
-
-In `create-initial-situation-report`, add a new condition before the existing caps:
-
-- If `location_match === false` or zero snippets survived filtering: cap confidence at **0.40**
-- This replaces the current logic that only checks raw snippet scores
-
-### 5. Simplify the main SYSTEM_PROMPT
-
-Remove any "validate snippet relevance" instructions from the SYSTEM_PROMPT in `create-initial-situation-report`. It no longer needs to do that job -- the snippets it receives are already pre-validated. Keep the prompt focused on generating sectors + capabilities.
+**Proposed** (dynamic):
+```typescript
+const { data: capTypes } = await supabaseAdmin
+  .from("capacity_types")
+  .select("name");
+const capList = capTypes?.map(c => `"${c.name}"`).join(",") ?? "";
+```
+Then inject `capList` into the SYSTEM_PROMPT template.
 
 ## Files Changed
 
-| File | What changes |
+| File | Change |
 |---|---|
-| `supabase/functions/create-initial-situation-report/index.ts` | Enable `summarize: true`; filter snippets using `summary.used[]` and `summary.location_match`; update userPrompt to show evidence status; add 0.40 confidence cap for no-match; simplify SYSTEM_PROMPT |
-| `supabase/functions/collect-news-context/index.ts` | No changes needed -- anchor rule and `location_match` already implemented |
-
-## Expected Result
-
-- "incendio de manlleu" + Sierra Bermeja snippets: pre-screening says `location_match: false`, snippets get dropped, main LLM receives zero snippets, generates based on admin text alone with confidence capped at 0.40.
-- Real matching news: pre-screening says `location_match: true`, only confirmed snippets pass through, main LLM gets clean context, confidence reflects actual evidence.
+| `src/pages/admin/SituationReport.tsx` | Add `latitude: null, longitude: null` to new sector objects |
+| `src/services/mock/generators.ts` | Add `latitude: null, longitude: null` to generated sectors |
+| `src/services/situationReportService.ts` | Fix `level` type cast; fix `snippets` access via `any` cast |
+| `supabase/functions/create-initial-situation-report/index.ts` | Preserve lat/lng in validated sectors; optionally fetch capabilities dynamically |
 
