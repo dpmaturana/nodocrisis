@@ -46,6 +46,7 @@ export function MapView({
   onSectorFocus,
   onSectorClick,
   variant = "stacked",
+  fallbackCenter,
 }: ExtendedMapViewProps) {
   // Filter sectors with valid coordinates
   const validSectors = useMemo(
@@ -56,15 +57,15 @@ export function MapView({
   // Calculate map center from valid sectors
   const center = useMemo<[number, number]>(() => {
     if (validSectors.length === 0) {
-      // Default to Chile center
-      return [-33.45, -70.67];
+      // Use caller-supplied fallback (derived from event location), or default to [0, 0] world view
+      return fallbackCenter ?? [20, 0];
     }
 
     const sumLat = validSectors.reduce((acc, s) => acc + (s.lat || 0), 0);
     const sumLng = validSectors.reduce((acc, s) => acc + (s.lng || 0), 0);
 
     return [sumLat / validSectors.length, sumLng / validSectors.length];
-  }, [validSectors]);
+  }, [validSectors, fallbackCenter]);
 
   // Calculate appropriate zoom level based on sector spread
   const zoom = useMemo(() => {
@@ -88,7 +89,7 @@ export function MapView({
       <div className="relative h-[300px] w-full rounded-lg overflow-hidden border border-border shadow-md">
         <MapContainer
           center={center}
-          zoom={validSectors.length === 0 ? 6 : zoom}
+          zoom={validSectors.length === 0 ? (fallbackCenter ? 6 : 2) : zoom}
           className="h-full w-full"
           scrollWheelZoom={true}
           zoomControl={true}
