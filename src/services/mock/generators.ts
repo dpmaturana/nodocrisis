@@ -88,6 +88,8 @@ export function generateMockReport(inputText: string): InitialSituationReport {
   const suggestedSectors: SuggestedSector[] = places.map((place, index) => ({
     name: place,
     description: `Sector afectado identificado en el texto de entrada`,
+    latitude: null,
+    longitude: null,
     confidence: 0.65 + Math.random() * 0.3,
     include: true,
   }));
