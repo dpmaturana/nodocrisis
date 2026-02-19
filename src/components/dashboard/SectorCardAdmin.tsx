@@ -6,7 +6,15 @@ import { cn } from "@/lib/utils";
 import type { Sector, SignalType } from "@/types/database";
 import type { GapWithDetails } from "@/services/gapService";
 import type { SectorContext } from "@/services/mock/data";
-import { NEED_STATUS_ORDER, NEED_STATUS_PRESENTATION, mapGapStateToNeedStatus } from "@/lib/needStatus";
+import { NEED_STATUS_ORDER, NEED_STATUS_PRESENTATION, mapGapStateToNeedStatus, type NeedStatus } from "@/lib/needStatus";
+
+const BORDER_L_MAP: Record<NeedStatus, string> = {
+  RED:    "border-l-gap-critical",
+  ORANGE: "border-l-orange-500",
+  YELLOW: "border-l-warning",
+  GREEN:  "border-l-coverage",
+  WHITE:  "border-l-muted",
+};
 
 interface SectorCardAdminProps {
   sector: Sector;
@@ -39,6 +47,10 @@ export function SectorCardAdmin({
     return NEED_STATUS_ORDER.indexOf(aNeed) - NEED_STATUS_ORDER.indexOf(bNeed);
   });
 
+  const worstNeed: NeedStatus = sortedByNeed.length > 0
+    ? (sortedByNeed[0].need_status ?? mapGapStateToNeedStatus(sortedByNeed[0].state))
+    : "WHITE";
+
   // Capability-need sorting only (no derived sector status)
   const visibleGaps = sortedByNeed.slice(0, 2);
   const hiddenGapsCount = gaps.length - visibleGaps.length;
@@ -48,7 +60,7 @@ export function SectorCardAdmin({
       id={`sector-${sector.id}`}
       className={cn(
         "border-l-4 transition-all duration-300",
-        "border-l-muted",
+        BORDER_L_MAP[worstNeed],
         isHighlighted && "ring-2 ring-primary ring-offset-2 ring-offset-background"
       )}
       onMouseEnter={onMouseEnter}
