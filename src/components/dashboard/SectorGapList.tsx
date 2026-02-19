@@ -122,7 +122,7 @@ export function SectorGapList({
   }
 
   const gridClass = gridColumns === 2 
-    ? "grid grid-cols-1 md:grid-cols-2 gap-4" 
+    ? "grid grid-cols-1 md:grid-cols-2 gap-4 items-start" 
     : "space-y-4";
 
   return (

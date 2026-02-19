@@ -67,7 +67,7 @@ export function SectorCardAdmin({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <CardContent className="p-3">
+      <CardContent className="p-4">
         {/* Header row: Name + status badges + details CTA */}
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="flex items-center gap-2 min-w-0">
@@ -128,7 +128,7 @@ export function SectorCardAdmin({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6"
+                          className="h-6 w-6 hover:text-primary transition-colors"
                           onClick={() => onViewSignals(gap)}
                         >
                           <Eye className="w-3 h-3" />
@@ -141,7 +141,7 @@ export function SectorCardAdmin({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6"
+                          className="h-6 w-6 hover:text-primary transition-colors"
                           onClick={() => onActivateActors(gap)}
                         >
                           <Users className="w-3 h-3" />
@@ -161,7 +161,7 @@ export function SectorCardAdmin({
                 +{hiddenGapsCount} más
               </button>
             )}
-            {showAll && (
+            {showAll && hiddenGapsCount > 0 && (
               <button
                 className="text-xs text-muted-foreground pl-4 hover:text-foreground"
                 onClick={() => setShowAll(false)}

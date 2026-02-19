@@ -82,8 +82,9 @@ export function FilterChips({
           activeFilters.includes("critical")
             ? "bg-gap-critical text-white border-gap-critical"
             : "hover:border-gap-critical hover:text-gap-critical",
+          counts.critical === 0 && "opacity-50 cursor-default",
         )}
-        onClick={() => toggleFilter("critical")}
+        onClick={counts.critical > 0 ? () => toggleFilter("critical") : undefined}
       >
         <AlertCircle className="w-4 h-4 mr-1.5" />
         {counts.critical} rojo
@@ -97,8 +98,9 @@ export function FilterChips({
           activeFilters.includes("partial")
             ? "bg-warning text-warning-foreground border-warning"
             : "hover:border-warning hover:text-warning",
+          counts.partial === 0 && "opacity-50 cursor-default",
         )}
-        onClick={() => toggleFilter("partial")}
+        onClick={counts.partial > 0 ? () => toggleFilter("partial") : undefined}
       >
         <AlertTriangle className="w-4 h-4 mr-1.5" />
         {counts.partial} naranja

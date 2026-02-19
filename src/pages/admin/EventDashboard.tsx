@@ -181,8 +181,8 @@ export default function EventDashboard() {
 
   return (
     <div className="h-[calc(100vh-56px)] flex flex-col animate-fade-in">
-      {/* Header + Filtros - ancho completo, altura fija */}
-      <div className="shrink-0 p-4 pb-0 space-y-4">
+      {/* Header + Filtros - ancho completo, sticky */}
+      <div className="shrink-0 p-4 pb-0 space-y-4 sticky top-0 z-10 bg-background/95 backdrop-blur-sm">
         <EventHeader 
           event={event} 
           allEvents={allEvents}
@@ -207,8 +207,8 @@ export default function EventDashboard() {
       
       {/* Contenedor side-by-side */}
       <div className="flex-1 flex gap-4 p-4 min-h-0">
-        {/* Mapa fijo izquierda - cuadrado, sticky */}
-        <aside className="w-[320px] shrink-0 self-start sticky top-0">
+        {/* Mapa fijo izquierda, sticky */}
+        <aside className="w-[300px] shrink-0 self-start sticky top-4 overflow-hidden rounded-xl shadow-lg">
           <MapView
             variant="sidebar"
             viewerRole="admin"

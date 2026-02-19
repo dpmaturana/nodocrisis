@@ -1,8 +1,16 @@
 import { useMemo, useEffect } from "react";
 import { MapContainer, TileLayer, useMap } from "react-leaflet";
+import L from "leaflet";
 import { SectorPin } from "./SectorPin";
 import type { MapViewProps, MapSector } from "./types";
 import "leaflet/dist/leaflet.css";
+
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+});
 
 // Component to handle map centering on focused sector
 function MapController({ 
@@ -74,21 +82,13 @@ export function MapView({
     return 10;
   }, [validSectors]);
 
-  // Sidebar variant: square, fixed position, no sticky
+  // Sidebar variant: fixed height, no sticky
   if (variant === "sidebar") {
-    if (validSectors.length === 0) {
-      return (
-        <div className="aspect-square rounded-lg overflow-hidden border border-border bg-muted flex items-center justify-center">
-          <p className="text-muted-foreground text-sm text-center px-4">No sectors with coordinates</p>
-        </div>
-      );
-    }
-
     return (
-      <div className="aspect-square rounded-lg overflow-hidden border border-border shadow-md">
+      <div className="relative h-[300px] w-full rounded-lg overflow-hidden border border-border shadow-md">
         <MapContainer
           center={center}
-          zoom={zoom}
+          zoom={validSectors.length === 0 ? 6 : zoom}
           className="h-full w-full"
           scrollWheelZoom={true}
           zoomControl={true}
@@ -111,6 +111,11 @@ export function MapView({
             />
           ))}
         </MapContainer>
+        {validSectors.length === 0 && (
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-[1000] px-2 py-1 rounded bg-background/80 backdrop-blur-sm border border-border text-xs text-muted-foreground whitespace-nowrap">
+            Sin coordenadas — mostrando mapa base
+          </div>
+        )}
       </div>
     );
   }
