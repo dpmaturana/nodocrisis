@@ -322,17 +322,39 @@ export const gapService = {
   },
 
   /**
-   * Get counts for metrics cards
+   * Get counts for metrics cards.
+   * Queries Supabase for real events; falls back to mock for legacy mock event IDs.
    */
   async getCounts(eventId: string): Promise<GapCounts> {
+    const { data: needs } = await supabase
+      .from("sector_needs_context")
+      .select("level")
+      .eq("event_id", eventId);
+
+    if (needs && needs.length > 0) {
+      // "critical" and "high" both map to RED (GapState "critical") via mapNeedLevelToGapState
+      const critical = needs.filter((n) => ["critical", "high"].includes(n.level)).length;
+      const partial = needs.filter((n) => n.level === "medium").length;
+      const active = needs.filter((n) => n.level === "low").length;
+
+      const { data: dbSectors } = await supabase
+        .from("sectors")
+        .select("id")
+        .eq("event_id", eventId);
+      const sectorsWithGaps = dbSectors ? dbSectors.length : 0;
+
+      return { critical, partial, active, evaluating: 0, sectorsWithGaps };
+    }
+
+    // Fallback to mock data for legacy/mock event IDs
+    return this._mockGetCounts(eventId);
+  },
+
+  async _mockGetCounts(eventId: string): Promise<GapCounts> {
     await simulateDelay(100);
     const counts = countGapsByState(eventId);
     const sectorsWithGaps = getSectorsWithGapsFromData(eventId).length;
-
-    return {
-      ...counts,
-      sectorsWithGaps,
-    };
+    return { ...counts, sectorsWithGaps };
   },
 
   /**
