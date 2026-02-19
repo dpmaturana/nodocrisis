@@ -287,7 +287,7 @@ function parseTweetsFromResponse(responseText: string): TweetInput[] {
     const handle = handleMatch ? handleMatch[1] : `user_${i}`;
 
     tweets.push({
-      tweet_id: `xai_${Date.now()}_${i}`,
+      tweet_id: `xai_${crypto.randomUUID()}`,
       author_handle: handle,
       author_type_estimate: "social_news",
       created_at: new Date().toISOString(),
