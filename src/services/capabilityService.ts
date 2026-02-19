@@ -1,3 +1,4 @@
+import { supabase } from "@/integrations/supabase/client";
 import { simulateDelay } from "./mock/delay";
 import { 
   MOCK_CAPACITY_TYPES,
@@ -15,11 +16,34 @@ export interface CapabilityWithType extends ActorCapability {
 
 export const capabilityService = {
   async getCapacityTypes(): Promise<CapacityType[]> {
+    const { data, error } = await supabase
+      .from("capacity_types")
+      .select("*")
+      .order("name");
+    if (!error && data && data.length > 0) {
+      return data as CapacityType[];
+    }
+    // Fallback to mock data
     await simulateDelay(100);
     return [...MOCK_CAPACITY_TYPES];
   },
 
   async getByActor(actorId: string): Promise<CapabilityWithType[]> {
+    const { data, error } = await supabase
+      .from("actor_capabilities")
+      .select("*, capacity_types(*)")
+      .eq("user_id", actorId);
+
+    if (!error && data && data.length > 0) {
+      return data.map(row => {
+        const { capacity_types, ...cap } = row;
+        return {
+          ...cap as ActorCapability,
+          capacity_type: (capacity_types as CapacityType | null) ?? undefined,
+        };
+      });
+    }
+    // Fallback to mock data
     await simulateDelay(200);
     const capabilities = getCapabilitiesByActorId(actorId);
     
