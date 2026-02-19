@@ -233,7 +233,7 @@ export function SectorDetailDrawer({
             </section>
 
             {/* Estimated Magnitude */}
-            {(sector.population_affected || context.estimatedAffected) && (
+            {context.estimatedAffected && (
               <>
                 <Separator />
                 <section>
@@ -243,8 +243,7 @@ export function SectorDetailDrawer({
                   <div className="flex items-center gap-2 text-sm">
                     <Info className="w-4 h-4 text-muted-foreground" />
                     <span>
-                      People affected: {sector.population_affected?.toLocaleString() ?? context.estimatedAffected}
-                      {sector.population_affected ? "" : " (estimated)"}
+                      People affected: {context.estimatedAffected} (estimated)
                     </span>
                   </div>
                 </section>
