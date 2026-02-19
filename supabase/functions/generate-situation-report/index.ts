@@ -40,8 +40,8 @@ Dado un texto que describe una emergencia, debes generar una propuesta JSON con:
 4. **suggested_sectors**: Array de sectores geográficos afectados, cada uno con:
    - name: Nombre del sector
    - description: Breve descripción del área
-   - latitude: Latitud del sector en grados decimales (OBLIGATORIO, nunca null)
-   - longitude: Longitud del sector en grados decimales (OBLIGATORIO, nunca null)
+   - latitude: Latitud del sector en grados decimales (siempre provee un valor numérico)
+   - longitude: Longitud del sector en grados decimales (siempre provee un valor numérico)
    - confidence: Nivel de confianza (0.0 a 1.0)
    - include: true (por defecto)
    IMPORTANTE: Siempre incluye latitude y longitude para cada sector. Usa coordenadas conocidas del lugar nombrado. Si no conoces la ubicación exacta, proporciona las coordenadas aproximadas del centro geográfico del área.

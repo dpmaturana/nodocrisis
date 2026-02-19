@@ -60,9 +60,9 @@ SECTORS RULES (CRITICAL):
 - Bad examples: "England", "Rural areas", "Affected roads"
 - If the input text or news snippets mention specific places, USE THEM.
 - If no specific places are available, infer plausible municipalities/zones from the geographic context.
-- You MUST provide latitude and longitude for EVERY sector. Use well-known coordinates for the named place. Never leave both as null.
+- You MUST provide latitude and longitude for EVERY sector. Use well-known coordinates for the named place.
 - Use decimal degrees (e.g. 51.5074 for London latitude, -0.1278 for London longitude).
-- If you cannot determine exact coordinates, provide your best approximate coordinates for the geographic center of the named area.
+- If you cannot determine exact coordinates, provide your best approximate coordinates for the geographic center of the named area. Always prefer a numeric estimate over omitting coordinates.
 
 CAPABILITIES — use ONLY these exact names (from the system's standardized taxonomy):
 "Drinking water","Food supply","Storage","Shelter","Emergency medical care","Search and rescue","Information registry","Communications","Fire control","Supply distribution","Energy","Evacuation and transport","Hazardous materials management","Basic protection and security","Mental health and psychosocial support","Sanitation and hygiene","Transport"
