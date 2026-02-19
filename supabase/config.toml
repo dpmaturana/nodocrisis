@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.transcribe-field-report]
 verify_jwt = false
+
+[functions.fetch-tweets]
+verify_jwt = false
