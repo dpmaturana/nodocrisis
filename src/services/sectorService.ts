@@ -217,6 +217,16 @@ export const sectorService = {
         .filter(s => s.sector_id === sector.id)
         .slice(0, 5);
 
+      const sectorDeploymentActors = deployments
+        .filter(d => d.sector_id === sector.id)
+        .map((d: any) => ({
+          id: d.actor_id as string,
+          name: d.actor_id as string,
+          role: "actor",
+          capacity: d.capacity_type_id as string,
+          status: d.status as "operating" | "confirmed",
+        }));
+
       enrichedSectors.push({
         sector,
         event,
@@ -225,7 +235,7 @@ export const sectorService = {
         gaps,
         relevantGaps,
         bestMatchGaps: buildBestMatchGaps(relevantGaps),
-        actorsInSector: [],
+        actorsInSector: sectorDeploymentActors,
         recentSignals: sectorSignals,
       });
     }
