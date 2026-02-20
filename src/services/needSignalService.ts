@@ -164,7 +164,11 @@ class LegacySignalExtractor implements NeedExtractionModel {
           type,
           confidence: payload.confidence,
           short_quote: payload.content.slice(0, 200),
-          coverage_kind: /refuerzo|reinforcement|augment/i.test(payload.content) ? "augmentation" : "baseline",
+          coverage_kind: /refuerzo|reinforcement|augment/i.test(payload.content)
+              ? "augmentation"
+              : /intent|interesado/i.test(payload.content)
+              ? "intent"
+              : "baseline",
         },
       ],
     };
@@ -173,7 +177,7 @@ class LegacySignalExtractor implements NeedExtractionModel {
 
 class RuleBasedNeedEvaluator implements NeedEvaluatorModel {
   async evaluate(input: NeedEvaluatorInput): Promise<NeedEvaluatorOutput> {
-    const { demandStrong, insuffStrong, stabilizationStrong, fragilityAlert, coverageActive } = input.booleans;
+    const { demandStrong, insuffStrong, stabilizationStrong, fragilityAlert, coverageActive, coverageIntent } = input.booleans;
     const allowed = input.allowed_transitions;
 
     let proposed_status = input.previous_status;
@@ -187,6 +191,8 @@ class RuleBasedNeedEvaluator implements NeedEvaluatorModel {
     } else if (input.scores.stabilization_score > 0 && !demandStrong && !insuffStrong) {
       proposed_status = "YELLOW";
     } else if (coverageActive) {
+      proposed_status = "YELLOW";
+    } else if (coverageIntent && !demandStrong && !insuffStrong) {
       proposed_status = "YELLOW";
     } else {
       proposed_status = "WHITE";
@@ -218,7 +224,7 @@ function mapSignalType(signalType: SignalType, content: string) {
   if (/operando|estable|normaliz|restablec/i.test(content)) {
     return "SIGNAL_STABILIZATION" as const;
   }
-  if (/llega|despacho|en camino|refuerzo/i.test(content)) {
+  if (/llega|despacho|en camino|refuerzo|declared|intent|interesado|operating/i.test(content)) {
     return "SIGNAL_COVERAGE_ACTIVITY" as const;
   }
   if (signalType === "sms" || signalType === "social" || signalType === "news") {
@@ -379,15 +385,22 @@ export const needSignalService = {
 
     let content: string;
     let signalType: SignalType;
+    let confidence = 0.9;
 
     switch (params.deploymentStatus) {
+      case "interested":
+        content = `Deployment ${actor} interested – actor declared intent, no field report yet`;
+        signalType = "actor_report";
+        confidence = 0.5;
+        break;
       case "operating":
         content = `Deployment ${actor} operating – coverage activity confirmed`;
         signalType = "actor_report";
         break;
       case "confirmed":
-        content = `Deployment ${actor} confirmed – en camino`;
+        content = `Deployment ${actor} confirmed – en camino, awaiting field report`;
         signalType = "actor_report";
+        confidence = 0.7;
         break;
       case "suspended":
         content = `Deployment ${actor} suspended – riesgo de cobertura inestable`;
@@ -410,7 +423,7 @@ export const needSignalService = {
       level: "sector",
       content,
       source: `deployment:${actor}`,
-      confidence: 0.9,
+      confidence,
       created_at: effectiveNowIso,
     };
 

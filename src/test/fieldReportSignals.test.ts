@@ -321,3 +321,78 @@ describe("needSignalService.onFieldReportCompleted with previousLevels seeding",
     expect(["low", "medium", "high", "critical"]).toContain(results[0].needLevel);
   });
 });
+
+describe("needSignalService.onDeploymentStatusChange", () => {
+  it("interested deployment → coverageIntent → YELLOW (not WHITE)", async () => {
+    const state = await needSignalService.onDeploymentStatusChange({
+      eventId: "event-deploy-interested",
+      sectorId: "sector-deploy-1",
+      capabilityId: "cap-deploy-1",
+      deploymentStatus: "interested",
+      actorName: "Cruz Roja",
+      nowIso: "2026-02-20T10:00:00.000Z",
+    });
+
+    expect(state).not.toBeNull();
+    // confidence 0.5 → coverage_score 0.5 ≥ coverageIntent(0.4) but < coverageActivation(0.9)
+    expect(state?.coverage_score).toBeGreaterThanOrEqual(0.4);
+    expect(state?.coverage_score).toBeLessThan(0.9);
+    expect(state?.current_status).toBe("YELLOW");
+  });
+
+  it("confirmed deployment → coverageIntent → YELLOW (not WHITE)", async () => {
+    const state = await needSignalService.onDeploymentStatusChange({
+      eventId: "event-deploy-confirmed",
+      sectorId: "sector-deploy-2",
+      capabilityId: "cap-deploy-2",
+      deploymentStatus: "confirmed",
+      actorName: "Bomberos",
+      nowIso: "2026-02-20T11:00:00.000Z",
+    });
+
+    expect(state).not.toBeNull();
+    // confidence 0.7 → coverage_score 0.7 ≥ coverageIntent(0.4) but < coverageActivation(0.9)
+    expect(state?.coverage_score).toBeGreaterThanOrEqual(0.4);
+    expect(state?.coverage_score).toBeLessThan(0.9);
+    expect(state?.current_status).toBe("YELLOW");
+  });
+
+  it("operating deployment → coverageActive → YELLOW (≥0.9)", async () => {
+    const state = await needSignalService.onDeploymentStatusChange({
+      eventId: "event-deploy-operating",
+      sectorId: "sector-deploy-3",
+      capabilityId: "cap-deploy-3",
+      deploymentStatus: "operating",
+      actorName: "Defensa Civil",
+      nowIso: "2026-02-20T12:00:00.000Z",
+    });
+
+    expect(state).not.toBeNull();
+    // confidence 0.9 → coverage_score 0.9 ≥ coverageActivation(0.9) → coverageActive = true → YELLOW
+    expect(state?.coverage_score).toBeGreaterThanOrEqual(0.9);
+    expect(state?.current_status).toBe("YELLOW");
+  });
+
+  it("interested deployment uses lower confidence than operating (0.5 vs 0.9)", async () => {
+    const interestedState = await needSignalService.onDeploymentStatusChange({
+      eventId: "event-compare-interested",
+      sectorId: "sector-compare-1",
+      capabilityId: "cap-compare-1",
+      deploymentStatus: "interested",
+      actorName: "Actor A",
+      nowIso: "2026-02-20T13:00:00.000Z",
+    });
+
+    const operatingState = await needSignalService.onDeploymentStatusChange({
+      eventId: "event-compare-operating",
+      sectorId: "sector-compare-2",
+      capabilityId: "cap-compare-2",
+      deploymentStatus: "operating",
+      actorName: "Actor B",
+      nowIso: "2026-02-20T13:00:00.000Z",
+    });
+
+    // interested coverage_score (0.5) < operating coverage_score (0.9)
+    expect(interestedState?.coverage_score).toBeLessThan(operatingState?.coverage_score ?? 0);
+  });
+});
