@@ -1,29 +1,31 @@
 
 
-# Update fetch-tweets to use grok-4-mini
+# Add unique constraint on sector_needs_context
 
 ## Problem
 
-The `fetch-tweets` edge function uses `grok-3-mini`, which does not support the `x_search` server-side tool. The xAI API requires a grok-4 family model for this feature.
+The `extract-text-report` edge function uses an upsert with `ON CONFLICT (event_id, sector_id, capacity_type_id)`, but the `sector_needs_context` table lacks a unique constraint on those columns. This causes the upsert to silently fail, so need levels never update on the dashboard after a field report.
 
 ## Change
 
-Single-line change in `supabase/functions/fetch-tweets/index.ts` (line 339):
+Run a single database migration:
 
-| Before | After |
-|---|---|
-| `model: "grok-3-mini"` | `model: "grok-4-mini"` |
+```sql
+ALTER TABLE public.sector_needs_context
+  ADD CONSTRAINT sector_needs_context_event_sector_cap_uq
+  UNIQUE (event_id, sector_id, capacity_type_id);
+```
 
-No other files or logic changes needed.
+This creates the unique constraint the edge function already expects. No code changes needed.
+
+## Impact
+
+- The `extract-text-report` function's existing upsert logic will start working correctly
+- When a field report detects a need, the corresponding `sector_needs_context` row will be inserted or updated
+- Dashboard gap colors will reflect the latest field report data
+- No existing data is affected (duplicate rows, if any, would need to be cleaned first -- we will check before applying)
 
 ## Verification
 
-After deploy, test by calling:
-
-```text
-POST /fetch-tweets
-{ "event_id": "22dba5aa-...", "query": "flooding in western france" }
-```
-
-Expected: 200 response with aggregated tweet signals instead of a 502 model error.
+After the migration, submit a field report from the actor view and confirm the sector need level updates on the Event Dashboard.
 
