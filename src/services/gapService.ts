@@ -16,6 +16,8 @@ export interface GapWithDetails extends Gap {
   need_status?: NeedStatus;
   actor_count?: number;
   operational_requirements?: string[];
+  trend?: "improving" | "worsening" | "stable" | null;
+  reasoning_summary?: string | null;
 }
 
 export interface GapCounts {
@@ -41,6 +43,23 @@ export interface SectorWithGaps {
 
 function inferNeedCriticality(gap: GapWithDetails): NeedCriticalityLevel {
   return gap.capacity_type?.criticality_level ?? "medium";
+}
+
+type Trend = "improving" | "worsening" | "stable";
+
+const STATUS_RANK: Record<string, number> = {
+  WHITE: 0, GREEN: 1, YELLOW: 2, ORANGE: 3, RED: 4,
+};
+
+function deriveTrend(auditRows: Array<{ previous_status: string; final_status: string }>): Trend | null {
+  const latest = auditRows[0];
+  if (!latest) return null;
+  if (latest.previous_status === latest.final_status) return "stable";
+  const prevRank = STATUS_RANK[latest.previous_status] ?? 0;
+  const finalRank = STATUS_RANK[latest.final_status] ?? 0;
+  if (finalRank < prevRank) return "improving";
+  if (finalRank > prevRank) return "worsening";
+  return "stable";
 }
 
 export interface OperatingActor {
@@ -115,6 +134,8 @@ export const gapService = {
       return [];
     }
 
+    const sectorIds = dbSectors.map((s) => s.id);
+
     // Fetch sector_needs_context for this event, joined with capacity_types
     const { data: needs } = await supabase
       .from("sector_needs_context")
@@ -133,6 +154,29 @@ export const gapService = {
     (deploymentRows ?? []).forEach((d) => {
       const key = `${d.sector_id}:${d.capacity_type_id}`;
       deploymentCounts.set(key, (deploymentCounts.get(key) ?? 0) + 1);
+    });
+
+    // Fetch need_audits to derive trend and reasoning_summary per capability
+    // Note: need_audits uses 'capability_id' which maps to 'capacity_type_id' in sector_needs_context
+    const { data: auditRows } = await supabase
+      .from("need_audits")
+      .select("sector_id, capability_id, reasoning_summary, previous_status, final_status, timestamp")
+      .in("sector_id", sectorIds)
+      .order("timestamp", { ascending: false });
+
+    // Build auditMap (reasoning_summary) and trendMap per "sector_id:capability_id" key
+    const auditMap = new Map<string, string>();
+    const trendMap = new Map<string, Trend>();
+    const auditsByKey = new Map<string, Array<{ previous_status: string; final_status: string; reasoning_summary: string | null }>>();
+    (auditRows ?? []).forEach((row) => {
+      const key = `${row.sector_id}:${row.capability_id}`;
+      if (!auditsByKey.has(key)) auditsByKey.set(key, []);
+      auditsByKey.get(key)!.push(row as { previous_status: string; final_status: string; reasoning_summary: string | null });
+    });
+    auditsByKey.forEach((rows, key) => {
+      if (rows[0]?.reasoning_summary) auditMap.set(key, rows[0].reasoning_summary);
+      const trend = deriveTrend(rows);
+      if (trend !== null) trendMap.set(key, trend);
     });
 
     // Type for the joined query result (Supabase joins append the relation as a nested object)
@@ -162,6 +206,7 @@ export const gapService = {
 
       const gapsWithDetails: GapWithDetails[] = sectorNeeds.map((need) => {
         const { state, needStatus } = mapNeedLevelToStatus(need.level);
+        const auditKey = `${need.sector_id}:${need.capacity_type_id}`;
         return {
           id: need.id,
           event_id: need.event_id,
@@ -177,6 +222,8 @@ export const gapService = {
           operational_requirements: (() => {
             try { return JSON.parse(need.notes ?? "[]"); } catch { return []; }
           })(),
+          trend: trendMap.get(auditKey) ?? null,
+          reasoning_summary: auditMap.get(auditKey) ?? null,
         };
       });
 

@@ -108,7 +108,6 @@ export function SectorGapList({
           sectorId={sectorData.sector.id}
           sectorNeedStatus={sectorData.sector_need_status ?? "WHITE"}
           gaps={sectorData.gaps}
-          logEntries={[]}
           onViewDetails={() => onViewSectorDetails(sectorData.sector.id)}
           isHighlighted={highlightedCardId === sectorData.sector.id}
           onMouseEnter={() => onSectorHover?.(sectorData.sector.id)}
