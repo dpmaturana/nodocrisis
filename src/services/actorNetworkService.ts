@@ -29,36 +29,9 @@ async function buildActorWithDetails(actor: Actor): Promise<ActorWithDetails> {
       .eq("actor_id", actor.id),
   ]);
 
-  const capabilities: ActorCapabilityDeclared[] = (caps || []).map((c: any) => ({
-    id: c.id,
-    actor_id: c.actor_id,
-    capacity_type_id: c.capacity_type_id,
-    level: c.level,
-    notes: c.notes,
-    created_at: c.created_at,
-    updated_at: c.updated_at,
-  }));
-
-  const zones: ActorHabitualZone[] = (zoneRows || []).map((z: any) => ({
-    id: z.id,
-    actor_id: z.actor_id,
-    region: z.region,
-    commune: z.commune,
-    presence_type: z.presence_type,
-    created_at: z.created_at,
-  }));
-
-  const contacts: ActorContact[] = (contactRows || []).map((c: any) => ({
-    id: c.id,
-    actor_id: c.actor_id,
-    name: c.name,
-    role: c.role,
-    primary_channel: c.primary_channel,
-    secondary_channel: c.secondary_channel,
-    is_primary: c.is_primary,
-    created_at: c.created_at,
-    updated_at: c.updated_at,
-  }));
+  const capabilities = (caps || []) as unknown as ActorCapabilityDeclared[];
+  const zones = (zoneRows || []) as unknown as ActorHabitualZone[];
+  const contacts = (contactRows || []) as unknown as ActorContact[];
 
   // Build capacity type names from the joined capabilities
   const capacityTypeNames: Record<string, string> = {};
