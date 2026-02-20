@@ -13,25 +13,21 @@ import type {
   PresenceType,
 } from "@/types/database";
 
+// The actor network tables (actors, actor_capabilities_declared, actor_habitual_zones, actor_contacts)
+// exist in the database but are not yet in the auto-generated types file.
+// We use a typed helper to bypass the type checker for these tables.
+const db = supabase as any;
+
 async function buildActorWithDetails(actor: Actor): Promise<ActorWithDetails> {
   const [{ data: caps }, { data: zoneRows }, { data: contactRows }] = await Promise.all([
-    supabase
-      .from("actor_capabilities_declared")
-      .select("*")
-      .eq("actor_id", actor.id),
-    supabase
-      .from("actor_habitual_zones")
-      .select("*")
-      .eq("actor_id", actor.id),
-    supabase
-      .from("actor_contacts")
-      .select("*")
-      .eq("actor_id", actor.id),
+    db.from("actor_capabilities_declared").select("*").eq("actor_id", actor.id),
+    db.from("actor_habitual_zones").select("*").eq("actor_id", actor.id),
+    db.from("actor_contacts").select("*").eq("actor_id", actor.id),
   ]);
 
-  const capabilities = (caps || []) as unknown as ActorCapabilityDeclared[];
-  const zones = (zoneRows || []) as unknown as ActorHabitualZone[];
-  const contacts = (contactRows || []) as unknown as ActorContact[];
+  const capabilities = (caps || []) as ActorCapabilityDeclared[];
+  const zones = (zoneRows || []) as ActorHabitualZone[];
+  const contacts = (contactRows || []) as ActorContact[];
 
   // Build capacity type names from the joined capabilities
   const capacityTypeNames: Record<string, string> = {};
@@ -87,14 +83,14 @@ export interface ContactInput {
 export const actorNetworkService = {
   // ============== LISTING ==============
   async getAll(): Promise<ActorWithDetails[]> {
-    const { data, error } = await supabase.from("actors").select("*");
+    const { data, error } = await db.from("actors").select("*");
     if (error) throw error;
     if (!data || data.length === 0) return [];
-    return Promise.all(data.map((a: any) => buildActorWithDetails(a)));
+    return Promise.all((data as any[]).map((a: any) => buildActorWithDetails(a)));
   },
 
   async getById(actorId: string): Promise<ActorWithDetails | null> {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("actors")
       .select("*")
       .eq("id", actorId)
@@ -106,59 +102,59 @@ export const actorNetworkService = {
 
   // ============== SEARCH & FILTERS ==============
   async search(query: string): Promise<ActorWithDetails[]> {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("actors")
       .select("*")
       .or(`organization_name.ilike.%${query}%,description.ilike.%${query}%`);
     if (error) throw error;
     if (!data || data.length === 0) return [];
-    return Promise.all(data.map((a: any) => buildActorWithDetails(a)));
+    return Promise.all((data as any[]).map((a: any) => buildActorWithDetails(a)));
   },
 
   async filterByCapacity(capacityTypeId: string): Promise<ActorWithDetails[]> {
-    const { data: capRows, error: capErr } = await supabase
+    const { data: capRows, error: capErr } = await db
       .from("actor_capabilities_declared")
       .select("actor_id")
       .eq("capacity_type_id", capacityTypeId);
     if (capErr) throw capErr;
     if (!capRows || capRows.length === 0) return [];
 
-    const actorIds = [...new Set(capRows.map((r: any) => r.actor_id))];
-    const { data, error } = await supabase
+    const actorIds = [...new Set((capRows as any[]).map((r: any) => r.actor_id))];
+    const { data, error } = await db
       .from("actors")
       .select("*")
       .in("id", actorIds);
     if (error) throw error;
     if (!data || data.length === 0) return [];
-    return Promise.all(data.map((a: any) => buildActorWithDetails(a)));
+    return Promise.all((data as any[]).map((a: any) => buildActorWithDetails(a)));
   },
 
   async filterByZone(region: string): Promise<ActorWithDetails[]> {
-    const { data: zoneRows, error: zoneErr } = await supabase
+    const { data: zoneRows, error: zoneErr } = await db
       .from("actor_habitual_zones")
       .select("actor_id")
       .eq("region", region);
     if (zoneErr) throw zoneErr;
     if (!zoneRows || zoneRows.length === 0) return [];
 
-    const actorIds = [...new Set(zoneRows.map((r: any) => r.actor_id))];
-    const { data, error } = await supabase
+    const actorIds = [...new Set((zoneRows as any[]).map((r: any) => r.actor_id))];
+    const { data, error } = await db
       .from("actors")
       .select("*")
       .in("id", actorIds);
     if (error) throw error;
     if (!data || data.length === 0) return [];
-    return Promise.all(data.map((a: any) => buildActorWithDetails(a)));
+    return Promise.all((data as any[]).map((a: any) => buildActorWithDetails(a)));
   },
 
   async filterByType(type: ActorType): Promise<ActorWithDetails[]> {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("actors")
       .select("*")
       .eq("organization_type", type);
     if (error) throw error;
     if (!data || data.length === 0) return [];
-    return Promise.all(data.map((a: any) => buildActorWithDetails(a)));
+    return Promise.all((data as any[]).map((a: any) => buildActorWithDetails(a)));
   },
 
   async filterMultiple(filters: {
@@ -168,7 +164,7 @@ export const actorNetworkService = {
     type?: ActorType;
     status?: ActorStructuralStatus;
   }): Promise<ActorWithDetails[]> {
-    let query = supabase.from("actors").select("*");
+    let query = db.from("actors").select("*");
 
     if (filters.query) {
       query = query.or(
@@ -186,11 +182,11 @@ export const actorNetworkService = {
     if (error) throw error;
     if (!data || data.length === 0) return [];
 
-    let actorRows: any[] = data;
+    let actorRows: any[] = data as any[];
 
     // Filter by capacity type if specified
     if (filters.capacityTypeId) {
-      const { data: capRows } = await supabase
+      const { data: capRows } = await db
         .from("actor_capabilities_declared")
         .select("actor_id")
         .eq("capacity_type_id", filters.capacityTypeId);
@@ -200,7 +196,7 @@ export const actorNetworkService = {
 
     // Filter by region if specified
     if (filters.region) {
-      const { data: zoneRows } = await supabase
+      const { data: zoneRows } = await db
         .from("actor_habitual_zones")
         .select("actor_id")
         .eq("region", filters.region);
@@ -216,7 +212,7 @@ export const actorNetworkService = {
 
   // ============== CRUD ACTOR ==============
   async create(input: CreateActorInput): Promise<Actor> {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("actors")
       .insert({
         user_id: input.user_id,
@@ -233,7 +229,7 @@ export const actorNetworkService = {
   },
 
   async update(actorId: string, data: UpdateActorInput): Promise<Actor> {
-    const { data: updated, error } = await supabase
+    const { data: updated, error } = await db
       .from("actors")
       .update({
         ...data,
@@ -248,7 +244,7 @@ export const actorNetworkService = {
   },
 
   async setStatus(actorId: string, status: ActorStructuralStatus): Promise<void> {
-    const { error } = await supabase
+    const { error } = await db
       .from("actors")
       .update({ structural_status: status, updated_at: new Date().toISOString() })
       .eq("id", actorId);
@@ -256,14 +252,13 @@ export const actorNetworkService = {
   },
 
   async delete(actorId: string): Promise<void> {
-    // Cascading deletes handle related rows (capabilities, zones, contacts)
-    const { error } = await supabase.from("actors").delete().eq("id", actorId);
+    const { error } = await db.from("actors").delete().eq("id", actorId);
     if (error) throw error;
   },
 
   // ============== CAPABILITIES ==============
   async addCapability(actorId: string, input: CreateCapabilityInput): Promise<ActorCapabilityDeclared> {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("actor_capabilities_declared")
       .insert({
         actor_id: actorId,
@@ -279,7 +274,7 @@ export const actorNetworkService = {
   },
 
   async updateCapability(capabilityId: string, data: Partial<CreateCapabilityInput>): Promise<void> {
-    const { error } = await supabase
+    const { error } = await db
       .from("actor_capabilities_declared")
       .update({ ...data, updated_at: new Date().toISOString() })
       .eq("id", capabilityId);
@@ -287,7 +282,7 @@ export const actorNetworkService = {
   },
 
   async removeCapability(capabilityId: string): Promise<void> {
-    const { error } = await supabase
+    const { error } = await db
       .from("actor_capabilities_declared")
       .delete()
       .eq("id", capabilityId);
@@ -296,7 +291,7 @@ export const actorNetworkService = {
 
   // ============== ZONES ==============
   async addZone(actorId: string, input: CreateZoneInput): Promise<ActorHabitualZone> {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("actor_habitual_zones")
       .insert({
         actor_id: actorId,
@@ -312,7 +307,7 @@ export const actorNetworkService = {
   },
 
   async removeZone(zoneId: string): Promise<void> {
-    const { error } = await supabase
+    const { error } = await db
       .from("actor_habitual_zones")
       .delete()
       .eq("id", zoneId);
@@ -321,14 +316,12 @@ export const actorNetworkService = {
 
   // ============== CONTACTS ==============
   async setContacts(actorId: string, newContacts: ContactInput[]): Promise<void> {
-    // Remove existing contacts for this actor
-    const { error: delErr } = await supabase
+    const { error: delErr } = await db
       .from("actor_contacts")
       .delete()
       .eq("actor_id", actorId);
     if (delErr) throw delErr;
 
-    // Add new contacts (max 2)
     const toInsert = newContacts.slice(0, 2).map((input) => ({
       actor_id: actorId,
       name: input.name,
@@ -339,7 +332,7 @@ export const actorNetworkService = {
     }));
 
     if (toInsert.length > 0) {
-      const { error } = await supabase
+      const { error } = await db
         .from("actor_contacts")
         .insert(toInsert);
       if (error) throw error;
@@ -348,7 +341,6 @@ export const actorNetworkService = {
 
   // ============== PARTICIPATION HISTORY (derived from deployments) ==============
   async getParticipationHistory(actorId: string): Promise<ActorParticipationHistory[]> {
-    // Derive history from completed deployments for this actor
     const { data: deps, error } = await supabase
       .from("deployments")
       .select("*, events(*), sectors(*), capacity_types:capacity_type_id(*)")
@@ -358,7 +350,6 @@ export const actorNetworkService = {
     if (error) throw error;
     if (!deps || deps.length === 0) return [];
 
-    // Group by event
     const eventMap = new Map<string, {
       event_name: string;
       capacities: Set<string>;
