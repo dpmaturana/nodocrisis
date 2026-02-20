@@ -396,6 +396,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     let effectiveQuery = query;
+    let effectiveSectorId: string | null = null;
 
     if (sector_id) {
       const { data: sector } = await supabase
@@ -408,6 +409,7 @@ Deno.serve(async (req) => {
         const built = buildSectorQuery(query, sector.canonical_name, sector.aliases);
         if (built.length <= 512) {
           effectiveQuery = built;
+          effectiveSectorId = sector_id;
         } else {
           console.warn(`Sector query exceeds 512 chars, falling back to base query`);
         }
@@ -449,9 +451,9 @@ Deno.serve(async (req) => {
       const topQuote = classification.supporting_quotes[0];
       const { error: signalError } = await supabase.from("signals").insert({
         event_id,
-        sector_id: sector_id ?? null,
+        sector_id: effectiveSectorId,
         signal_type: "social",
-        level: sector_id ? "sector" : "event",
+        level: effectiveSectorId ? "sector" : "event",
         content: JSON.stringify({
           classification_type: classification.type,
           confidence: classification.deterministic_agg_confidence,
