@@ -12,7 +12,7 @@ import {
   type RawInput,
   type StructuredSignal,
 } from "@/lib/needLevelEngine";
-import type { Signal, SignalType } from "@/types/database";
+import type { DeploymentStatus, Signal, SignalType } from "@/types/database";
 
 class InMemoryNeedsRepository implements NeedsRepository {
   private rawInputs = new Map<string, RawInput>();
@@ -108,6 +108,7 @@ class LegacySignalExtractor implements NeedExtractionModel {
 class RuleBasedNeedEvaluator implements NeedEvaluatorModel {
   async evaluate(input: NeedEvaluatorInput): Promise<NeedEvaluatorOutput> {
     const { demandStrong, insuffStrong, stabilizationStrong, fragilityAlert, coverageActive } = input.booleans;
+    const allowed = input.allowed_transitions;
 
     let proposed_status = input.previous_status;
 
@@ -121,6 +122,11 @@ class RuleBasedNeedEvaluator implements NeedEvaluatorModel {
       proposed_status = "YELLOW";
     } else {
       proposed_status = "WHITE";
+    }
+
+    // Constrain to allowed transitions; fall back to previous status when illegal
+    if (proposed_status !== input.previous_status && !allowed.includes(proposed_status)) {
+      proposed_status = input.previous_status;
     }
 
     return {
@@ -186,5 +192,65 @@ export const needSignalService = {
 
     const state = await repository.getNeedState(params.sectorId, params.capabilityId);
     return state;
+  },
+
+  /**
+   * Generate a synthetic signal when a deployment changes status so the
+   * NeedLevelEngine can re-evaluate the need for the affected sector/capability.
+   */
+  async onDeploymentStatusChange(params: {
+    eventId: string;
+    sectorId: string;
+    capabilityId: string;
+    deploymentStatus: DeploymentStatus;
+    actorName?: string;
+    nowIso?: string;
+  }): Promise<NeedState | null> {
+    const nowIso = params.nowIso ?? new Date().toISOString();
+    const actor = params.actorName ?? "actor";
+
+    let content: string;
+    let signalType: SignalType;
+
+    switch (params.deploymentStatus) {
+      case "operating":
+        content = `Deployment ${actor} operating – coverage activity confirmed`;
+        signalType = "actor_report";
+        break;
+      case "confirmed":
+        content = `Deployment ${actor} confirmed – en camino`;
+        signalType = "actor_report";
+        break;
+      case "suspended":
+        content = `Deployment ${actor} suspended – riesgo de cobertura inestable`;
+        signalType = "field_report";
+        break;
+      case "finished":
+        content = `Deployment ${actor} finished – operando estable, normalización`;
+        signalType = "actor_report";
+        break;
+      default:
+        return repository.getNeedState(params.sectorId, params.capabilityId);
+    }
+
+    const signal: Signal = {
+      id: `deploy-signal-${Date.now()}`,
+      event_id: params.eventId,
+      sector_id: params.sectorId,
+      signal_type: signalType,
+      level: "sector",
+      content,
+      source: `deployment:${actor}`,
+      confidence: 0.9,
+      created_at: nowIso,
+    };
+
+    return this.evaluateGapNeed({
+      eventId: params.eventId,
+      sectorId: params.sectorId,
+      capabilityId: params.capabilityId,
+      signals: [signal],
+      nowIso,
+    });
   },
 };

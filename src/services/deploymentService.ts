@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Deployment, DeploymentStatus, Event, Sector, CapacityType } from "@/types/database";
+import { needSignalService } from "@/services/needSignalService";
 
 export interface DeploymentWithDetails extends Deployment {
   event?: Event;
@@ -194,14 +195,32 @@ export const deploymentService = {
   },
 
   async updateStatus(id: string, status: DeploymentStatus): Promise<void> {
+    const { data: deployment, error: fetchError } = await supabase
+      .from("deployments")
+      .select("event_id, sector_id, capacity_type_id")
+      .eq("id", id)
+      .single();
     const { error } = await supabase
       .from("deployments")
       .update({ status })
       .eq("id", id);
     if (error) throw error;
+    if (!fetchError && deployment) {
+      needSignalService.onDeploymentStatusChange({
+        eventId: deployment.event_id,
+        sectorId: deployment.sector_id,
+        capabilityId: deployment.capacity_type_id,
+        deploymentStatus: status,
+      }).catch(() => {/* best-effort */});
+    }
   },
 
   async updateStatusWithNote(id: string, status: DeploymentStatus, notes?: string): Promise<void> {
+    const { data: deployment, error: fetchError } = await supabase
+      .from("deployments")
+      .select("event_id, sector_id, capacity_type_id")
+      .eq("id", id)
+      .single();
     const update: any = { status };
     if (notes !== undefined) update.notes = notes;
     const { error } = await supabase
@@ -209,6 +228,14 @@ export const deploymentService = {
       .update(update)
       .eq("id", id);
     if (error) throw error;
+    if (!fetchError && deployment) {
+      needSignalService.onDeploymentStatusChange({
+        eventId: deployment.event_id,
+        sectorId: deployment.sector_id,
+        capabilityId: deployment.capacity_type_id,
+        deploymentStatus: status,
+      }).catch(() => {/* best-effort */});
+    }
   },
 
   async markSectorAsOperating(sectorId: string, actorId: string): Promise<void> {
@@ -245,6 +272,11 @@ export const deploymentService = {
     feedbackType: "yes" | "insufficient" | "suspended",
     notes?: string,
   ): Promise<void> {
+    const { data: deployment, error: fetchError } = await supabase
+      .from("deployments")
+      .select("event_id, sector_id, capacity_type_id")
+      .eq("id", id)
+      .single();
     let status: DeploymentStatus;
     switch (feedbackType) {
       case "yes":
@@ -262,5 +294,13 @@ export const deploymentService = {
       .update(update)
       .eq("id", id);
     if (error) throw error;
+    if (!fetchError && deployment) {
+      needSignalService.onDeploymentStatusChange({
+        eventId: deployment.event_id,
+        sectorId: deployment.sector_id,
+        capabilityId: deployment.capacity_type_id,
+        deploymentStatus: status,
+      }).catch(() => {/* best-effort */});
+    }
   },
 };

@@ -77,6 +77,16 @@ export const NEED_STATUS_PRESENTATION: Record<NeedStatus, NeedStatusPresentation
   },
 };
 
+/**
+ * Check whether transitioning from one NeedStatus to another is allowed
+ * according to the NEED_STATUS_TRANSITIONS map.
+ * Staying in the same status is always considered valid.
+ */
+export function isValidNeedTransition(from: NeedStatus, to: NeedStatus): boolean {
+  if (from === to) return true;
+  return NEED_STATUS_TRANSITIONS[from].includes(to);
+}
+
 const GAP_TO_NEED: Record<GapState, NeedStatus> = {
   evaluating: "WHITE",
   critical: "RED",
