@@ -133,6 +133,23 @@ describe("NeedLevelEngine", () => {
 
   it("blocks GREEN when consecutive stabilization windows are insufficient", async () => {
     const repo = new InMemoryRepo();
+    // Start from YELLOW so GREEN is a legal transition and guardrail C can be tested
+    repo.needs.set("sec-1::cap-1", {
+      sector_id: "sec-1",
+      capability_id: "cap-1",
+      current_status: "YELLOW",
+      demand_score: 0,
+      insufficiency_score: 0,
+      stabilization_score: 0,
+      fragility_score: 0,
+      coverage_score: 0,
+      stabilization_consecutive_windows: 0,
+      last_window_id: null,
+      operational_requirements: [],
+      fragility_notes: [],
+      last_updated_at: now,
+      last_status_change_at: now,
+    });
     const extractor = new StaticExtractor({
       ...baseExtractor,
       classifications: [{ type: "SIGNAL_STABILIZATION", confidence: 1, short_quote: "improved" }],
