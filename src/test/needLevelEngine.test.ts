@@ -241,4 +241,87 @@ describe("NeedLevelEngine", () => {
     const state = await repo.getNeedState("sec-1", "cap-1");
     expect(state?.current_status).toBe("WHITE");
   });
+
+  it("escalates YELLOW to ORANGE when demand is strong (guardrail G)", async () => {
+    const repo = new InMemoryRepo();
+    // Start from YELLOW (medium)
+    repo.needs.set("sec-1::cap-1", {
+      sector_id: "sec-1",
+      capability_id: "cap-1",
+      current_status: "YELLOW",
+      demand_score: 0,
+      insufficiency_score: 0,
+      stabilization_score: 0,
+      fragility_score: 0,
+      coverage_score: 0,
+      stabilization_consecutive_windows: 0,
+      last_window_id: null,
+      operational_requirements: [],
+      fragility_notes: [],
+      last_updated_at: now,
+      last_status_change_at: now,
+    });
+
+    // NGO sends strong demand + coverage present
+    const extractor = new StaticExtractor({
+      ...baseExtractor,
+      classifications: [
+        { type: "SIGNAL_DEMAND_INCREASE", confidence: 1, short_quote: "situation worsening" },
+        { type: "SIGNAL_COVERAGE_ACTIVITY", confidence: 1, short_quote: "actors present", coverage_kind: "baseline" as const },
+      ],
+    });
+
+    // Evaluator conservatively proposes YELLOW
+    const evaluator = new StaticEvaluator({
+      ...baseEval,
+      proposed_status: "YELLOW",
+      confidence: 0.9,
+    });
+
+    const engine = new NeedLevelEngine(repo, extractor, evaluator);
+
+    await engine.processRawInput({
+      source_type: "ngo",
+      source_name: "ngo-field",
+      timestamp: now,
+      text: "worsening demand in area",
+    });
+
+    const state = await repo.getNeedState("sec-1", "cap-1");
+    // Guardrail G should escalate from YELLOW (medium) to ORANGE (high)
+    expect(state?.current_status).toBe("ORANGE");
+  });
+
+  it("escalates WHITE to ORANGE when demand is strong with coverage (guardrail G)", async () => {
+    const repo = new InMemoryRepo();
+
+    // NGO sends strong demand + coverage present (from WHITE start)
+    const extractor = new StaticExtractor({
+      ...baseExtractor,
+      classifications: [
+        { type: "SIGNAL_DEMAND_INCREASE", confidence: 1, short_quote: "urgent need" },
+        { type: "SIGNAL_COVERAGE_ACTIVITY", confidence: 1, short_quote: "actors on site", coverage_kind: "baseline" as const },
+      ],
+    });
+
+    // Evaluator conservatively proposes WHITE despite strong demand
+    const evaluator = new StaticEvaluator({
+      ...baseEval,
+      proposed_status: "WHITE",
+      confidence: 0.9,
+    });
+
+    const engine = new NeedLevelEngine(repo, extractor, evaluator);
+
+    await engine.processRawInput({
+      source_type: "ngo",
+      source_name: "ngo-field",
+      timestamp: now,
+      text: "urgent need reported",
+    });
+
+    const state = await repo.getNeedState("sec-1", "cap-1");
+    // Guardrail G should catch WHITE and escalate to ORANGE
+    expect(state?.current_status).toBe("ORANGE");
+  });
 });

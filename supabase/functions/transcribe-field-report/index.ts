@@ -304,31 +304,33 @@ serve(async (req) => {
 
         // Delegate need-level decision to the NeedLevelEngine (canonical path).
         // sector_needs_context is updated inside process-field-report-signals.
-        const processSignalsUrl = Deno.env.get('PROCESS_FIELD_REPORT_SIGNALS_URL');
-        if (processSignalsUrl) {
-          const capacityTypeMap: Record<string, string> = {};
-          for (const ct of (capTypes ?? [])) {
-            capacityTypeMap[(ct as { id: string; name: string }).name] = (ct as { id: string; name: string }).id;
-          }
-          const engineResponse = await fetch(processSignalsUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              event_id: report.event_id,
-              sector_id: report.sector_id,
-              extracted_data: extractedData,
-              capacity_type_map: capacityTypeMap,
-              report_id,
-            }),
-          });
-          if (!engineResponse.ok) {
-            console.error('[engine path] process-field-report-signals error:', await engineResponse.text());
-          } else {
-            const engineResult = await engineResponse.json();
-            console.log('[engine path] NeedLevelEngine results:', JSON.stringify(engineResult));
-          }
+        // supabaseUrl is guaranteed set (Supabase built-in env var, already
+        // used above to create the client).
+        const processSignalsUrl = Deno.env.get('PROCESS_FIELD_REPORT_SIGNALS_URL')
+          || `${supabaseUrl}/functions/v1/process-field-report-signals`;
+        const capacityTypeMap: Record<string, string> = {};
+        for (const ct of (capTypes ?? [])) {
+          capacityTypeMap[(ct as { id: string; name: string }).name] = (ct as { id: string; name: string }).id;
+        }
+        const engineResponse = await fetch(processSignalsUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+          },
+          body: JSON.stringify({
+            event_id: report.event_id,
+            sector_id: report.sector_id,
+            extracted_data: extractedData,
+            capacity_type_map: capacityTypeMap,
+            report_id,
+          }),
+        });
+        if (!engineResponse.ok) {
+          console.error('[engine path] process-field-report-signals error:', await engineResponse.text());
         } else {
-          console.warn('[engine path] PROCESS_FIELD_REPORT_SIGNALS_URL not set; skipping engine invocation');
+          const engineResult = await engineResponse.json();
+          console.log('[engine path] NeedLevelEngine results:', JSON.stringify(engineResult));
         }
       } else {
         // Fallback: create a generic signal without capacity_type_id

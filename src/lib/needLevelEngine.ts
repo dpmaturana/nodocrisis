@@ -568,6 +568,16 @@ export class NeedLevelEngine {
       }
     }
 
+    // G) Worsening escalation: when demand is strong and the status would
+    //    remain at or below YELLOW (medium), escalate to ORANGE (high).
+    //    This covers the scenario where an NGO (or any source) reports a
+    //    worsening situation while coverage is technically active but demand
+    //    is outpacing it.
+    if (!hardForced && booleans.demandStrong && finalStatus !== "RED" && finalStatus !== "ORANGE") {
+      finalStatus = "ORANGE";
+      guardrails.push("G_escalate_to_ORANGE_on_demand");
+    }
+
     const nextState: NeedState = {
       ...candidateState,
       current_status: finalStatus,
