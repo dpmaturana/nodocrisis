@@ -1,3 +1,4 @@
+import { supabase } from "@/integrations/supabase/client";
 import type {
   Actor,
   ActorCapabilityDeclared,
@@ -8,44 +9,71 @@ import type {
   ActorType,
   ActorStructuralStatus,
   CapabilityLevel,
+  CapacityType,
   PresenceType,
 } from "@/types/database";
-import { simulateDelay } from "./mock/delay";
-import {
-  MOCK_ACTORS_NETWORK,
-  MOCK_ACTOR_CAPABILITIES_DECLARED,
-  MOCK_ACTOR_ZONES,
-  MOCK_ACTOR_CONTACTS,
-  MOCK_ACTOR_PARTICIPATION_HISTORY,
-  MOCK_CAPACITY_TYPES,
-} from "./mock/data";
 
-// Mutable arrays for CRUD operations
-let actors = [...MOCK_ACTORS_NETWORK];
-let capabilities = [...MOCK_ACTOR_CAPABILITIES_DECLARED];
-let zones = [...MOCK_ACTOR_ZONES];
-let contacts = [...MOCK_ACTOR_CONTACTS];
+async function buildActorWithDetails(actor: Actor): Promise<ActorWithDetails> {
+  const [{ data: caps }, { data: zoneRows }, { data: contactRows }] = await Promise.all([
+    supabase
+      .from("actor_capabilities_declared")
+      .select("*")
+      .eq("actor_id", actor.id),
+    supabase
+      .from("actor_habitual_zones")
+      .select("*")
+      .eq("actor_id", actor.id),
+    supabase
+      .from("actor_contacts")
+      .select("*")
+      .eq("actor_id", actor.id),
+  ]);
 
-function buildActorWithDetails(actor: Actor): ActorWithDetails {
-  const actorCapabilities = capabilities.filter(c => c.actor_id === actor.id);
-  const actorZones = zones.filter(z => z.actor_id === actor.id);
-  const actorContacts = contacts.filter(c => c.actor_id === actor.id);
-  
+  const capabilities: ActorCapabilityDeclared[] = (caps || []).map((c: any) => ({
+    id: c.id,
+    actor_id: c.actor_id,
+    capacity_type_id: c.capacity_type_id,
+    level: c.level,
+    notes: c.notes,
+    created_at: c.created_at,
+    updated_at: c.updated_at,
+  }));
+
+  const zones: ActorHabitualZone[] = (zoneRows || []).map((z: any) => ({
+    id: z.id,
+    actor_id: z.actor_id,
+    region: z.region,
+    commune: z.commune,
+    presence_type: z.presence_type,
+    created_at: z.created_at,
+  }));
+
+  const contacts: ActorContact[] = (contactRows || []).map((c: any) => ({
+    id: c.id,
+    actor_id: c.actor_id,
+    name: c.name,
+    role: c.role,
+    primary_channel: c.primary_channel,
+    secondary_channel: c.secondary_channel,
+    is_primary: c.is_primary,
+    created_at: c.created_at,
+    updated_at: c.updated_at,
+  }));
+
+  // Build capacity type names from the joined capabilities
   const capacityTypeNames: Record<string, string> = {};
-  actorCapabilities.forEach(cap => {
-    const capType = MOCK_CAPACITY_TYPES.find(ct => ct.id === cap.capacity_type_id);
-    if (capType) {
-      capacityTypeNames[cap.capacity_type_id] = capType.name;
-    }
-  });
+  if (capabilities.length > 0) {
+    const capTypeIds = capabilities.map((c) => c.capacity_type_id);
+    const { data: capTypes } = await supabase
+      .from("capacity_types")
+      .select("id, name")
+      .in("id", capTypeIds);
+    (capTypes || []).forEach((ct: any) => {
+      capacityTypeNames[ct.id] = ct.name;
+    });
+  }
 
-  return {
-    actor,
-    capabilities: actorCapabilities,
-    zones: actorZones,
-    contacts: actorContacts,
-    capacityTypeNames,
-  };
+  return { actor, capabilities, zones, contacts, capacityTypeNames };
 }
 
 export interface CreateActorInput {
@@ -86,50 +114,78 @@ export interface ContactInput {
 export const actorNetworkService = {
   // ============== LISTING ==============
   async getAll(): Promise<ActorWithDetails[]> {
-    await simulateDelay(200);
-    return actors.map(buildActorWithDetails);
+    const { data, error } = await supabase.from("actors").select("*");
+    if (error) throw error;
+    if (!data || data.length === 0) return [];
+    return Promise.all(data.map((a: any) => buildActorWithDetails(a)));
   },
 
   async getById(actorId: string): Promise<ActorWithDetails | null> {
-    await simulateDelay(100);
-    const actor = actors.find(a => a.id === actorId);
-    if (!actor) return null;
-    return buildActorWithDetails(actor);
+    const { data, error } = await supabase
+      .from("actors")
+      .select("*")
+      .eq("id", actorId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    return buildActorWithDetails(data as any);
   },
 
   // ============== SEARCH & FILTERS ==============
   async search(query: string): Promise<ActorWithDetails[]> {
-    await simulateDelay(150);
-    const lowerQuery = query.toLowerCase();
-    const filtered = actors.filter(a =>
-      a.organization_name.toLowerCase().includes(lowerQuery) ||
-      a.description?.toLowerCase().includes(lowerQuery)
-    );
-    return filtered.map(buildActorWithDetails);
+    const { data, error } = await supabase
+      .from("actors")
+      .select("*")
+      .or(`organization_name.ilike.%${query}%,description.ilike.%${query}%`);
+    if (error) throw error;
+    if (!data || data.length === 0) return [];
+    return Promise.all(data.map((a: any) => buildActorWithDetails(a)));
   },
 
   async filterByCapacity(capacityTypeId: string): Promise<ActorWithDetails[]> {
-    await simulateDelay(150);
-    const actorIdsWithCapacity = capabilities
-      .filter(c => c.capacity_type_id === capacityTypeId)
-      .map(c => c.actor_id);
-    const filtered = actors.filter(a => actorIdsWithCapacity.includes(a.id));
-    return filtered.map(buildActorWithDetails);
+    const { data: capRows, error: capErr } = await supabase
+      .from("actor_capabilities_declared")
+      .select("actor_id")
+      .eq("capacity_type_id", capacityTypeId);
+    if (capErr) throw capErr;
+    if (!capRows || capRows.length === 0) return [];
+
+    const actorIds = [...new Set(capRows.map((r: any) => r.actor_id))];
+    const { data, error } = await supabase
+      .from("actors")
+      .select("*")
+      .in("id", actorIds);
+    if (error) throw error;
+    if (!data || data.length === 0) return [];
+    return Promise.all(data.map((a: any) => buildActorWithDetails(a)));
   },
 
   async filterByZone(region: string): Promise<ActorWithDetails[]> {
-    await simulateDelay(150);
-    const actorIdsInZone = zones
-      .filter(z => z.region === region)
-      .map(z => z.actor_id);
-    const filtered = actors.filter(a => actorIdsInZone.includes(a.id));
-    return filtered.map(buildActorWithDetails);
+    const { data: zoneRows, error: zoneErr } = await supabase
+      .from("actor_habitual_zones")
+      .select("actor_id")
+      .eq("region", region);
+    if (zoneErr) throw zoneErr;
+    if (!zoneRows || zoneRows.length === 0) return [];
+
+    const actorIds = [...new Set(zoneRows.map((r: any) => r.actor_id))];
+    const { data, error } = await supabase
+      .from("actors")
+      .select("*")
+      .in("id", actorIds);
+    if (error) throw error;
+    if (!data || data.length === 0) return [];
+    return Promise.all(data.map((a: any) => buildActorWithDetails(a)));
   },
 
   async filterByType(type: ActorType): Promise<ActorWithDetails[]> {
-    await simulateDelay(150);
-    const filtered = actors.filter(a => a.organization_type === type);
-    return filtered.map(buildActorWithDetails);
+    const { data, error } = await supabase
+      .from("actors")
+      .select("*")
+      .eq("organization_type", type);
+    if (error) throw error;
+    if (!data || data.length === 0) return [];
+    return Promise.all(data.map((a: any) => buildActorWithDetails(a)));
   },
 
   async filterMultiple(filters: {
@@ -139,180 +195,236 @@ export const actorNetworkService = {
     type?: ActorType;
     status?: ActorStructuralStatus;
   }): Promise<ActorWithDetails[]> {
-    await simulateDelay(200);
-    
-    let filtered = [...actors];
-    
+    let query = supabase.from("actors").select("*");
+
     if (filters.query) {
-      const lowerQuery = filters.query.toLowerCase();
-      filtered = filtered.filter(a =>
-        a.organization_name.toLowerCase().includes(lowerQuery) ||
-        a.description?.toLowerCase().includes(lowerQuery)
+      query = query.or(
+        `organization_name.ilike.%${filters.query}%,description.ilike.%${filters.query}%`,
       );
     }
-    
-    if (filters.capacityTypeId) {
-      const actorIdsWithCapacity = capabilities
-        .filter(c => c.capacity_type_id === filters.capacityTypeId)
-        .map(c => c.actor_id);
-      filtered = filtered.filter(a => actorIdsWithCapacity.includes(a.id));
-    }
-    
-    if (filters.region) {
-      const actorIdsInZone = zones
-        .filter(z => z.region === filters.region)
-        .map(z => z.actor_id);
-      filtered = filtered.filter(a => actorIdsInZone.includes(a.id));
-    }
-    
     if (filters.type) {
-      filtered = filtered.filter(a => a.organization_type === filters.type);
+      query = query.eq("organization_type", filters.type);
     }
-    
     if (filters.status) {
-      filtered = filtered.filter(a => a.structural_status === filters.status);
+      query = query.eq("structural_status", filters.status);
     }
-    
-    return filtered.map(buildActorWithDetails);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data || data.length === 0) return [];
+
+    let actorRows: any[] = data;
+
+    // Filter by capacity type if specified
+    if (filters.capacityTypeId) {
+      const { data: capRows } = await supabase
+        .from("actor_capabilities_declared")
+        .select("actor_id")
+        .eq("capacity_type_id", filters.capacityTypeId);
+      const capActorIds = new Set((capRows || []).map((r: any) => r.actor_id));
+      actorRows = actorRows.filter((a) => capActorIds.has(a.id));
+    }
+
+    // Filter by region if specified
+    if (filters.region) {
+      const { data: zoneRows } = await supabase
+        .from("actor_habitual_zones")
+        .select("actor_id")
+        .eq("region", filters.region);
+      const zoneActorIds = new Set(
+        (zoneRows || []).map((r: any) => r.actor_id),
+      );
+      actorRows = actorRows.filter((a) => zoneActorIds.has(a.id));
+    }
+
+    if (actorRows.length === 0) return [];
+    return Promise.all(actorRows.map((a: any) => buildActorWithDetails(a)));
   },
 
   // ============== CRUD ACTOR ==============
   async create(input: CreateActorInput): Promise<Actor> {
-    await simulateDelay(300);
-    const now = new Date().toISOString();
-    const newActor: Actor = {
-      id: `actor-net-${Date.now()}`,
-      user_id: input.user_id,
-      organization_name: input.organization_name,
-      organization_type: input.organization_type,
-      description: input.description || null,
-      structural_status: input.structural_status || 'active',
-      created_at: now,
-      updated_at: now,
-    };
-    actors = [...actors, newActor];
-    return newActor;
+    const { data, error } = await supabase
+      .from("actors")
+      .insert({
+        user_id: input.user_id,
+        organization_name: input.organization_name,
+        organization_type: input.organization_type,
+        description: input.description || null,
+        structural_status: input.structural_status || "active",
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as any;
   },
 
   async update(actorId: string, data: UpdateActorInput): Promise<Actor> {
-    await simulateDelay(200);
-    const idx = actors.findIndex(a => a.id === actorId);
-    if (idx === -1) throw new Error('Actor not found');
-    
-    const updated: Actor = {
-      ...actors[idx],
-      ...data,
-      updated_at: new Date().toISOString(),
-    };
-    actors = actors.map(a => a.id === actorId ? updated : a);
-    return updated;
+    const { data: updated, error } = await supabase
+      .from("actors")
+      .update({
+        ...data,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", actorId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return updated as any;
   },
 
   async setStatus(actorId: string, status: ActorStructuralStatus): Promise<void> {
-    await simulateDelay(150);
-    actors = actors.map(a =>
-      a.id === actorId
-        ? { ...a, structural_status: status, updated_at: new Date().toISOString() }
-        : a
-    );
+    const { error } = await supabase
+      .from("actors")
+      .update({ structural_status: status, updated_at: new Date().toISOString() })
+      .eq("id", actorId);
+    if (error) throw error;
   },
 
   async delete(actorId: string): Promise<void> {
-    await simulateDelay(200);
-    actors = actors.filter(a => a.id !== actorId);
-    capabilities = capabilities.filter(c => c.actor_id !== actorId);
-    zones = zones.filter(z => z.actor_id !== actorId);
-    contacts = contacts.filter(c => c.actor_id !== actorId);
+    // Cascading deletes handle related rows (capabilities, zones, contacts)
+    const { error } = await supabase.from("actors").delete().eq("id", actorId);
+    if (error) throw error;
   },
 
   // ============== CAPABILITIES ==============
   async addCapability(actorId: string, input: CreateCapabilityInput): Promise<ActorCapabilityDeclared> {
-    await simulateDelay(200);
-    const now = new Date().toISOString();
-    const newCap: ActorCapabilityDeclared = {
-      id: `acd-${Date.now()}`,
-      actor_id: actorId,
-      capacity_type_id: input.capacity_type_id,
-      level: input.level,
-      notes: input.notes || null,
-      created_at: now,
-      updated_at: now,
-    };
-    capabilities = [...capabilities, newCap];
-    return newCap;
+    const { data, error } = await supabase
+      .from("actor_capabilities_declared")
+      .insert({
+        actor_id: actorId,
+        capacity_type_id: input.capacity_type_id,
+        level: input.level,
+        notes: input.notes || null,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as any;
   },
 
   async updateCapability(capabilityId: string, data: Partial<CreateCapabilityInput>): Promise<void> {
-    await simulateDelay(150);
-    capabilities = capabilities.map(c =>
-      c.id === capabilityId
-        ? { ...c, ...data, updated_at: new Date().toISOString() }
-        : c
-    );
+    const { error } = await supabase
+      .from("actor_capabilities_declared")
+      .update({ ...data, updated_at: new Date().toISOString() })
+      .eq("id", capabilityId);
+    if (error) throw error;
   },
 
   async removeCapability(capabilityId: string): Promise<void> {
-    await simulateDelay(150);
-    capabilities = capabilities.filter(c => c.id !== capabilityId);
+    const { error } = await supabase
+      .from("actor_capabilities_declared")
+      .delete()
+      .eq("id", capabilityId);
+    if (error) throw error;
   },
 
   // ============== ZONES ==============
   async addZone(actorId: string, input: CreateZoneInput): Promise<ActorHabitualZone> {
-    await simulateDelay(200);
-    const newZone: ActorHabitualZone = {
-      id: `zone-${Date.now()}`,
-      actor_id: actorId,
-      region: input.region,
-      commune: input.commune || null,
-      presence_type: input.presence_type,
-      created_at: new Date().toISOString(),
-    };
-    zones = [...zones, newZone];
-    return newZone;
+    const { data, error } = await supabase
+      .from("actor_habitual_zones")
+      .insert({
+        actor_id: actorId,
+        region: input.region,
+        commune: input.commune || null,
+        presence_type: input.presence_type,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as any;
   },
 
   async removeZone(zoneId: string): Promise<void> {
-    await simulateDelay(150);
-    zones = zones.filter(z => z.id !== zoneId);
+    const { error } = await supabase
+      .from("actor_habitual_zones")
+      .delete()
+      .eq("id", zoneId);
+    if (error) throw error;
   },
 
   // ============== CONTACTS ==============
   async setContacts(actorId: string, newContacts: ContactInput[]): Promise<void> {
-    await simulateDelay(200);
-    // Remove existing contacts
-    contacts = contacts.filter(c => c.actor_id !== actorId);
-    
+    // Remove existing contacts for this actor
+    const { error: delErr } = await supabase
+      .from("actor_contacts")
+      .delete()
+      .eq("actor_id", actorId);
+    if (delErr) throw delErr;
+
     // Add new contacts (max 2)
-    const now = new Date().toISOString();
-    const toAdd = newContacts.slice(0, 2).map((input, idx) => ({
-      id: `contact-${Date.now()}-${idx}`,
+    const toInsert = newContacts.slice(0, 2).map((input) => ({
       actor_id: actorId,
       name: input.name,
       role: input.role,
       primary_channel: input.primary_channel,
       secondary_channel: input.secondary_channel || null,
       is_primary: input.is_primary,
-      created_at: now,
-      updated_at: now,
     }));
-    
-    contacts = [...contacts, ...toAdd];
+
+    if (toInsert.length > 0) {
+      const { error } = await supabase
+        .from("actor_contacts")
+        .insert(toInsert);
+      if (error) throw error;
+    }
   },
 
-  // ============== PARTICIPATION HISTORY (read-only) ==============
+  // ============== PARTICIPATION HISTORY (derived from deployments) ==============
   async getParticipationHistory(actorId: string): Promise<ActorParticipationHistory[]> {
-    await simulateDelay(150);
-    return MOCK_ACTOR_PARTICIPATION_HISTORY.filter(h => {
-      // Match by actor_id in our mock structure
-      const actor = actors.find(a => a.id === actorId);
-      if (!actor) return false;
-      // For demo, return history for first 2 actors
-      return actorId === 'actor-net-1' || actorId === 'actor-net-2';
+    // Derive history from completed deployments for this actor
+    const { data: deps, error } = await supabase
+      .from("deployments")
+      .select("*, events(*), sectors(*), capacity_types:capacity_type_id(*)")
+      .eq("actor_id", actorId)
+      .in("status", ["operating", "finished"]);
+
+    if (error) throw error;
+    if (!deps || deps.length === 0) return [];
+
+    // Group by event
+    const eventMap = new Map<string, {
+      event_name: string;
+      capacities: Set<string>;
+      sectors: Set<string>;
+      started_at: string;
+      ended_at: string | null;
+    }>();
+
+    deps.forEach((d: any) => {
+      const eventId = d.event_id;
+      if (!eventMap.has(eventId)) {
+        eventMap.set(eventId, {
+          event_name: d.events?.name || "Evento",
+          capacities: new Set(),
+          sectors: new Set(),
+          started_at: d.created_at,
+          ended_at: d.status === "finished" ? d.updated_at : null,
+        });
+      }
+      const entry = eventMap.get(eventId)!;
+      if (d.capacity_types?.name) entry.capacities.add(d.capacity_types.name);
+      if (d.sectors?.canonical_name) entry.sectors.add(d.sectors.canonical_name);
+      if (d.created_at < entry.started_at) entry.started_at = d.created_at;
     });
+
+    return Array.from(eventMap.entries()).map(([eventId, entry]) => ({
+      event_id: eventId,
+      event_name: entry.event_name,
+      capacities_activated: Array.from(entry.capacities),
+      sectors_operated: Array.from(entry.sectors),
+      started_at: entry.started_at,
+      ended_at: entry.ended_at,
+    }));
   },
 
   // ============== UTILITY ==============
-  getCapacityTypes() {
-    return MOCK_CAPACITY_TYPES;
+  async getCapacityTypes(): Promise<CapacityType[]> {
+    const { data, error } = await supabase.from("capacity_types").select("*");
+    if (error) throw error;
+    return (data || []) as any;
   },
 };
