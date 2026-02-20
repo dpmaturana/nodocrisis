@@ -137,7 +137,7 @@ export const sectorService = {
     };
     const needs = (dbNeeds ?? []) as NeedRow[];
 
-    // Fetch active deployments for these sectors
+    // Fetch active deployments for these sectors (for gap calculation)
     const { data: dbDeployments } = await supabase
       .from("deployments")
       .select("*")
@@ -145,6 +145,18 @@ export const sectorService = {
       .in("status", ["operating", "confirmed"]);
 
     const deployments = dbDeployments ?? [];
+
+    // Fetch actor's own active enrollments to exclude already-enrolled sectors
+    const { data: dbMyEnrollments } = await supabase
+      .from("deployments")
+      .select("sector_id")
+      .eq("actor_id", actorId)
+      .in("sector_id", sectorIds)
+      .not("status", "eq", "finished");
+
+    const enrolledSectorIds = new Set(
+      (dbMyEnrollments ?? []).map(d => d.sector_id)
+    );
 
     // Fetch recent signals for these sectors
     const { data: dbSignals } = await supabase
@@ -169,6 +181,8 @@ export const sectorService = {
     const enrichedSectors: EnrichedSector[] = [];
 
     for (const sector of sectors) {
+      if (enrolledSectorIds.has(sector.id)) continue;
+
       const event = eventMap.get(sector.event_id);
       if (!event) continue;
 
