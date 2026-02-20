@@ -71,8 +71,8 @@ src/
 │   └── ui/                    # ~40 shadcn/ui primitives (Button, Dialog, etc.)
 │
 ├── services/                  # Business logic & Supabase API calls
-│   ├── eventService.ts        # Events CRUD, sector/gap fetching
-│   ├── gapService.ts          # Gap visibility, enrichment, grouping
+│   ├── eventService.ts        # Events CRUD, sector/gap fetching, contextual demand upsert
+│   ├── gapService.ts          # Gap grouping, enrichment, dashboard meta (all Supabase-backed)
 │   ├── deploymentService.ts   # Deployment lifecycle (enroll → operating → finished)
 │   ├── sectorService.ts       # Sector enrichment, filtering
 │   ├── capabilityService.ts   # Actor capabilities (operational)
@@ -82,7 +82,12 @@ src/
 │   ├── fieldReportService.ts  # Field report uploads
 │   ├── activityLogService.ts  # Activity logging
 │   ├── tweetSignalService.ts  # Twitter signal ingestion
-│   └── matrixService.ts       # Sector × capability matrix
+│   ├── matrixService.ts       # Sector × capability need-level matrix (Supabase-backed)
+│   ├── index.ts               # Re-exports all services
+│   └── mock/                  # Legacy mock data (retained for reference; no longer used by core services)
+│       ├── data.ts            # Static mock arrays (events, sectors, deployments, etc.)
+│       ├── delay.ts           # simulateDelay helper (still used by activityLogService)
+│       └── generators.ts      # Mock ID generators
 │
 ├── hooks/                     # Custom React hooks
 │   ├── useAuth.tsx            # Auth context (user, roles, sign in/out)
@@ -113,6 +118,8 @@ src/
 ├── test/                      # Test setup and unit tests
 │   ├── setup.ts               # Vitest setup (jsdom, globals)
 │   ├── needLevelEngine.test.ts
+│   ├── needStatusTransitions.test.ts
+│   ├── adjustStatusForCoverage.test.ts
 │   ├── activityLog.test.ts
 │   ├── tweetSignalAggregation.test.ts
 │   ├── tweetSignalAggregator.test.ts
@@ -218,6 +225,8 @@ active → partial/critical (new signals or actor withdrawal)
 | Test File | What It Tests |
 |-----------|--------------|
 | `needLevelEngine.test.ts` | Signal deduplication, RED floor, GREEN blocking, state transitions |
+| `needStatusTransitions.test.ts` | Need status state machine transitions |
+| `adjustStatusForCoverage.test.ts` | Coverage-based status adjustment (gap state + deployment count → final status) |
 | `activityLog.test.ts` | Log source types, labels, formatting, weights |
 | `tweetSignalAggregation.test.ts` | Tweet signal extraction & aggregation |
 | `tweetSignalAggregator.test.ts` | Tweet aggregation logic |
@@ -264,6 +273,38 @@ active → partial/critical (new signals or actor withdrawal)
 5. **Gap Lifecycle** — Formal state machine (evaluating → critical → partial → active) ensures structured tracking of unmet needs.
 
 6. **Role-Based UI** — Single SPA with admin and actor layouts, role determined via Supabase auth + user_roles table.
+
+---
+
+## Recent Changes (PR #32 — Mock → Supabase Migration)
+
+The Admin/NGO flow was previously running on hardcoded mock data from `src/services/mock/data.ts`. All actions (create event, add sector, set need levels) wrote to in-memory arrays, making them invisible across views. PR #32 replaced these mock calls with real Supabase queries across 8 files (379 additions, 420 deletions).
+
+### What Changed
+
+| File | Before | After |
+|------|--------|-------|
+| **`eventService.ts`** | No contextual demand support | Added `addContextualDemand()` — upserts into `sector_needs_context` |
+| **`matrixService.ts`** | `getMatrix()` returned `MOCK_SECTOR_CAPABILITY_MATRIX`; `updateCell()` called mock `updateMatrixCell()` | Queries/upserts `sector_needs_context` table; `NeedLevelExtended` type defined locally |
+| **`gapService.ts`** | ~20 mock imports; `_mockGetGapsGroupedBySector()` fallback; all methods read from mock arrays | All methods query Supabase (`sectors`, `sector_needs_context`, `deployments`, `signals`, `profiles`); returns `[]` when no DB data exists; coverage-adjusted gap status via `adjustStatusForCoverage()` |
+| **`Coordination.tsx`** | `handleCreateEvent` → `addEvent()` (mock); `handleCreateSector` → `addSector()` (mock); sector dropdown from `MOCK_SECTORS` | `handleCreateEvent` → `eventService.create()` + DB refresh; `handleCreateSector` → `eventService.addSector()`; sector dropdown from `eventService.getSectorsForEvent()` |
+| **`AvailableActorsDrawer.tsx`** | Filtered `MOCK_ACTOR_CAPABILITIES`; hardcoded actor names (`'Cruz Roja Regional'`) | Queries `actor_capabilities` joined with `profiles`; shows real organization names |
+| **`SectorDeploymentCard.tsx`** | `calculateSectorGaps()` from `MOCK_SECTOR_CAPABILITY_MATRIX`; `getRecentSignals()` from mock | Uses `sectorService.getEnrichedSectors()` via `useEffect` on drawer open |
+| **`SectorCardAdmin.tsx`** | `SectorContext` imported from `mock/data` | Import moved to `deploymentService` |
+| **`sectorService.ts`** | `ActorInSector` imported from `mock/data` | Import moved to `deploymentService` |
+
+### Mock Module Status
+
+The `src/services/mock/` directory is retained but mostly unused by core services:
+- **`data.ts`** — 902 lines of static mock arrays. No longer imported by `gapService`, `matrixService`, `eventService`, `Coordination.tsx`, `AvailableActorsDrawer`, or `SectorDeploymentCard`.
+- **`delay.ts`** — `simulateDelay()` is still imported by `activityLogService.ts`.
+- **`generators.ts`** — Mock ID generators. Not imported by any active service.
+
+### Key New Behavior
+
+- **Coverage-adjusted gap status** — `gapService.adjustStatusForCoverage()` downgrades severity when actors are deployed (e.g., `critical` + active deployments → `ORANGE` partial instead of `RED`).
+- **Admin→NGO data flow** — Events, sectors, and contextual demands created by admins on the Coordination page now persist to Supabase and are visible to NGO actors in real time.
+- **Empty-state handling** — When no sectors or needs exist in DB, services return `[]` instead of falling back to mock data.
 
 ---
 
