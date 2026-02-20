@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { CheckCircle, Mic, Users, Droplet, Utensils, HeartPulse, Home, RotateCcw, Truck } from "@/lib/icons";
+import { CheckCircle, Mic, Users, Droplets, Heart, Home, RotateCcw, Truck, Apple } from "@/lib/icons";
 import { MessageSquare, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FieldReport } from "@/types/fieldReport";
@@ -13,11 +13,11 @@ interface CompletedReportViewProps {
 
 const getCapabilityIcon = (capType: string) => {
   const lower = capType.toLowerCase();
-  if (lower.includes('agua')) return <Droplet className="w-4 h-4 text-blue-500" />;
-  if (lower.includes('alimento')) return <Utensils className="w-4 h-4 text-orange-500" />;
-  if (lower.includes('salud')) return <HeartPulse className="w-4 h-4 text-red-500" />;
-  if (lower.includes('albergue')) return <Home className="w-4 h-4 text-purple-500" />;
-  if (lower.includes('transporte')) return <Truck className="w-4 h-4 text-cyan-500" />;
+  if (lower.includes('water')) return <Droplets className="w-4 h-4 text-blue-500" />;
+  if (lower.includes('food')) return <Apple className="w-4 h-4 text-orange-500" />;
+  if (lower.includes('medical')) return <Heart className="w-4 h-4 text-red-500" />;
+  if (lower.includes('shelter')) return <Home className="w-4 h-4 text-purple-500" />;
+  if (lower.includes('transport')) return <Truck className="w-4 h-4 text-cyan-500" />;
   return <Package className="w-4 h-4 text-muted-foreground" />;
 };
 
