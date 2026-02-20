@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { CapacityIcon } from "@/components/ui/CapacityIcon";
 import { cn } from "@/lib/utils";
 import type { EnrichedSector } from "@/services/sectorService";
+import { SECTOR_STATE_CONFIG } from "@/lib/sectorStateConfig";
 
 interface SectorCardProps {
   sector: EnrichedSector;
@@ -37,31 +38,7 @@ const gapStateConfig = {
 export function SectorCard({ sector, onViewDetails, onEnroll, isHighlighted }: SectorCardProps) {
   const { sector: sectorData, event, state, context, bestMatchGaps } = sector;
 
-  const stateConfig = {
-    critical: {
-      label: "Critical sector",
-      bgClass: "bg-gap-critical/10",
-      borderClass: "border-l-4 border-l-gap-critical",
-      badgeVariant: "destructive" as const,
-      icon: "🔴",
-    },
-    partial: {
-      label: "Partial sector",
-      bgClass: "bg-warning/10",
-      borderClass: "border-l-4 border-l-warning",
-      badgeVariant: "secondary" as const,
-      icon: "🟠",
-    },
-    contained: {
-      label: "Contained sector",
-      bgClass: "bg-coverage/10",
-      borderClass: "border-l-4 border-l-coverage",
-      badgeVariant: "outline" as const,
-      icon: "🟢",
-    },
-  };
-
-  const config = stateConfig[state];
+  const config = SECTOR_STATE_CONFIG[state];
 
   return (
     <Card

@@ -1,5 +1,5 @@
 import { formatDistanceToNow } from "date-fns";
-import { MapPin, Users, AlertTriangle, FileText, MessageSquare, Info, ChevronDown } from "lucide-react";
+import { MapPin, Users, AlertTriangle, FileText, MessageSquare, ChevronDown, CheckCircle2, Clock3 } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -19,6 +19,19 @@ import {
 } from "@/components/ui/collapsible";
 import { useState } from "react";
 import type { EnrichedSector } from "@/services/sectorService";
+import { SECTOR_STATE_CONFIG } from "@/lib/sectorStateConfig";
+import { NEED_STATUS_PRESENTATION } from "@/lib/needStatus";
+import type { NeedLevel } from "@/types/database";
+import type { NeedStatus } from "@/lib/needStatus";
+
+function needLevelToStatus(level: NeedLevel): NeedStatus {
+  if (level === "critical") return "RED";
+  if (level === "high") return "ORANGE";
+  if (level === "medium") return "YELLOW";
+  return "WHITE";
+}
+
+const DEFAULT_OPERATIONAL_SUMMARY = "Sector sin evaluación detallada.";
 
 interface SectorDetailDrawerProps {
   sector: EnrichedSector | null;
@@ -54,13 +67,15 @@ export function SectorDetailDrawer({
     g => !relevantGaps.some(rg => rg.capacityType.id === g.capacityType.id)
   );
 
-  const stateConfig = {
-    critical: { label: "Critical sector", icon: "🔴", className: "text-gap-critical" },
-    partial: { label: "Partial sector", icon: "🟠", className: "text-warning" },
-    contained: { label: "Contained sector", icon: "🟢", className: "text-coverage" },
-  };
+  const config = SECTOR_STATE_CONFIG[state];
 
-  const config = stateConfig[state];
+  const hasOperationalSummary =
+    !!context.operationalSummary &&
+    context.operationalSummary !== DEFAULT_OPERATIONAL_SUMMARY;
+
+  const hasExtendedContext =
+    !!context.extendedContext &&
+    context.extendedContext !== "No hay contexto disponible para este sector.";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -73,7 +88,7 @@ export function SectorDetailDrawer({
             <div className="flex-1 min-w-0">
               <SheetTitle className="text-xl">{sectorData.canonical_name}</SheetTitle>
               <SheetDescription>{event.name}</SheetDescription>
-              <Badge variant="outline" className={`mt-2 ${config.className}`}>
+              <Badge variant={config.badgeVariant} className={`mt-2 ${config.textClass}`}>
                 {config.icon} {config.label}
               </Badge>
             </div>
@@ -82,31 +97,37 @@ export function SectorDetailDrawer({
 
         <ScrollArea className="flex-1">
           <div className="p-6 space-y-6">
-            {/* Operational Summary */}
-            <section>
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                Operational Summary
-              </h3>
-              <p className="text-sm italic text-foreground/80 bg-muted/50 p-3 rounded-lg">
-                "{context.operationalSummary}"
-              </p>
-            </section>
+            {/* Operational Summary — hidden when default/empty */}
+            {hasOperationalSummary && (
+              <>
+                <section>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                    Operational Summary
+                  </h3>
+                  <p className="text-sm italic text-foreground/80 bg-muted/50 p-3 rounded-lg">
+                    "{context.operationalSummary}"
+                  </p>
+                </section>
+                <Separator />
+              </>
+            )}
 
-            <Separator />
-
-            {/* Context Details */}
-            <section>
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                Sector Context
-              </h3>
-              <div className="space-y-3">
-                <p className="text-sm text-muted-foreground mt-2">
-                  {context.extendedContext}
-                </p>
-              </div>
-            </section>
-
-            <Separator />
+            {/* Context Details — hidden when default/empty */}
+            {hasExtendedContext && (
+              <>
+                <section>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+                    Sector Context
+                  </h3>
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground mt-2">
+                      {context.extendedContext}
+                    </p>
+                  </div>
+                </section>
+                <Separator />
+              </>
+            )}
 
             {/* Gaps - Relevant */}
             <section>
@@ -119,31 +140,32 @@ export function SectorDetailDrawer({
                   <p className="text-xs text-muted-foreground">
                     Compatible with your capabilities ({relevantGaps.length})
                   </p>
-                  {relevantGaps.map((gap) => (
-                    <div 
-                      key={gap.capacityType.id}
-                      className={`p-3 rounded-lg border flex items-center justify-between ${
-                        gap.isCritical 
-                          ? "border-gap-critical/50 bg-gap-critical/5" 
-                          : "border-warning/50 bg-warning/5"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <CapacityIcon 
-                          name={gap.capacityType.name} 
-                          icon={gap.capacityType.icon} 
-                          size="sm" 
-                        />
-                        <span className="font-medium text-sm">{gap.capacityType.name}</span>
+                  {relevantGaps.map((gap) => {
+                    const needStatus = needLevelToStatus(gap.maxLevel);
+                    const presentation = NEED_STATUS_PRESENTATION[needStatus];
+                    const Icon = presentation.icon;
+                    return (
+                      <div 
+                        key={gap.capacityType.id}
+                        className={`p-3 rounded-lg border flex items-center justify-between ${presentation.bg} ${presentation.border}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <CapacityIcon 
+                            name={gap.capacityType.name} 
+                            icon={gap.capacityType.icon} 
+                            size="sm" 
+                          />
+                          <span className={`font-medium text-sm ${presentation.text}`}>{gap.capacityType.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs ${presentation.text}`}>
+                            Level: {gap.maxLevel}
+                          </span>
+                          <Icon className={`w-4 h-4 ${presentation.text}`} />
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">
-                          Demand: {gap.totalDemand >= 3 ? "High" : gap.totalDemand >= 2 ? "Medium" : "Low"}
-                        </span>
-                        <span>{gap.isCritical ? "🔴" : "🟠"}</span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
@@ -155,70 +177,73 @@ export function SectorDetailDrawer({
                     Other gaps ({otherGaps.length})
                   </CollapsibleTrigger>
                   <CollapsibleContent className="mt-2 space-y-2">
-                    {otherGaps.map((gap) => (
-                      <div 
-                        key={gap.capacityType.id}
-                        className="p-2 rounded border border-border/50 bg-muted/30 flex items-center justify-between"
-                      >
-                        <div className="flex items-center gap-2">
-                          <CapacityIcon 
-                            name={gap.capacityType.name} 
-                            icon={gap.capacityType.icon} 
-                            size="sm" 
-                          />
-                          <span className="text-sm">{gap.capacityType.name}</span>
+                    {otherGaps.map((gap) => {
+                      const needStatus = needLevelToStatus(gap.maxLevel);
+                      const presentation = NEED_STATUS_PRESENTATION[needStatus];
+                      const Icon = presentation.icon;
+                      return (
+                        <div 
+                          key={gap.capacityType.id}
+                          className={`p-2 rounded border flex items-center justify-between ${presentation.bg} ${presentation.border}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <CapacityIcon 
+                              name={gap.capacityType.name} 
+                              icon={gap.capacityType.icon} 
+                              size="sm" 
+                            />
+                            <span className={`text-sm ${presentation.text}`}>{gap.capacityType.name}</span>
+                          </div>
+                          <Icon className={`w-4 h-4 ${presentation.text}`} />
                         </div>
-                        <span>{gap.isCritical ? "🔴" : "🟠"}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </CollapsibleContent>
                 </Collapsible>
               )}
             </section>
 
-            <Separator />
-
             {/* Actors in Sector */}
-            <section>
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                Actors Supporting in Sector
-              </h3>
-              
-              <div className="flex items-start gap-2 p-3 rounded-lg bg-warning/10 border border-warning/30 mb-3">
-                <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
-                <p className="text-xs text-foreground">
-                  The presence or number of actors does not imply the need is contained.
-                </p>
-              </div>
+            {actorsInSector.length > 0 && (
+              <>
+                <Separator />
+                <section>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+                    Actors Supporting in Sector
+                  </h3>
+                  
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-warning/10 border border-warning/30 mb-3">
+                    <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+                    <p className="text-xs text-foreground">
+                      The presence or number of actors does not imply the need is contained.
+                    </p>
+                  </div>
 
-              {actorsInSector.length === 0 ? (
-                <p className="text-sm text-muted-foreground italic">
-                  No confirmed or operating actors in this sector.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {actorsInSector.map((actor) => (
-                    <div 
-                      key={actor.id}
-                      className="p-3 rounded-lg border bg-card"
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={actor.status === "operating" ? "text-coverage" : "text-warning"}>
-                          {actor.status === "operating" ? "🟢" : "🟨"}
-                        </span>
-                        <span className="font-medium text-sm">{actor.name}</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {actor.capacity} · 
-                        {actor.status === "operating" ? " Operating" : " Confirmed"}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            {/* Estimated Magnitude - placeholder for future use */}
+                  <div className="space-y-2">
+                    {actorsInSector.map((actor) => {
+                      const isOperating = actor.status === "operating";
+                      const StatusIcon = isOperating ? CheckCircle2 : Clock3;
+                      const statusColor = isOperating ? "text-coverage" : "text-warning";
+                      const statusLabel = isOperating ? "Operating" : "Confirmed";
+                      return (
+                        <div 
+                          key={actor.id}
+                          className="p-3 rounded-lg border bg-card"
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <StatusIcon className={`w-4 h-4 ${statusColor}`} />
+                            <span className="font-medium text-sm">{actor.name}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {actor.capacity} · {statusLabel}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              </>
+            )}
 
             {/* Recent Signals */}
             {recentSignals.length > 0 && (
