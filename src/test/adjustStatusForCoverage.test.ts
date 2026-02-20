@@ -34,23 +34,41 @@ describe("adjustStatusForCoverage", () => {
     });
   });
 
-  describe("with active deployments", () => {
-    it("downgrades critical from RED to ORANGE when coverage exists", () => {
+  describe("with active deployments (threshold-based)", () => {
+    it("keeps critical at RED when coverage is below threshold (3)", () => {
       const result = adjustStatusForCoverage("critical", 1);
+      expect(result.state).toBe("critical");
+      expect(result.needStatus).toBe("RED");
+    });
+
+    it("keeps critical at RED with 2 deployments (still below threshold 3)", () => {
+      const result = adjustStatusForCoverage("critical", 2);
+      expect(result.state).toBe("critical");
+      expect(result.needStatus).toBe("RED");
+    });
+
+    it("upgrades critical to GREEN when coverage meets threshold (3)", () => {
+      const result = adjustStatusForCoverage("critical", 3);
+      expect(result.state).toBe("active");
+      expect(result.needStatus).toBe("GREEN");
+    });
+
+    it("downgrades high from RED to ORANGE when coverage is below threshold (2)", () => {
+      const result = adjustStatusForCoverage("high", 1);
       expect(result.state).toBe("partial");
       expect(result.needStatus).toBe("ORANGE");
     });
 
-    it("downgrades high from RED to ORANGE when coverage exists", () => {
+    it("upgrades high to GREEN when coverage meets threshold (2)", () => {
       const result = adjustStatusForCoverage("high", 2);
-      expect(result.state).toBe("partial");
-      expect(result.needStatus).toBe("ORANGE");
+      expect(result.state).toBe("active");
+      expect(result.needStatus).toBe("GREEN");
     });
 
-    it("downgrades medium from ORANGE to YELLOW when coverage exists", () => {
+    it("upgrades medium to GREEN when coverage meets threshold (1)", () => {
       const result = adjustStatusForCoverage("medium", 1);
-      expect(result.state).toBe("partial");
-      expect(result.needStatus).toBe("YELLOW");
+      expect(result.state).toBe("active");
+      expect(result.needStatus).toBe("GREEN");
     });
 
     it("keeps low level at GREEN when coverage exists", () => {
@@ -72,11 +90,14 @@ describe("adjustStatusForCoverage", () => {
       expect(result.needStatus).toBe("RED");
     });
 
-    it("handles multiple deployments same as single for critical", () => {
-      const one = adjustStatusForCoverage("critical", 1);
-      const ten = adjustStatusForCoverage("critical", 10);
-      expect(one.needStatus).toBe(ten.needStatus);
-      expect(one.needStatus).toBe("ORANGE");
+    it("critical with many deployments above threshold returns GREEN", () => {
+      const result = adjustStatusForCoverage("critical", 10);
+      expect(result.needStatus).toBe("GREEN");
+    });
+
+    it("high with many deployments above threshold returns GREEN", () => {
+      const result = adjustStatusForCoverage("high", 10);
+      expect(result.needStatus).toBe("GREEN");
     });
   });
 });

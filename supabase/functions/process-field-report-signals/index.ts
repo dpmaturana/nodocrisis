@@ -174,6 +174,30 @@ function mapStatusToNeedLevel(status: NeedStatus): NeedLevel {
   }
 }
 
+/** Numeric ranking for need levels – higher is more severe. */
+const LEVEL_RANK: Record<string, number> = {
+  low: 0,
+  medium: 1,
+  high: 2,
+  critical: 3,
+};
+
+/** Return the more severe of two need levels. */
+function higherLevel(a: NeedLevel, b: NeedLevel): NeedLevel {
+  return (LEVEL_RANK[a] ?? 0) >= (LEVEL_RANK[b] ?? 0) ? a : b;
+}
+
+/** Map an item urgency string to a NeedLevel (same vocabulary). */
+function urgencyToLevel(urgency: string): NeedLevel {
+  switch (urgency) {
+    case "critical": return "critical";
+    case "high":     return "high";
+    case "medium":   return "medium";
+    case "low":      return "low";
+    default:         return "low";
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Main handler
 // ---------------------------------------------------------------------------
@@ -261,7 +285,26 @@ Deno.serve(async (req) => {
       if (signals.length === 0) continue;
 
       const status    = evaluateNeedStatus(signals);
-      const needLevel = mapStatusToNeedLevel(status);
+      let needLevel = mapStatusToNeedLevel(status);
+
+      // Escalation: check max item urgency and promote needLevel if higher
+      for (const item of capItems) {
+        const itemLevel = urgencyToLevel(item.urgency);
+        needLevel = higherLevel(needLevel, itemLevel);
+      }
+
+      // Never downgrade: query current level and keep whichever is higher
+      const { data: currentRow } = await supabase
+        .from("sector_needs_context")
+        .select("level")
+        .eq("event_id", event_id)
+        .eq("sector_id", sector_id)
+        .eq("capacity_type_id", capId)
+        .maybeSingle();
+
+      if (currentRow?.level) {
+        needLevel = higherLevel(needLevel, currentRow.level as NeedLevel);
+      }
 
       console.log(
         `[NeedLevelEngine] capability=${capId} engine_status=${status} need_level=${needLevel}`,
