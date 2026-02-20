@@ -14,39 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      actors: {
-        Row: {
-          id: string
-          user_id: string
-          organization_name: string
-          organization_type: Database["public"]["Enums"]["actor_type"]
-          description: string | null
-          structural_status: Database["public"]["Enums"]["actor_structural_status"]
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          organization_name: string
-          organization_type?: Database["public"]["Enums"]["actor_type"]
-          description?: string | null
-          structural_status?: Database["public"]["Enums"]["actor_structural_status"]
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          organization_name?: string
-          organization_type?: Database["public"]["Enums"]["actor_type"]
-          description?: string | null
-          structural_status?: Database["public"]["Enums"]["actor_structural_status"]
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       actor_capabilities: {
         Row: {
           availability: Database["public"]["Enums"]["availability_status"]
@@ -87,130 +54,6 @@ export type Database = {
             columns: ["capacity_type_id"]
             isOneToOne: false
             referencedRelation: "capacity_types"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      actor_capabilities_declared: {
-        Row: {
-          id: string
-          actor_id: string
-          capacity_type_id: string
-          level: Database["public"]["Enums"]["capability_level"]
-          notes: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          actor_id: string
-          capacity_type_id: string
-          level?: Database["public"]["Enums"]["capability_level"]
-          notes?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          actor_id?: string
-          capacity_type_id?: string
-          level?: Database["public"]["Enums"]["capability_level"]
-          notes?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "actor_capabilities_declared_actor_id_fkey"
-            columns: ["actor_id"]
-            isOneToOne: false
-            referencedRelation: "actors"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "actor_capabilities_declared_capacity_type_id_fkey"
-            columns: ["capacity_type_id"]
-            isOneToOne: false
-            referencedRelation: "capacity_types"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      actor_contacts: {
-        Row: {
-          id: string
-          actor_id: string
-          name: string
-          role: string
-          primary_channel: string
-          secondary_channel: string | null
-          is_primary: boolean
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          actor_id: string
-          name: string
-          role: string
-          primary_channel: string
-          secondary_channel?: string | null
-          is_primary?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          actor_id?: string
-          name?: string
-          role?: string
-          primary_channel?: string
-          secondary_channel?: string | null
-          is_primary?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "actor_contacts_actor_id_fkey"
-            columns: ["actor_id"]
-            isOneToOne: false
-            referencedRelation: "actors"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      actor_habitual_zones: {
-        Row: {
-          id: string
-          actor_id: string
-          region: string
-          commune: string | null
-          presence_type: Database["public"]["Enums"]["presence_type"]
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          actor_id: string
-          region: string
-          commune?: string | null
-          presence_type?: Database["public"]["Enums"]["presence_type"]
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          actor_id?: string
-          region?: string
-          commune?: string | null
-          presence_type?: Database["public"]["Enums"]["presence_type"]
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "actor_habitual_zones_actor_id_fkey"
-            columns: ["actor_id"]
-            isOneToOne: false
-            referencedRelation: "actors"
             referencedColumns: ["id"]
           },
         ]
@@ -887,11 +730,8 @@ export type Database = {
       }
     }
     Enums: {
-      actor_structural_status: "active" | "inactive"
-      actor_type: "ong" | "state" | "private" | "volunteer"
       app_role: "admin" | "actor"
       availability_status: "ready" | "limited" | "unavailable"
-      capability_level: "basic" | "operational" | "specialized"
       deployment_status:
         | "interested"
         | "confirmed"
@@ -900,7 +740,6 @@ export type Database = {
         | "finished"
       event_priority: "low" | "medium" | "high" | "critical"
       need_level: "low" | "medium" | "high" | "critical"
-      presence_type: "habitual" | "occasional"
       report_status: "draft" | "confirmed" | "discarded"
       sector_status: "unresolved" | "tentative" | "resolved"
     }
@@ -1030,11 +869,8 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      actor_structural_status: ["active", "inactive"],
-      actor_type: ["ong", "state", "private", "volunteer"],
       app_role: ["admin", "actor"],
       availability_status: ["ready", "limited", "unavailable"],
-      capability_level: ["basic", "operational", "specialized"],
       deployment_status: [
         "interested",
         "confirmed",
@@ -1044,7 +880,6 @@ export const Constants = {
       ],
       event_priority: ["low", "medium", "high", "critical"],
       need_level: ["low", "medium", "high", "critical"],
-      presence_type: ["habitual", "occasional"],
       report_status: ["draft", "confirmed", "discarded"],
       sector_status: ["unresolved", "tentative", "resolved"],
     },
