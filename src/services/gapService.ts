@@ -111,7 +111,8 @@ export function adjustStatusForCoverage(
   }
 
   // Demand thresholds matching getEnrichedSectorById logic
-  const threshold = level === "critical" ? 3 : level === "high" ? 2 : level === "medium" ? 1 : 0;
+  const DEMAND_THRESHOLDS: Record<string, number> = { critical: 3, high: 2, medium: 1 };
+  const threshold = DEMAND_THRESHOLDS[level] ?? 0;
 
   // Coverage meets or exceeds demand → GREEN
   if (threshold > 0 && activeDeploymentCount >= threshold) {
@@ -126,6 +127,9 @@ export function adjustStatusForCoverage(
     case "high":
       // High with partial coverage becomes ORANGE
       return { state: "partial" as GapState, needStatus: "ORANGE" as NeedStatus };
+    case "medium":
+      // Medium with no coverage stays at base (ORANGE)
+      return { state: baseState, needStatus: baseStatus };
     case "low":
     default:
       return { state: baseState, needStatus: baseStatus };
