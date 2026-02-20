@@ -291,7 +291,7 @@ describe("tweetAuthorReliability", () => {
     expect(tweetAuthorReliability("ngo")).toBe("NGO");
   });
 
-  it("maps social_news to Social/News", () => {
-    expect(tweetAuthorReliability("social_news")).toBe("Social/News");
+  it("maps social_news to Twitter", () => {
+    expect(tweetAuthorReliability("social_news")).toBe("Twitter");
   });
 });
