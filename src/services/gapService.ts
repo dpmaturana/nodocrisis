@@ -113,6 +113,19 @@ function mapNeedLevelToGapState(level: string): GapState {
  *   medium         – ORANGE → YELLOW (coverage in validation)
  *   low            – GREEN  (unchanged)
  */
+/** Minimal shape returned by the deployments query used for coverage counting. */
+type DeploymentRow = { sector_id: string; capacity_type_id: string };
+
+/** Build a lookup map of "sectorId:capacityTypeId" → active deployment count. */
+function buildDeploymentCountMap(rows: DeploymentRow[]): Map<string, number> {
+  const map = new Map<string, number>();
+  rows.forEach((d) => {
+    const key = `${d.sector_id}:${d.capacity_type_id}`;
+    map.set(key, (map.get(key) ?? 0) + 1);
+  });
+  return map;
+}
+
 export function adjustStatusForCoverage(
   level: string,
   activeDeploymentCount: number,
@@ -197,11 +210,7 @@ export const gapService = {
       .in("status", ["confirmed", "operating"]);
 
     // Build a lookup: "sectorId:capacityTypeId" → count of active deployments
-    const deploymentCounts = new Map<string, number>();
-    (deployments ?? []).forEach((d: { sector_id: string; capacity_type_id: string }) => {
-      const key = `${d.sector_id}:${d.capacity_type_id}`;
-      deploymentCounts.set(key, (deploymentCounts.get(key) ?? 0) + 1);
-    });
+    const deploymentCounts = buildDeploymentCountMap((deployments ?? []) as DeploymentRow[]);
 
     // Type for the joined query result (Supabase joins append the relation as a nested object)
     type NeedWithCapType = NonNullable<typeof needs>[number] & {
@@ -411,11 +420,7 @@ export const gapService = {
         .eq("event_id", eventId)
         .in("status", ["confirmed", "operating"]);
 
-      const deploymentCounts = new Map<string, number>();
-      (deployments ?? []).forEach((d: { sector_id: string; capacity_type_id: string }) => {
-        const key = `${d.sector_id}:${d.capacity_type_id}`;
-        deploymentCounts.set(key, (deploymentCounts.get(key) ?? 0) + 1);
-      });
+      const deploymentCounts = buildDeploymentCountMap((deployments ?? []) as DeploymentRow[]);
 
       let critical = 0;
       let partial = 0;
