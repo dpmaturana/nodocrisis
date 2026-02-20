@@ -296,7 +296,7 @@ The Admin/NGO flow was previously running on hardcoded mock data from `src/servi
 ### Mock Module Status
 
 The `src/services/mock/` directory is retained but mostly unused by core services:
-- **`data.ts`** — 902 lines of static mock arrays. No longer imported by `gapService`, `matrixService`, `eventService`, `Coordination.tsx`, `AvailableActorsDrawer`, or `SectorDeploymentCard`.
+- **`data.ts`** — 902 lines of static mock arrays. No longer imported by `gapService.ts`, `matrixService.ts`, `eventService.ts`, `Coordination.tsx`, `AvailableActorsDrawer.tsx`, or `SectorDeploymentCard.tsx`.
 - **`delay.ts`** — `simulateDelay()` is still imported by `activityLogService.ts`.
 - **`generators.ts`** — Mock ID generators. Not imported by any active service.
 
