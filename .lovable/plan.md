@@ -1,37 +1,69 @@
 
 
-## Problem
+## Why the color is still not changing
 
-The "Western France Flood" event has 5 sectors in the database, but the admin dashboard shows "Sin brechas que mostrar" (no gaps to show). This is because:
+Two things were never fixed in the last merge:
 
-1. The `gapService.getGapsGroupedBySector()` groups results by `sector_needs_context` rows, not by sectors directly
-2. There are **zero** `sector_needs_context` records for this event
-3. Without needs, sectors are invisible on the dashboard
+### Issue 1: Signal engine is never called
+In `supabase/functions/extract-text-report/index.ts` (line 255), the code checks for an environment variable `PROCESS_FIELD_REPORT_SIGNALS_URL`. This variable is **not set**, so the engine that would escalate the need level from `high` to `critical` is skipped every time. The edge function logs confirm this:
+> `"PROCESS_FIELD_REPORT_SIGNALS_URL not set; skipping engine invocation"`
 
-This is a known architectural gap: the situation report confirmation flow creates `events` and `sectors` but does not yet create `event_context_needs` or `sector_needs_context` records.
+### Issue 2: `adjustStatusForCoverage` ignores demand thresholds
+In `src/services/gapService.ts` (lines 113-116), both `critical` and `high` levels are downgraded to ORANGE whenever there's even 1 deployment. There's no threshold check (critical should need 3, high should need 2).
 
-## Plan
+### Fix 1: Replace env var with direct URL construction
+In both `extract-text-report/index.ts` and `transcribe-field-report/index.ts`, replace:
+```
+const processSignalsUrl = Deno.env.get("PROCESS_FIELD_REPORT_SIGNALS_URL");
+```
+with:
+```
+const processSignalsUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/process-field-report-signals`;
+```
+`SUPABASE_URL` is always available in edge functions, so the engine will always be called.
 
-### Step 1 -- Seed capacity needs from the situation report data
+### Fix 2: Add demand thresholds to `adjustStatusForCoverage`
+Update the function in `src/services/gapService.ts` so that:
+- `critical` stays RED unless there are 3+ deployments
+- `high` stays RED unless there are 2+ deployments  
+- `medium` moves to YELLOW with 1+ deployment (current behavior, unchanged)
 
-Insert `sector_needs_context` records for each sector using the capacity types already in the `capacity_types` table. The situation report's `suggested_capabilities` JSON contains the AI-suggested needs; we will query it and use it to populate `sector_needs_context` with appropriate levels per sector.
+```typescript
+export function adjustStatusForCoverage(
+  level: string,
+  activeDeploymentCount: number,
+): { state: GapState; needStatus: NeedStatus } {
+  const baseState = mapNeedLevelToGapState(level);
+  const baseStatus = mapGapStateToNeedStatus(baseState);
 
-If the situation report data is insufficient (no per-sector breakdown), we will create a reasonable default set: assign the event's suggested capability types to all sectors at `medium` or `high` level so they become visible on the dashboard.
+  if (activeDeploymentCount <= 0) {
+    return { state: baseState, needStatus: baseStatus };
+  }
 
-### Step 2 -- Fix the materialization flow (longer-term)
+  const demandThreshold: Record<string, number> = {
+    critical: 3,
+    high: 2,
+    medium: 1,
+  };
+  const threshold = demandThreshold[level] ?? 0;
 
-Update the `create-initial-situation-report` or a new `materialize-event` edge function so that when a report is confirmed, it also creates `sector_needs_context` rows automatically. This prevents the problem from recurring for future events.
+  if (activeDeploymentCount >= threshold && threshold > 0) {
+    switch (level) {
+      case "critical":
+      case "high":
+        return { state: "partial", needStatus: "ORANGE" };
+      case "medium":
+        return { state: "partial", needStatus: "YELLOW" };
+    }
+  }
 
----
+  return { state: baseState, needStatus: baseStatus };
+}
+```
 
-### Technical details
+### Fix 3: Update the unit test
+Update `src/test/adjustStatusForCoverage.test.ts` to expect the new threshold behavior (e.g., critical with 1 deployment stays RED, critical with 3 moves to ORANGE).
 
-**Step 1 (immediate fix):**
-- Query `initial_situation_reports` for the linked event to extract `suggested_capabilities`
-- Query `capacity_types` to resolve capability IDs
-- Insert into `sector_needs_context` one row per (sector, capacity_type) combination with `source = 'ai_suggested'` and a sensible `level` (e.g. `high` for flood-critical types)
-
-**Step 2 (code change):**
-- In the situation report confirmation handler (likely in `src/pages/admin/SituationReport.tsx` or the edge function), after inserting sectors, also insert `sector_needs_context` rows derived from `suggested_capabilities` + `suggested_sectors`
-- Each suggested sector's needs array should map to `sector_needs_context` rows with the correct `capacity_type_id`, `level`, and `source = 'ai_suggested'`
+### Fix 4: Re-trigger signal processing for Bordeaux
+Call `process-field-report-signals` for the existing Bordeaux field report so it escalates the need level from `high` to `critical`. After that, with the threshold fix, Bordeaux's "Emergency medical care" (1 deployment, threshold 3) will correctly show RED.
 
