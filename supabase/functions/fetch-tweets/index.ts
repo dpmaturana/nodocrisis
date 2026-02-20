@@ -396,7 +396,6 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     let effectiveQuery = query;
-    let effectiveSectorId: string | null = null;
 
     if (sector_id) {
       const { data: sector } = await supabase
@@ -405,17 +404,28 @@ Deno.serve(async (req) => {
         .eq("id", sector_id)
         .maybeSingle();
 
-      if (sector) {
-        const built = buildSectorQuery(query, sector.canonical_name, sector.aliases);
-        if (built.length <= 512) {
-          effectiveQuery = built;
-          effectiveSectorId = sector_id;
-        } else {
-          console.warn(`Sector query exceeds 512 chars, falling back to base query`);
-        }
-      } else {
-        console.warn(`Sector ${sector_id} not found, falling back to base query`);
+      if (!sector) {
+        return new Response(
+          JSON.stringify({ error: `Sector ${sector_id} not found` }),
+          {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
       }
+
+      const built = buildSectorQuery(query, sector.canonical_name, sector.aliases);
+      if (built.length > 512) {
+        return new Response(
+          JSON.stringify({ error: "Sector query exceeds Twitter's 512-character limit" }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      effectiveQuery = built;
     }
 
     console.log(
@@ -451,9 +461,9 @@ Deno.serve(async (req) => {
       const topQuote = classification.supporting_quotes[0];
       const { error: signalError } = await supabase.from("signals").insert({
         event_id,
-        sector_id: effectiveSectorId,
+        sector_id: sector_id ?? null,
         signal_type: "social",
-        level: effectiveSectorId ? "sector" : "event",
+        level: sector_id ? "sector" : "event",
         content: JSON.stringify({
           classification_type: classification.type,
           confidence: classification.deterministic_agg_confidence,
