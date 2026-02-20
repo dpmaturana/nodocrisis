@@ -112,7 +112,7 @@ export function adjustStatusForCoverage(
     return { state: baseState, needStatus: baseStatus };
   }
 
-  // Demand thresholds mirror getEnrichedSectorById (line 469)
+  // Demand thresholds mirror getEnrichedSectorById in gapService.ts
   const demand = level === "critical" ? 3 : level === "high" ? 2 : 1;
 
   // Only downgrade when deployments meet the full demand for this level

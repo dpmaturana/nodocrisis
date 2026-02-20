@@ -252,6 +252,8 @@ Deno.serve(async (req) => {
 
           // Delegate need-level decision to the NeedLevelEngine (canonical path).
           // sector_needs_context is updated inside process-field-report-signals.
+          // supabaseUrl is guaranteed set (Supabase built-in env var, already
+          // used above to create the client).
           const processSignalsUrl = Deno.env.get("PROCESS_FIELD_REPORT_SIGNALS_URL")
             || `${supabaseUrl}/functions/v1/process-field-report-signals`;
           const capacityTypeMap: Record<string, string> = {};
