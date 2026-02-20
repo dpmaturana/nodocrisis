@@ -1,6 +1,24 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Deployment, DeploymentStatus, Event, Sector, CapacityType } from "@/types/database";
+import type { Deployment, DeploymentStatus, Event, Sector, CapacityType, NeedLevel } from "@/types/database";
 import { needSignalService } from "@/services/needSignalService";
+
+/** Seed the engine's in-memory state from sector_needs_context before re-evaluating. */
+async function seedEngineFromDb(deployment: { event_id: string; sector_id: string; capacity_type_id: string }): Promise<void> {
+  const { data: need } = await supabase
+    .from("sector_needs_context")
+    .select("level")
+    .eq("event_id", deployment.event_id)
+    .eq("sector_id", deployment.sector_id)
+    .eq("capacity_type_id", deployment.capacity_type_id)
+    .maybeSingle();
+  if (need) {
+    await needSignalService.seedNeedState({
+      sectorId: deployment.sector_id,
+      capabilityId: deployment.capacity_type_id,
+      currentLevel: need.level as NeedLevel,
+    });
+  }
+}
 
 export interface DeploymentWithDetails extends Deployment {
   event?: Event;
@@ -206,6 +224,7 @@ export const deploymentService = {
       .eq("id", id);
     if (error) throw error;
     if (!fetchError && deployment) {
+      await seedEngineFromDb(deployment);
       needSignalService.onDeploymentStatusChange({
         eventId: deployment.event_id,
         sectorId: deployment.sector_id,
@@ -229,6 +248,7 @@ export const deploymentService = {
       .eq("id", id);
     if (error) throw error;
     if (!fetchError && deployment) {
+      await seedEngineFromDb(deployment);
       needSignalService.onDeploymentStatusChange({
         eventId: deployment.event_id,
         sectorId: deployment.sector_id,
@@ -295,6 +315,7 @@ export const deploymentService = {
       .eq("id", id);
     if (error) throw error;
     if (!fetchError && deployment) {
+      await seedEngineFromDb(deployment);
       needSignalService.onDeploymentStatusChange({
         eventId: deployment.event_id,
         sectorId: deployment.sector_id,

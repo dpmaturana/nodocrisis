@@ -146,7 +146,7 @@ function mapSignalType(signalType: SignalType, content: string) {
   if (/fragil|riesgo|colapso|inestable/i.test(content)) {
     return "SIGNAL_FRAGILITY_ALERT" as const;
   }
-  if (/no alcanza|insuficiente|saturado|sin/i.test(content)) {
+  if (/no alcanza|insuficiente|saturado|\bsin\b/i.test(content)) {
     return "SIGNAL_INSUFFICIENCY" as const;
   }
   if (/operando|estable|normaliz|restablec/i.test(content)) {
@@ -219,12 +219,60 @@ export function mapNeedStatusToNeedLevel(status: NeedStatus): NeedLevel {
   }
 }
 
+/**
+ * Map a NeedLevel from the DB back to a NeedStatus for the engine.
+ * This is the inverse of mapNeedStatusToNeedLevel and is used to seed
+ * the in-memory engine state from the current DB levels.
+ */
+export function mapNeedLevelToNeedStatus(level: NeedLevel): NeedStatus {
+  switch (level) {
+    case 'critical': return 'RED';
+    case 'high': return 'ORANGE';
+    case 'medium': return 'YELLOW';
+    case 'low': return 'GREEN';
+    default: return 'WHITE';
+  }
+}
+
 const repository = new InMemoryNeedsRepository();
 const extractor = new LegacySignalExtractor();
 const evaluator = new RuleBasedNeedEvaluator();
 const engine = new NeedLevelEngine(repository, extractor, evaluator);
 
 export const needSignalService = {
+  /**
+   * Seed the in-memory engine state for a sector/capability from the current
+   * DB level. This ensures the engine starts from the correct status instead
+   * of defaulting to WHITE on page reload.  Only seeds if no in-memory state
+   * exists yet (so it won't overwrite state accumulated during the session).
+   */
+  async seedNeedState(params: {
+    sectorId: string;
+    capabilityId: string;
+    currentLevel: NeedLevel;
+    nowIso?: string;
+  }): Promise<void> {
+    const existing = await repository.getNeedState(params.sectorId, params.capabilityId);
+    if (existing) return; // Already have in-memory state from this session
+
+    await repository.upsertNeedState({
+      sector_id: params.sectorId,
+      capability_id: params.capabilityId,
+      current_status: mapNeedLevelToNeedStatus(params.currentLevel),
+      demand_score: 0,
+      insufficiency_score: 0,
+      stabilization_score: 0,
+      fragility_score: 0,
+      coverage_score: 0,
+      stabilization_consecutive_windows: 0,
+      last_window_id: null,
+      operational_requirements: [],
+      fragility_notes: [],
+      last_updated_at: params.nowIso ?? new Date().toISOString(),
+      last_status_change_at: null,
+    });
+  },
+
   async evaluateGapNeed(params: {
     eventId: string;
     sectorId: string;

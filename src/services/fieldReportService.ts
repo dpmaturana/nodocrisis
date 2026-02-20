@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { FieldReport, CreateFieldReportParams, ExtractedData, FieldReportStatus } from "@/types/fieldReport";
 import { needSignalService, mapNeedStatusToNeedLevel } from "@/services/needSignalService";
 import { eventService } from "@/services/eventService";
+import type { NeedLevel } from "@/types/database";
 
 // Helper to transform DB response to typed FieldReport
 function toFieldReport(row: any): FieldReport {
@@ -224,6 +225,21 @@ export const fieldReportService = {
     }
 
     // Feed extracted data through the need signal engine
+    // First, seed the engine with current DB levels so it doesn't start from WHITE
+    const { data: currentNeeds } = await supabase
+      .from('sector_needs_context')
+      .select('capacity_type_id, level')
+      .eq('event_id', report.event_id)
+      .eq('sector_id', report.sector_id);
+
+    for (const need of (currentNeeds ?? [])) {
+      await needSignalService.seedNeedState({
+        sectorId: report.sector_id,
+        capabilityId: need.capacity_type_id,
+        currentLevel: need.level as NeedLevel,
+      });
+    }
+
     const results = await needSignalService.onFieldReportCompleted({
       eventId: report.event_id,
       sectorId: report.sector_id,
