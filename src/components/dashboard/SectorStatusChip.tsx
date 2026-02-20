@@ -10,6 +10,7 @@ import {
   ChevronRight,
   ChevronDown,
   Users,
+  Sparkles,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -83,21 +84,20 @@ function DriverRow({ gap, driverText, onOpenLog }: DriverRowProps) {
   const needStatus = gap.need_status ?? "WHITE";
   const config = NEED_STATUS_PRESENTATION[needStatus];
   const Icon = config.icon;
-  const hasReasoning = !!driverText;
   const requirements = gap.operational_requirements ?? [];
 
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-1.5 text-xs">
         <button
-          className={cn("p-0.5 rounded shrink-0", hasReasoning ? "cursor-pointer" : "cursor-default opacity-20")}
-          onClick={hasReasoning ? () => setExpanded((v) => !v) : undefined}
+          onClick={() => driverText && setExpanded(v => !v)}
+          className={cn(
+            "shrink-0 transition-opacity",
+            driverText ? "opacity-50 hover:opacity-100 cursor-pointer" : "opacity-0 pointer-events-none"
+          )}
           aria-label={expanded ? "Colapsar" : "Expandir"}
         >
-          {expanded
-            ? <ChevronDown className="w-3 h-3 text-muted-foreground" />
-            : <ChevronRight className="w-3 h-3 text-muted-foreground" />
-          }
+          {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
         </button>
         <Icon className={cn("w-3 h-3 shrink-0", config.text)} />
         <button
@@ -114,21 +114,22 @@ function DriverRow({ gap, driverText, onOpenLog }: DriverRowProps) {
         )}
       </div>
       {requirements.length > 0 && (
-        <div className="flex flex-wrap gap-1 pl-6">
+        <div className="flex flex-wrap gap-1 px-2 pb-1.5 ml-6">
           {requirements.map((req, i) => (
             <span
               key={i}
-              className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] bg-muted text-muted-foreground"
+              className="text-[10px] px-1.5 py-0.5 rounded-full border font-medium text-muted-foreground"
             >
               {req}
             </span>
           ))}
         </div>
       )}
-      {expanded && hasReasoning && (
-        <p className="pl-6 text-xs text-muted-foreground italic leading-snug line-clamp-3">
-          "{driverText}"
-        </p>
+      {expanded && driverText && (
+        <div className="flex items-start gap-1.5 px-3 pb-2 pt-1 border-t border-border/40 text-[11px] text-muted-foreground">
+          <Sparkles className="w-3 h-3 mt-0.5 shrink-0 text-primary/60" />
+          <p>{driverText}</p>
+        </div>
       )}
     </div>
   );
