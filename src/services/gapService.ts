@@ -16,6 +16,7 @@ export interface GapWithDetails extends Gap {
   need_status?: NeedStatus;
   actor_count?: number;
   operational_requirements?: string[];
+  reasoning_summary?: string;
 }
 
 export interface GapCounts {
@@ -106,6 +107,23 @@ export const gapService = {
       .select("*, capacity_types(*)")
       .eq("event_id", eventId);
 
+    // Fetch latest need_audits rows for each (sector_id, capability_id) in this event
+    const sectorIds = dbSectors.map((s) => s.id);
+    const { data: auditRows } = await supabase
+      .from("need_audits")
+      .select("sector_id, capability_id, reasoning_summary, timestamp")
+      .in("sector_id", sectorIds)
+      .order("timestamp", { ascending: false });
+
+    // Build a map of "sector_id:capability_id" → latest reasoning_summary
+    const auditMap = new Map<string, string>();
+    (auditRows ?? []).forEach((row) => {
+      const key = `${row.sector_id}:${row.capability_id}`;
+      if (!auditMap.has(key) && row.reasoning_summary) {
+        auditMap.set(key, row.reasoning_summary);
+      }
+    });
+
     // Fetch deployment counts grouped by sector_id + capacity_type_id
     const { data: deploymentRows } = await supabase
       .from("deployments")
@@ -162,6 +180,7 @@ export const gapService = {
           operational_requirements: (() => {
             try { return JSON.parse(need.notes ?? "[]"); } catch { return []; }
           })(),
+          reasoning_summary: auditMap.get(`${need.sector_id}:${need.capacity_type_id}`),
         };
       });
 

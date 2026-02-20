@@ -42,6 +42,11 @@ function DriverRow({ gap, onOpenLog }: DriverRowProps) {
           </span>
         )}
       </div>
+      {gap.reasoning_summary && (
+        <p className="text-[10px] text-muted-foreground italic ml-4 leading-tight">
+          {gap.reasoning_summary}
+        </p>
+      )}
       {requirements.length > 0 && (
         <div className="flex flex-wrap gap-1 px-2 pb-1.5 ml-4">
           {requirements.map((req, i) => (
