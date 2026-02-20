@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/collapsible";
 import { useState } from "react";
 import type { EnrichedSector } from "@/services/sectorService";
-import { SECTOR_STATE_CONFIG } from "@/lib/sectorStateConfig";
 import { NEED_STATUS_PRESENTATION } from "@/lib/needStatus";
 import type { NeedLevel } from "@/types/database";
 import type { NeedStatus } from "@/lib/needStatus";
@@ -28,6 +27,13 @@ function needLevelToStatus(level: NeedLevel): NeedStatus {
   if (level === "critical") return "RED";
   if (level === "high") return "ORANGE";
   if (level === "medium") return "YELLOW";
+  return "WHITE";
+}
+
+function stateToNeedStatus(state: EnrichedSector["state"]): NeedStatus {
+  if (state === "critical") return "RED";
+  if (state === "partial") return "ORANGE";
+  if (state === "contained") return "GREEN";
   return "WHITE";
 }
 
@@ -49,6 +55,7 @@ export function SectorDetailDrawer({
   hideEnrollButton = false,
 }: SectorDetailDrawerProps) {
   const [otherGapsOpen, setOtherGapsOpen] = useState(false);
+  const [resolvedGapsOpen, setResolvedGapsOpen] = useState(false);
   
   if (!sector) return null;
 
@@ -61,13 +68,14 @@ export function SectorDetailDrawer({
     gaps: allGaps,
     actorsInSector,
     recentSignals,
+    resolvedGaps,
   } = sector;
 
   const otherGaps = allGaps.filter(
     g => !relevantGaps.some(rg => rg.capacityType.id === g.capacityType.id)
   );
 
-  const config = SECTOR_STATE_CONFIG[state];
+  const sectorStatus = NEED_STATUS_PRESENTATION[stateToNeedStatus(state)];
 
   const hasOperationalSummary =
     !!context.operationalSummary &&
@@ -88,9 +96,9 @@ export function SectorDetailDrawer({
             <div className="flex-1 min-w-0">
               <SheetTitle className="text-xl">{sectorData.canonical_name}</SheetTitle>
               <SheetDescription>{event.name}</SheetDescription>
-              <Badge variant={config.badgeVariant} className="mt-2">
-                {config.icon} {config.label}
-              </Badge>
+              <span className={`inline-block mt-2 px-2 py-0.5 rounded-full text-xs font-medium ${sectorStatus.bg} ${sectorStatus.text}`}>
+                {sectorStatus.label}
+              </span>
             </div>
           </div>
         </SheetHeader>
@@ -129,6 +137,40 @@ export function SectorDetailDrawer({
               </>
             )}
 
+            {/* Recent Signals — moved before Active Gaps */}
+            {recentSignals.length > 0 && (
+              <>
+                <section>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+                    Eventos recientes
+                  </h3>
+                  <div className="space-y-2">
+                    {recentSignals.slice(0, 3).map((signal) => (
+                      <div 
+                        key={signal.id}
+                        className="flex items-start gap-2 text-sm overflow-hidden"
+                      >
+                        {signal.signal_type === "field_report" ? (
+                          <FileText className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                        ) : (
+                          <MessageSquare className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm break-words line-clamp-2">{signal.content}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(signal.created_at), { 
+                              addSuffix: true
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+                <Separator />
+              </>
+            )}
+
             {/* Gaps - Relevant */}
             <section>
               <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
@@ -144,22 +186,36 @@ export function SectorDetailDrawer({
                     return (
                       <div 
                         key={gap.capacityType.id}
-                        className={`p-3 rounded-lg border flex items-center justify-between ${presentation.bg} ${presentation.border}`}
+                        className={`p-3 rounded-lg border ${presentation.bg} ${presentation.border}`}
                       >
-                        <div className="flex items-center gap-2">
-                          <CapacityIcon 
-                            name={gap.capacityType.name} 
-                            icon={gap.capacityType.icon} 
-                            size="sm" 
-                          />
-                          <span className={`font-medium text-sm ${presentation.text}`}>{gap.capacityType.name}</span>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <CapacityIcon 
+                              name={gap.capacityType.name} 
+                              icon={gap.capacityType.icon} 
+                              size="sm" 
+                            />
+                            <span className={`font-medium text-sm ${presentation.text}`}>{gap.capacityType.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs ${presentation.text}`}>
+                              Level: {gap.maxLevel}
+                            </span>
+                            <Icon className={`w-4 h-4 ${presentation.text}`} />
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`text-xs ${presentation.text}`}>
-                            Level: {gap.maxLevel}
-                          </span>
-                          <Icon className={`w-4 h-4 ${presentation.text}`} />
-                        </div>
+                        {gap.coveringActors && gap.coveringActors.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {gap.coveringActors.map((actor, i) => (
+                              <span
+                                key={i}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-background/60 border border-border text-muted-foreground"
+                              >
+                                <Users className="w-3 h-3" /> {actor.name} · {actor.status}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -181,17 +237,31 @@ export function SectorDetailDrawer({
                       return (
                         <div 
                           key={gap.capacityType.id}
-                          className={`p-2 rounded border flex items-center justify-between ${presentation.bg} ${presentation.border}`}
+                          className={`p-2 rounded border ${presentation.bg} ${presentation.border}`}
                         >
-                          <div className="flex items-center gap-2">
-                            <CapacityIcon 
-                              name={gap.capacityType.name} 
-                              icon={gap.capacityType.icon} 
-                              size="sm" 
-                            />
-                            <span className={`text-sm ${presentation.text}`}>{gap.capacityType.name}</span>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <CapacityIcon 
+                                name={gap.capacityType.name} 
+                                icon={gap.capacityType.icon} 
+                                size="sm" 
+                              />
+                              <span className={`text-sm ${presentation.text}`}>{gap.capacityType.name}</span>
+                            </div>
+                            <Icon className={`w-4 h-4 ${presentation.text}`} />
                           </div>
-                          <Icon className={`w-4 h-4 ${presentation.text}`} />
+                          {gap.coveringActors && gap.coveringActors.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {gap.coveringActors.map((actor, i) => (
+                                <span
+                                  key={i}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-background/60 border border-border text-muted-foreground"
+                                >
+                                  <Users className="w-3 h-3" /> {actor.name} · {actor.status}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -242,36 +312,47 @@ export function SectorDetailDrawer({
               </>
             )}
 
-            {/* Recent Signals */}
-            {recentSignals.length > 0 && (
+            {/* Resolved Gaps — collapsible, collapsed by default */}
+            {resolvedGaps && resolvedGaps.length > 0 && (
               <>
                 <Separator />
                 <section>
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                    Recent Signals
-                  </h3>
-                  <div className="space-y-2">
-                    {recentSignals.slice(0, 3).map((signal) => (
-                      <div 
-                        key={signal.id}
-                        className="flex items-start gap-2 text-sm overflow-hidden"
-                      >
-                        {signal.signal_type === "field_report" ? (
-                          <FileText className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                        ) : (
-                          <MessageSquare className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm break-words line-clamp-2">{signal.content}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {formatDistanceToNow(new Date(signal.created_at), { 
-                              addSuffix: true
-                            })}
-                          </p>
+                  <Collapsible open={resolvedGapsOpen} onOpenChange={setResolvedGapsOpen}>
+                    <CollapsibleTrigger className="flex items-center gap-2 text-sm text-coverage hover:text-coverage/80 w-full font-semibold">
+                      <ChevronDown className={`w-4 h-4 transition-transform ${resolvedGapsOpen ? "rotate-180" : ""}`} />
+                      Brechas resueltas ({resolvedGaps.length})
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="mt-3 space-y-2">
+                      {resolvedGaps.map((gap) => (
+                        <div
+                          key={gap.capacityType.id}
+                          className="p-2 rounded border bg-coverage/10 border-coverage/30"
+                        >
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-coverage shrink-0" />
+                            <CapacityIcon
+                              name={gap.capacityType.name}
+                              icon={gap.capacityType.icon}
+                              size="sm"
+                            />
+                            <span className="text-sm text-coverage">{gap.capacityType.name}</span>
+                          </div>
+                          {gap.coveringActors && gap.coveringActors.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {gap.coveringActors.map((actor, i) => (
+                                <span
+                                  key={i}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-background/60 border border-coverage/30 text-coverage"
+                                >
+                                  <Users className="w-3 h-3" /> {actor.name} · {actor.status}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </CollapsibleContent>
+                  </Collapsible>
                 </section>
               </>
             )}

@@ -20,6 +20,7 @@ export interface EnrichedSector {
   bestMatchGaps: SectorGap[];
   actorsInSector: ActorInSector[];
   recentSignals: Signal[];
+  resolvedGaps?: SectorGap[];
 }
 
 /** Sort enriched sectors by severity → capability match → impact opportunity */
