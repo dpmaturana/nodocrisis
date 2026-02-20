@@ -146,7 +146,7 @@ function mapSignalType(signalType: SignalType, content: string) {
   if (/fragil|riesgo|colapso|inestable/i.test(content)) {
     return "SIGNAL_FRAGILITY_ALERT" as const;
   }
-  if (/no alcanza|insuficiente|saturado|sin/i.test(content)) {
+  if (/no alcanza|insuficiente|saturado|\bsin\b/i.test(content)) {
     return "SIGNAL_INSUFFICIENCY" as const;
   }
   if (/operando|estable|normaliz|restablec/i.test(content)) {

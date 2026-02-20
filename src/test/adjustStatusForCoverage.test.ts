@@ -9,10 +9,10 @@ describe("adjustStatusForCoverage", () => {
       expect(result.needStatus).toBe("RED");
     });
 
-    it("maps high level to RED", () => {
+    it("maps high level to ORANGE", () => {
       const result = adjustStatusForCoverage("high", 0);
-      expect(result.state).toBe("critical");
-      expect(result.needStatus).toBe("RED");
+      expect(result.state).toBe("partial");
+      expect(result.needStatus).toBe("ORANGE");
     });
 
     it("maps medium level to ORANGE", () => {
@@ -41,7 +41,7 @@ describe("adjustStatusForCoverage", () => {
       expect(result.needStatus).toBe("ORANGE");
     });
 
-    it("downgrades high from RED to ORANGE when coverage exists", () => {
+    it("keeps high at ORANGE when coverage exists", () => {
       const result = adjustStatusForCoverage("high", 2);
       expect(result.state).toBe("partial");
       expect(result.needStatus).toBe("ORANGE");

@@ -163,3 +163,87 @@ describe("needSignalService.onFieldReportCompleted", () => {
     expect(results).toEqual([]);
   });
 });
+
+describe("needSignalService integration: ORANGE need + positive signal", () => {
+  it("should not escalate ORANGE to RED when receiving a positive (disponible) field report", async () => {
+    // Simulate an ORANGE need receiving a positive signal:
+    // First, create signals that establish an ORANGE state (insufficiency + coverage)
+    const sectorId = "sector-integration-1";
+    const capId = "cap-integration-1";
+    const eventId = "event-integration-1";
+    const baseTime = "2026-02-16T10:00:00.000Z";
+
+    // Signal 1: insufficiency
+    await needSignalService.evaluateGapNeed({
+      eventId,
+      sectorId,
+      capabilityId: capId,
+      signals: [{
+        id: "sig-insuff-1",
+        event_id: eventId,
+        sector_id: sectorId,
+        capacity_type_id: capId,
+        signal_type: "field_report",
+        level: "sector",
+        content: "recurso necesario, no alcanza, insuficiente",
+        source: "field_report",
+        confidence: 1.0,
+        created_at: baseTime,
+      }],
+      nowIso: baseTime,
+    });
+
+    // Signal 2: coverage activity
+    await needSignalService.evaluateGapNeed({
+      eventId,
+      sectorId,
+      capabilityId: capId,
+      signals: [{
+        id: "sig-coverage-1",
+        event_id: eventId,
+        sector_id: sectorId,
+        capacity_type_id: capId,
+        signal_type: "field_report",
+        level: "sector",
+        content: "despacho en ruta, refuerzo en camino",
+        source: "field_report",
+        confidence: 1.0,
+        created_at: "2026-02-16T10:01:00.000Z",
+      }],
+      nowIso: "2026-02-16T10:01:00.000Z",
+    });
+
+    // Now send a positive signal (disponible/stabilization)
+    const positiveTime = "2026-02-16T10:05:00.000Z";
+    const state = await needSignalService.evaluateGapNeed({
+      eventId,
+      sectorId,
+      capabilityId: capId,
+      signals: [{
+        id: "sig-positive-1",
+        event_id: eventId,
+        sector_id: sectorId,
+        capacity_type_id: capId,
+        signal_type: "field_report",
+        level: "sector",
+        content: "recurso disponible, operando estable",
+        source: "field_report",
+        confidence: 1.0,
+        created_at: positiveTime,
+      }],
+      nowIso: positiveTime,
+    });
+
+    // The status should NOT be RED - a positive signal should never worsen from ORANGE to RED
+    expect(state).not.toBeNull();
+    expect(state!.current_status).not.toBe("RED");
+  });
+
+  it("mapNeedStatusToNeedLevel round-trip preserves ORANGE as high (not critical/RED)", () => {
+    // Verify the mapping: ORANGE → high → should map back to ORANGE, not RED
+    const needLevel = mapNeedStatusToNeedLevel("ORANGE");
+    expect(needLevel).toBe("high");
+    // "high" should NOT be treated as "critical" in the gap service
+    // This is validated by adjustStatusForCoverage tests
+  });
+});

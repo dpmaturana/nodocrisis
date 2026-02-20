@@ -67,8 +67,8 @@ export interface DashboardMeta {
 function mapNeedLevelToGapState(level: string): GapState {
   switch (level) {
     case "critical":
-    case "high":
       return "critical";
+    case "high":
     case "medium":
       return "partial";
     case "low":
