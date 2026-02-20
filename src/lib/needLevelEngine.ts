@@ -560,9 +560,12 @@ export class NeedLevelEngine {
     // F) ORANGE -> YELLOW special rule
     if (!hardForced && previousState.current_status === "ORANGE" && finalStatus === "YELLOW") {
       const augmentationDetected = agg.augmentationDetected || llmResult.augmentation_commitment_detected === true;
-      if (!augmentationDetected) {
+      const stabilizationPresent = agg.stabilization_score > 0;
+      if (!augmentationDetected && !stabilizationPresent) {
         finalStatus = "ORANGE";
-        guardrails.push("F_block_ORANGE_to_YELLOW_without_augmentation");
+        guardrails.push("F_block_ORANGE_to_YELLOW_without_augmentation_or_stabilization");
+      } else if (stabilizationPresent) {
+        guardrails.push("F_allow_ORANGE_to_YELLOW_with_stabilization");
       } else {
         guardrails.push("F_allow_ORANGE_to_YELLOW_with_augmentation");
       }

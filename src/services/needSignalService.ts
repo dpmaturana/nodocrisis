@@ -122,6 +122,8 @@ class RuleBasedNeedEvaluator implements NeedEvaluatorModel {
       proposed_status = "GREEN";
     } else if (coverageActive) {
       proposed_status = "YELLOW";
+    } else if (input.scores.stabilization_score > 0 && !demandStrong && !insuffStrong) {
+      proposed_status = "YELLOW";
     } else {
       proposed_status = "WHITE";
     }

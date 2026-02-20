@@ -351,3 +351,84 @@ describe("Engine seeding: starts from DB state, not WHITE", () => {
     expect(mapNeedLevelToNeedStatus("low")).toBe("GREEN");
   });
 });
+
+// ─── Positive signal de-escalation (the current problem) ─────────────────────
+
+describe("Positive NGO signal de-escalates ORANGE need", () => {
+  it("ORANGE need + 'people are doing great' → de-escalates to YELLOW", async () => {
+    // Scenario: sector has emergency medical care at ORANGE
+    // NGO sends a positive signal saying all people are doing great
+    const sec = "deesc-sec-1";
+    const cap = "deesc-cap-1";
+    const evt = "deesc-evt-1";
+    const nowIso = "2026-02-16T18:00:00.000Z";
+
+    // Seed engine from DB state: ORANGE (level = "high")
+    await needSignalService.seedNeedState({
+      sectorId: sec,
+      capabilityId: cap,
+      currentLevel: "high", // ORANGE
+      nowIso,
+    });
+
+    // NGO sends positive signal: "everything is fine, people are doing great"
+    const state = await needSignalService.evaluateGapNeed({
+      eventId: evt, sectorId: sec, capabilityId: cap,
+      signals: [{
+        id: "deesc-pos-1", event_id: evt, sector_id: sec, capacity_type_id: cap,
+        signal_type: "field_report" as SignalType, level: "sector",
+        content: "medical care: recurso disponible, operando estable",
+        source: "ngo", confidence: 1.0, created_at: nowIso,
+      }],
+      nowIso,
+    });
+
+    expect(state).not.toBeNull();
+    // Should de-escalate from ORANGE to YELLOW (not stay stuck at ORANGE)
+    expect(state!.current_status).toBe("YELLOW");
+  });
+
+  it("RED need + positive stabilization → de-escalates to YELLOW", async () => {
+    const sec = "deesc-sec-2";
+    const cap = "deesc-cap-2";
+    const evt = "deesc-evt-2";
+    const nowIso = "2026-02-16T18:10:00.000Z";
+
+    // Seed engine from DB state: RED (level = "critical")
+    await needSignalService.seedNeedState({
+      sectorId: sec,
+      capabilityId: cap,
+      currentLevel: "critical", // RED
+      nowIso,
+    });
+
+    // NGO sends positive signal
+    const state = await needSignalService.evaluateGapNeed({
+      eventId: evt, sectorId: sec, capabilityId: cap,
+      signals: [{
+        id: "deesc-pos-2", event_id: evt, sector_id: sec, capacity_type_id: cap,
+        signal_type: "field_report" as SignalType, level: "sector",
+        content: "medical care: recurso disponible, operando estable",
+        source: "ngo", confidence: 1.0, created_at: nowIso,
+      }],
+      nowIso,
+    });
+
+    expect(state).not.toBeNull();
+    // RED → YELLOW is a legal transition, should de-escalate
+    expect(state!.current_status).toBe("YELLOW");
+  });
+
+  it("ORANGE + positive signal → YELLOW survives DB round-trip", async () => {
+    // Verify the YELLOW result also displays correctly on dashboard
+    const dbLevel = mapNeedStatusToNeedLevel("YELLOW");
+    expect(dbLevel).toBe("medium");
+
+    const { needStatus } = adjustStatusForCoverage(dbLevel, 0);
+    expect(needStatus).toBe("ORANGE"); // medium without deployments = ORANGE
+
+    // But with deployments (the coverage that made it ORANGE in the first place)
+    const { needStatus: withDeps } = adjustStatusForCoverage(dbLevel, 1);
+    expect(withDeps).toBe("YELLOW"); // medium with deployments = YELLOW ✅
+  });
+});
