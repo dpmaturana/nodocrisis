@@ -29,12 +29,6 @@ type NeedLevel = "low" | "medium" | "high" | "critical";
 // Source weight for field-report signals (NGO tier, same as needLevelEngine config)
 const SOURCE_WEIGHT = 1.0;
 
-// Confidence assigned to a synthetic "needed" signal when no items matched an
-// explicitly-named capability. Using 0.5 (medium confidence) as a safe
-// escalation fallback — strong enough to flag a potential need without
-// over-committing when the observation text is ambiguous.
-const SYNTHETIC_NEEDED_CONFIDENCE = 0.5;
-
 // Thresholds (mirror defaultNeedEngineConfig in needLevelEngine.ts)
 const THRESHOLDS = {
   demandEscalation: 1,
@@ -118,17 +112,95 @@ function classifyItemState(state: string): SignalClassification {
     case "depleted":   return "INSUFFICIENCY";
     case "available":  return "STABILIZATION";
     case "in_transit": return "COVERAGE_ACTIVITY";
+    case "fragility":  return "FRAGILITY_ALERT";
     default:           return "INSUFFICIENCY"; // safe escalation fallback
   }
 }
 
+interface ObservationScoreProposal {
+  raw_observation: string;
+  proposed_scores: {
+    demand: number;
+    insufficiency: number;
+    stabilization: number;
+    fragility: number;
+    coverage: number;
+  };
+  confidence: number;
+  model: string;
+}
+
 /**
- * Classify observation text into a synthetic signal state.
- * Used when a capability was explicitly named but no items matched it.
+ * Call the LLM to propose engine scores from a free-text observation.
+ * Returns null on any failure; callers should fall back to a conservative
+ * "needed" signal at low confidence.
  */
-function classifyObservation(text: string): "available" | "needed" {
-  const stabPatterns = /\b(stable|sufficient|resolved|available|okay|ok|covered|no.*(emergency|need|shortage))\b/i;
-  return stabPatterns.test(text) ? "available" : "needed";
+async function proposeScoresFromObservation(
+  observations: string,
+  lovableApiKey: string,
+): Promise<ObservationScoreProposal | null> {
+  const systemPrompt = `You are a humanitarian crisis signal scoring assistant.
+Given a field observation text, score the following dimensions from 0.0 to 1.0.
+Return ONLY valid JSON, no markdown.
+
+{
+  "demand": number,          // evidence of new unmet needs emerging
+  "insufficiency": number,   // evidence that resources are insufficient or depleted
+  "stabilization": number,   // evidence that situation is stable, improving, or resolved
+  "fragility": number,       // evidence of fragile or at-risk stability (could worsen)
+  "coverage": number,        // evidence of active resource deployment or NGO presence
+  "confidence": number       // your confidence in these scores (0.0-1.0)
+}`;
+
+  try {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${lovableApiKey}`,
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: observations },
+        ],
+        temperature: 0.1,
+        max_tokens: 200,
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn(`[NeedLevelEngine] proposeScoresFromObservation HTTP error: ${response.status}`);
+      return null;
+    }
+
+    const result = await response.json();
+    const content: string = result.choices?.[0]?.message?.content ?? "";
+
+    let jsonStr = content;
+    if (jsonStr.includes("```")) {
+      jsonStr = jsonStr.replace(/```json?\n?/g, "").replace(/```/g, "");
+    }
+
+    const parsed = JSON.parse(jsonStr.trim());
+
+    return {
+      raw_observation: observations,
+      proposed_scores: {
+        demand:        Math.min(1, Math.max(0, Number(parsed.demand        ?? 0))),
+        insufficiency: Math.min(1, Math.max(0, Number(parsed.insufficiency ?? 0))),
+        stabilization: Math.min(1, Math.max(0, Number(parsed.stabilization ?? 0))),
+        fragility:     Math.min(1, Math.max(0, Number(parsed.fragility     ?? 0))),
+        coverage:      Math.min(1, Math.max(0, Number(parsed.coverage      ?? 0))),
+      },
+      confidence: Math.min(1, Math.max(0, Number(parsed.confidence ?? 0.5))),
+      model: "google/gemini-2.5-flash",
+    };
+  } catch (err) {
+    console.warn("[NeedLevelEngine] proposeScoresFromObservation error:", err);
+    return null;
+  }
 }
 
 interface EvaluationResult {
@@ -327,17 +399,43 @@ Deno.serve(async (req) => {
           `${item.name}${item.urgency !== "low" ? ` (${item.urgency})` : ""}`
         );
 
-      // Fix 3: When no items matched but the capability was explicitly named,
-      // generate a single synthetic signal from the observation text so the
-      // engine can still evaluate (e.g. "people are okay" should downgrade need level).
+      // When no items matched but the capability was explicitly named,
+      // call the LLM to propose engine scores from the observation text.
+      let scoreProposal: ObservationScoreProposal | null = null;
+
       if (signals.length === 0) {
         if (!explicitCapIds.has(capId)) continue;
         const obs = extracted_data.observations;
-        const syntheticState = classifyObservation(obs ?? "");
-        signals.push({
-          state: syntheticState,
-          confidence: syntheticState === "available" ? extracted_data.confidence : SYNTHETIC_NEEDED_CONFIDENCE,
-        });
+        if (!obs) continue;
+
+        const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+
+        if (lovableApiKey) {
+          scoreProposal = await proposeScoresFromObservation(obs, lovableApiKey);
+        }
+
+        if (scoreProposal) {
+          console.log(`[NeedLevelEngine] LLM score proposal for capability=${capId}: ${JSON.stringify(scoreProposal)}`);
+          if (scoreProposal.proposed_scores.stabilization * scoreProposal.confidence > 0.01) {
+            signals.push({ state: "available", confidence: scoreProposal.proposed_scores.stabilization * scoreProposal.confidence });
+          }
+          if (scoreProposal.proposed_scores.insufficiency * scoreProposal.confidence > 0.01) {
+            signals.push({ state: "needed", confidence: scoreProposal.proposed_scores.insufficiency * scoreProposal.confidence });
+          }
+          if (scoreProposal.proposed_scores.demand * scoreProposal.confidence > 0.01) {
+            signals.push({ state: "needed", confidence: scoreProposal.proposed_scores.demand * scoreProposal.confidence });
+          }
+          if (scoreProposal.proposed_scores.coverage * scoreProposal.confidence > 0.01) {
+            signals.push({ state: "in_transit", confidence: scoreProposal.proposed_scores.coverage * scoreProposal.confidence });
+          }
+          if (scoreProposal.proposed_scores.fragility * scoreProposal.confidence > 0.01) {
+            signals.push({ state: "fragility", confidence: scoreProposal.proposed_scores.fragility * scoreProposal.confidence });
+          }
+        } else {
+          console.warn(`[NeedLevelEngine] LLM score proposal failed for capability=${capId}, using fallback needed signal`);
+          // Fallback: conservative "needed" signal at low confidence
+          signals.push({ state: "needed", confidence: 0.3 });
+        }
       }
 
       const { status, scores, booleans, guardrailsApplied } = evaluateNeedStatus(signals);
@@ -396,6 +494,7 @@ Deno.serve(async (req) => {
         booleans_snapshot: booleans,
         model: "rule-based-engine",
         prompt_version: "v1",
+        observation_score_proposal: scoreProposal ?? null,
       });
 
       if (auditError) {
