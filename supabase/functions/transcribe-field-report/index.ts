@@ -315,25 +315,23 @@ serve(async (req) => {
 
         // Upsert sector_needs_context so the gap engine can see the need
         const needLevel = deriveNeedLevel(extractedData.items ?? []);
-        for (const capTypeId of linkedCapabilities) {
-          const { error: needError } = await supabase
-            .from('sector_needs_context')
-            .upsert(
-              {
-                event_id: report.event_id,
-                sector_id: report.sector_id,
-                capacity_type_id: capTypeId,
-                level: needLevel,
-                source: 'field_report',
-                notes: extractedData.observations || null,
-                created_by: null,
-                expires_at: null,
-              },
-              { onConflict: 'event_id,sector_id,capacity_type_id' },
-            );
-          if (needError) {
-            console.error('sector_needs_context upsert error:', needError);
-          }
+        const { error: needError } = await supabase
+          .from('sector_needs_context')
+          .upsert(
+            linkedCapabilities.map((capTypeId: string) => ({
+              event_id: report.event_id,
+              sector_id: report.sector_id,
+              capacity_type_id: capTypeId,
+              level: needLevel,
+              source: 'field_report',
+              notes: extractedData.observations || null,
+              created_by: null,
+              expires_at: null,
+            })),
+            { onConflict: 'event_id,sector_id,capacity_type_id' },
+          );
+        if (needError) {
+          console.error('sector_needs_context upsert error:', needError);
         }
         console.log(`${linkedCapabilities.length} sector_needs_context row(s) upserted (level: ${needLevel})`);
       } else {
