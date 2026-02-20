@@ -257,6 +257,15 @@ export const gapService = {
       const criticalCount = gapsWithDetails.filter((g) => g.need_status === "RED").length;
       const partialCount = gapsWithDetails.filter((g) => g.need_status === "ORANGE").length;
 
+      const sectorAgg = computeSectorSeverity(
+        gapsWithDetails.map((gap) => ({
+          need_id: gap.id,
+          need_status: gap.need_status ?? mapGapStateToNeedStatus(gap.state),
+          criticality_level: inferNeedCriticality(gap),
+          population_weight: 1,
+        })),
+      );
+
       result.push({
         sector,
         context: { keyPoints: [], extendedContext: "", operationalSummary: "" },
@@ -264,6 +273,10 @@ export const gapService = {
         hasCritical: criticalCount > 0,
         gapCounts: { critical: criticalCount, partial: partialCount },
         gapSignalTypes: {},
+        sector_need_status: sectorAgg.status,
+        sector_need_score: sectorAgg.score,
+        sector_high_uncertainty: sectorAgg.high_uncertainty,
+        sector_override_reasons: sectorAgg.override_reasons,
       });
     }
 
