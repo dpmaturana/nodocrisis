@@ -1,47 +1,54 @@
 
 
-# Store Twitter Bearer Token and Rewrite fetch-tweets
+# Clean Database -- Delete All Data
 
-## Step 1: Store the Secret
-Save `TWITTER_BEARER_TOKEN` as a backend secret so the edge function can authenticate with the Twitter/X API v2.
+Remove all rows from every table in the correct order to respect foreign key constraints.
 
-## Step 2: Rewrite `supabase/functions/fetch-tweets/index.ts`
+## Execution Order
 
-Replace the xAI/Grok API call and the `parseTweetsFromResponse` prose-splitting function with two new functions that use the official Twitter API:
+Since several tables reference others, we need to delete child tables first:
 
-- **`fetchRecentTweets(query, bearerToken)`** -- Calls `GET https://api.x.com/2/tweets/search/recent` with:
-  - `tweet.fields=created_at,public_metrics,author_id`
-  - `expansions=author_id`
-  - `user.fields=username`
-  - `max_results=20`
+1. **signals** (references events, sectors, field_reports)
+2. **field_reports** (references events, sectors)
+3. **deployments** (references events, sectors, capacity_types)
+4. **sector_needs_context** (references events, sectors, capacity_types)
+5. **sector_needs_sms** (references events, sectors, capacity_types)
+6. **event_context_needs** (references events, capacity_types)
+7. **sms_messages** (references events)
+8. **initial_situation_reports** (references events)
+9. **sectors** (references events)
+10. **events**
+11. **actor_capabilities** (references capacity_types)
+12. **country_news_sources**
+13. **capacity_types**
+14. **profiles**
+15. **user_roles**
 
-- **`mapApiTweetsToInput(apiResponse)`** -- Converts the structured JSON into `TweetInput[]` using real tweet IDs, real author handles (from `includes.users`), real timestamps, and real engagement metrics.
+## Technical Details
 
-Everything else stays the same: classification patterns, `classifyTweet()`, `aggregateTweetSignals()`, CORS headers, signal storage logic, and error handling.
+A single SQL statement using TRUNCATE with CASCADE will handle this cleanly:
 
-## What Changes in the File
-
-| Removed | Added |
-|---------|-------|
-| `parseTweetsFromResponse()` function | `fetchRecentTweets()` function |
-| xAI/Grok API call block | `mapApiTweetsToInput()` function |
-| `GROK_API_KEY` reference | `TWITTER_BEARER_TOKEN` reference |
-
-## Data Mapping
-
-```text
-Twitter v2 field              ->  TweetInput field
-────────────────────────────────────────────────────
-data[].id                     ->  tweet_id
-includes.users[].username     ->  author_handle
-data[].created_at             ->  created_at
-data[].text                   ->  text
-public_metrics.retweet_count  ->  retweet_count
-public_metrics.reply_count    ->  reply_count
+```sql
+TRUNCATE
+  signals,
+  field_reports,
+  deployments,
+  sector_needs_context,
+  sector_needs_sms,
+  event_context_needs,
+  sms_messages,
+  initial_situation_reports,
+  sectors,
+  events,
+  actor_capabilities,
+  country_news_sources,
+  capacity_types,
+  profiles,
+  user_roles
+CASCADE;
 ```
 
-## No Other Changes Needed
-- `supabase/config.toml` stays the same
-- Classification, aggregation, and signal storage pipeline is unchanged
-- The `GROK_API_KEY` secret remains available for other functions that use it
+This removes all data from every table in one operation. No schema changes -- just data cleanup.
+
+**Note:** This will also remove user profiles and roles. If you want to keep your own user account data, let me know and I will exclude `profiles` and `user_roles`.
 
