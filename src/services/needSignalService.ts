@@ -353,8 +353,9 @@ export const needSignalService = {
 
     // Process each capability type through the engine
     for (const [capId, items] of itemsByCapId) {
+      const batchTs = Date.now();
       const signals: Signal[] = items.map((item, i) => ({
-        id: `field-report-signal-${Date.now()}-${i}`,
+        id: `field-report-signal-${batchTs}-${capId}-${i}`,
         event_id: params.eventId,
         sector_id: params.sectorId,
         capacity_type_id: capId,

@@ -206,7 +206,10 @@ export const fieldReportService = {
    * feed them into the NeedLevelEngine, and update sector_needs_context.
    */
   async processCompletedReport(report: FieldReport): Promise<void> {
-    if (report.status !== 'completed' || !report.extracted_data) return;
+    if (report.status !== 'completed' || !report.extracted_data) {
+      console.debug(`Skipping need update for report ${report.id}: status=${report.status}, hasData=${!!report.extracted_data}`);
+      return;
+    }
 
     // Resolve capability names to capacity_type IDs
     const { data: capacityTypes } = await supabase
