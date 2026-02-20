@@ -427,7 +427,7 @@ export const needSignalService = {
       created_at: effectiveNowIso,
     };
 
-    return this.evaluateGapNeed({
+    const needState = await this.evaluateGapNeed({
       eventId: params.eventId,
       sectorId: params.sectorId,
       capabilityId: params.capabilityId,
@@ -435,6 +435,30 @@ export const needSignalService = {
       nowIso: effectiveNowIso,
       previousStatus: params.previousStatus,
     });
+
+    if (needState) {
+      const { supabase } = await import("@/integrations/supabase/client");
+      const needLevel = mapNeedStatusToNeedLevel(needState.current_status);
+      const { error: upsertError } = await supabase
+        .from("sector_needs_context")
+        .upsert(
+          {
+            event_id: params.eventId,
+            sector_id: params.sectorId,
+            capacity_type_id: params.capabilityId,
+            level: needLevel,
+            source: "deployment",
+            created_by: null,
+            expires_at: null,
+          },
+          { onConflict: "event_id,sector_id,capacity_type_id" }
+        );
+      if (upsertError) {
+        console.error("[needSignalService] Failed to persist sector_needs_context:", upsertError);
+      }
+    }
+
+    return needState;
   },
 
   /**

@@ -191,6 +191,23 @@ export const deploymentService = {
       .single();
 
     if (error) throw error;
+
+    const { data: needRow } = await supabase
+      .from("sector_needs_context")
+      .select("level")
+      .eq("event_id", eventId)
+      .eq("sector_id", sectorId)
+      .eq("capacity_type_id", capacityTypeId)
+      .maybeSingle();
+
+    needSignalService.onDeploymentStatusChange({
+      eventId,
+      sectorId,
+      capabilityId: capacityTypeId,
+      deploymentStatus: "interested",
+      previousStatus: needRow ? mapNeedLevelToNeedStatus(needRow.level) : undefined,
+    }).catch((e) => { console.warn("Need re-evaluation failed on enroll", e); });
+
     return data;
   },
 
