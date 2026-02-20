@@ -1,45 +1,45 @@
 
 
-# Migrate Actor Network Service to Real Database
+# Fix: Include "interested" Deployments in Coverage Queries
 
 ## Problem
-The `actorNetworkService.ts` is entirely mock-based. All CRUD operations write to in-memory arrays that:
-- Don't persist (lost on page refresh)
-- Use fake IDs that don't match real DB records
-- Never touch any real database tables
 
-## Solution
-1. Create database migration for actor network tables (`actors`, `actor_capabilities_declared`, `actor_habitual_zones`, `actor_contacts`)
-2. Update Supabase auto-generated types to include the new tables
-3. Rewrite `actorNetworkService.ts` to use real Supabase queries while keeping the same public API
+The last merge correctly added deployment coverage logic to `gapService.ts`, but the database queries filter by `status IN ('confirmed', 'operating')` only. When an NGO subscribes, the deployment is created with status `interested`, which gets excluded from the count. The colors never change.
 
-## Changes
+## Fix
 
-### 1. Database Migration
-New migration: `supabase/migrations/20260220120000_create_actor_network_tables.sql`
-- Creates enum types: `actor_type`, `actor_structural_status`, `capability_level`, `presence_type`
-- Creates tables: `actors`, `actor_capabilities_declared`, `actor_habitual_zones`, `actor_contacts`
-- Adds RLS policies: authenticated read, owner manage, admin manage all
-- Adds indexes for foreign keys and common query patterns
+Two lines need to change in `src/services/gapService.ts`:
 
-### 2. Supabase Types Update
-Updated `src/integrations/supabase/types.ts`:
-- Added table definitions for all four new tables
-- Added enum types for `actor_type`, `actor_structural_status`, `capability_level`, `presence_type`
+### Line 210 (in `getGapsGroupedBySector`)
 
-### 3. Service Rewrite
-Rewrote `src/services/actorNetworkService.ts`:
-- All operations now use `supabase` client instead of in-memory arrays
-- `buildActorWithDetails` fetches related data from DB
-- `getParticipationHistory` derives from real deployments table
-- `getCapacityTypes` queries real `capacity_types` table
-- No mock imports remain
+Change:
+```typescript
+.in("status", ["confirmed", "operating"]);
+```
+To:
+```typescript
+.in("status", ["confirmed", "operating", "interested"]);
+```
+
+### Line 421 (in `getCounts`)
+
+Same change:
+```typescript
+.in("status", ["confirmed", "operating"]);
+```
+To:
+```typescript
+.in("status", ["confirmed", "operating", "interested"]);
+```
+
+## Expected Result
+
+- After subscribing as an NGO, "Emergency medical care" in Tagus River Basin and Levante Coast should change from RED to ORANGE (1 deployment against demand of 2 for "high" level)
+- Dashboard metric cards update accordingly (fewer critical, more partial)
 
 ## Files Changed
 
 | File | Change |
 |---|---|
-| `supabase/migrations/20260220120000_create_actor_network_tables.sql` | New migration |
-| `src/integrations/supabase/types.ts` | Added 4 table types + 4 enum types |
-| `src/services/actorNetworkService.ts` | Full rewrite from mock to real DB |
+| `src/services/gapService.ts` | Add `"interested"` to deployment status filters on lines 210 and 421 |
 
