@@ -43,6 +43,18 @@ interface ExtractedData {
   confidence: number;
 }
 
+/** Pick the highest urgency from extracted items; default to "medium". */
+function deriveNeedLevel(items: ExtractedData["items"]): string {
+  const rank: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
+  let best: string | null = null;
+  let bestRank = 0;
+  for (const item of items) {
+    const r = rank[item.urgency] ?? 0;
+    if (r > bestRank) { bestRank = r; best = item.urgency; }
+  }
+  return best ?? "medium";
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -300,6 +312,30 @@ serve(async (req) => {
             }))
           );
         console.log(`${linkedCapabilities.length} signal(s) created for report:`, report_id);
+
+        // Upsert sector_needs_context so the gap engine can see the need
+        const needLevel = deriveNeedLevel(extractedData.items ?? []);
+        for (const capTypeId of linkedCapabilities) {
+          const { error: needError } = await supabase
+            .from('sector_needs_context')
+            .upsert(
+              {
+                event_id: report.event_id,
+                sector_id: report.sector_id,
+                capacity_type_id: capTypeId,
+                level: needLevel,
+                source: 'field_report',
+                notes: extractedData.observations || null,
+                created_by: null,
+                expires_at: null,
+              },
+              { onConflict: 'event_id,sector_id,capacity_type_id' },
+            );
+          if (needError) {
+            console.error('sector_needs_context upsert error:', needError);
+          }
+        }
+        console.log(`${linkedCapabilities.length} sector_needs_context row(s) upserted (level: ${needLevel})`);
       } else {
         // Fallback: create a generic signal without capacity_type_id
         await supabase
