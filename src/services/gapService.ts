@@ -80,11 +80,11 @@ function mapNeedLevelToGapState(level: string): GapState {
 
 /**
  * Adjust the NeedStatus for a given need level based on active deployment
- * coverage.  When actors are confirmed/operating for a sector+capability the
- * status should improve:
- *   critical/high  – RED  → ORANGE  (has some coverage, still insufficient)
- *   medium         – ORANGE → YELLOW (coverage in validation)
- *   low            – GREEN  (unchanged)
+ * coverage using demand thresholds (critical=3, high=2, medium=1).
+ *
+ *   No deployments          → base status (critical/high=RED, medium=ORANGE, low=GREEN)
+ *   Deployments < threshold → critical stays RED; high becomes ORANGE
+ *   Deployments >= threshold → GREEN (demand fully covered)
  */
 /** Minimal shape returned by the deployments query used for coverage counting. */
 type DeploymentRow = { sector_id: string; capacity_type_id: string };
@@ -110,12 +110,26 @@ export function adjustStatusForCoverage(
     return { state: baseState, needStatus: baseStatus };
   }
 
+  // Demand thresholds matching getEnrichedSectorById logic
+  const DEMAND_THRESHOLDS: Record<string, number> = { critical: 3, high: 2, medium: 1 };
+  const threshold = DEMAND_THRESHOLDS[level] ?? 0;
+
+  // Coverage meets or exceeds demand → GREEN
+  if (threshold > 0 && activeDeploymentCount >= threshold) {
+    return { state: "active" as GapState, needStatus: "GREEN" as NeedStatus };
+  }
+
+  // Partial coverage (below threshold)
   switch (level) {
     case "critical":
+      // Critical with insufficient coverage stays RED
+      return { state: baseState, needStatus: baseStatus };
     case "high":
+      // High with partial coverage becomes ORANGE
       return { state: "partial" as GapState, needStatus: "ORANGE" as NeedStatus };
     case "medium":
-      return { state: "partial" as GapState, needStatus: "YELLOW" as NeedStatus };
+      // Medium with no coverage stays at base (ORANGE)
+      return { state: baseState, needStatus: baseStatus };
     case "low":
     default:
       return { state: baseState, needStatus: baseStatus };
