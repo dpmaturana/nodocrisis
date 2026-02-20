@@ -61,7 +61,6 @@ export type Database = {
       capacity_types: {
         Row: {
           created_at: string
-          criticality_level: string | null
           description: string | null
           icon: string | null
           id: string
@@ -69,7 +68,6 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          criticality_level?: string | null
           description?: string | null
           icon?: string | null
           id?: string
@@ -77,7 +75,6 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          criticality_level?: string | null
           description?: string | null
           icon?: string | null
           id?: string
@@ -236,7 +233,6 @@ export type Database = {
           id: string
           location: string | null
           name: string
-          population_affected: number | null
           started_at: string
           status: string
           type: string | null
@@ -250,7 +246,6 @@ export type Database = {
           id?: string
           location?: string | null
           name: string
-          population_affected?: number | null
           started_at?: string
           status?: string
           type?: string | null
@@ -264,7 +259,6 @@ export type Database = {
           id?: string
           location?: string | null
           name?: string
-          population_affected?: number | null
           started_at?: string
           status?: string
           type?: string | null
@@ -556,7 +550,6 @@ export type Database = {
           id: string
           latitude: number | null
           longitude: number | null
-          population_affected: number | null
           source: string | null
           status: Database["public"]["Enums"]["sector_status"]
           updated_at: string
@@ -570,7 +563,6 @@ export type Database = {
           id?: string
           latitude?: number | null
           longitude?: number | null
-          population_affected?: number | null
           source?: string | null
           status?: Database["public"]["Enums"]["sector_status"]
           updated_at?: string
@@ -584,7 +576,6 @@ export type Database = {
           id?: string
           latitude?: number | null
           longitude?: number | null
-          population_affected?: number | null
           source?: string | null
           status?: Database["public"]["Enums"]["sector_status"]
           updated_at?: string
