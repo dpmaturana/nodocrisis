@@ -1,31 +1,47 @@
 
 
-# Add unique constraint on sector_needs_context
+# Store Twitter Bearer Token and Rewrite fetch-tweets
 
-## Problem
+## Step 1: Store the Secret
+Save `TWITTER_BEARER_TOKEN` as a backend secret so the edge function can authenticate with the Twitter/X API v2.
 
-The `extract-text-report` edge function uses an upsert with `ON CONFLICT (event_id, sector_id, capacity_type_id)`, but the `sector_needs_context` table lacks a unique constraint on those columns. This causes the upsert to silently fail, so need levels never update on the dashboard after a field report.
+## Step 2: Rewrite `supabase/functions/fetch-tweets/index.ts`
 
-## Change
+Replace the xAI/Grok API call and the `parseTweetsFromResponse` prose-splitting function with two new functions that use the official Twitter API:
 
-Run a single database migration:
+- **`fetchRecentTweets(query, bearerToken)`** -- Calls `GET https://api.x.com/2/tweets/search/recent` with:
+  - `tweet.fields=created_at,public_metrics,author_id`
+  - `expansions=author_id`
+  - `user.fields=username`
+  - `max_results=20`
 
-```sql
-ALTER TABLE public.sector_needs_context
-  ADD CONSTRAINT sector_needs_context_event_sector_cap_uq
-  UNIQUE (event_id, sector_id, capacity_type_id);
+- **`mapApiTweetsToInput(apiResponse)`** -- Converts the structured JSON into `TweetInput[]` using real tweet IDs, real author handles (from `includes.users`), real timestamps, and real engagement metrics.
+
+Everything else stays the same: classification patterns, `classifyTweet()`, `aggregateTweetSignals()`, CORS headers, signal storage logic, and error handling.
+
+## What Changes in the File
+
+| Removed | Added |
+|---------|-------|
+| `parseTweetsFromResponse()` function | `fetchRecentTweets()` function |
+| xAI/Grok API call block | `mapApiTweetsToInput()` function |
+| `GROK_API_KEY` reference | `TWITTER_BEARER_TOKEN` reference |
+
+## Data Mapping
+
+```text
+Twitter v2 field              ->  TweetInput field
+────────────────────────────────────────────────────
+data[].id                     ->  tweet_id
+includes.users[].username     ->  author_handle
+data[].created_at             ->  created_at
+data[].text                   ->  text
+public_metrics.retweet_count  ->  retweet_count
+public_metrics.reply_count    ->  reply_count
 ```
 
-This creates the unique constraint the edge function already expects. No code changes needed.
-
-## Impact
-
-- The `extract-text-report` function's existing upsert logic will start working correctly
-- When a field report detects a need, the corresponding `sector_needs_context` row will be inserted or updated
-- Dashboard gap colors will reflect the latest field report data
-- No existing data is affected (duplicate rows, if any, would need to be cleaned first -- we will check before applying)
-
-## Verification
-
-After the migration, submit a field report from the actor view and confirm the sector need level updates on the Event Dashboard.
+## No Other Changes Needed
+- `supabase/config.toml` stays the same
+- Classification, aggregation, and signal storage pipeline is unchanged
+- The `GROK_API_KEY` secret remains available for other functions that use it
 
