@@ -106,11 +106,16 @@ function mapNeedLevelToGapState(level: string): GapState {
 }
 
 /**
- * Adjust the NeedStatus for a given need level based on active deployment
- * coverage.  When actors are confirmed/operating for a sector+capability the
- * status should improve:
+ * Adjust the NeedStatus for a given need level based on deployment coverage.
+ *
+ * When actors are confirmed/operating (activeDeploymentCount > 0):
  *   critical/high  – RED  → ORANGE  (has some coverage, still insufficient)
  *   medium         – ORANGE → YELLOW (coverage in validation)
+ *   low            – GREEN  (unchanged)
+ *
+ * When actors are only interested (interestedDeploymentCount > 0, no active):
+ *   critical/high  – RED  → YELLOW  (coverage being validated, NGO en route)
+ *   medium         – ORANGE → YELLOW (coverage being validated)
  *   low            – GREEN  (unchanged)
  */
 /** Minimal shape returned by the deployments query used for coverage counting. */
