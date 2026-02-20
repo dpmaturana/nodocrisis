@@ -79,55 +79,22 @@ function mapNeedLevelToGapState(level: string): GapState {
 }
 
 /**
- * Adjust the NeedStatus for a given need level based on active deployment
- * coverage.  When actors are confirmed/operating for a sector+capability the
- * status should improve, but only when the number of deployments meets the
- * full demand for that need level:
- *   critical (demand=3)  – RED  → ORANGE  only when deployments ≥ 3
- *   high     (demand=2)  – RED  → ORANGE  only when deployments ≥ 2
- *   medium   (demand=1)  – ORANGE → YELLOW when deployments ≥ 1
- *   low                  – GREEN  (unchanged)
+ * Map a DB need level directly to a display state and NeedStatus.
+ * The engine's output in sector_needs_context.level is the single source of truth.
  */
-/** Minimal shape returned by the deployments query used for coverage counting. */
-type DeploymentRow = { sector_id: string; capacity_type_id: string };
-
-/** Build a lookup map of "sectorId:capacityTypeId" → active deployment count. */
-function buildDeploymentCountMap(rows: DeploymentRow[]): Map<string, number> {
-  const map = new Map<string, number>();
-  rows.forEach((d) => {
-    const key = `${d.sector_id}:${d.capacity_type_id}`;
-    map.set(key, (map.get(key) ?? 0) + 1);
-  });
-  return map;
-}
-
-export function adjustStatusForCoverage(
-  level: string,
-  activeDeploymentCount: number,
-): { state: GapState; needStatus: NeedStatus } {
-  const baseState = mapNeedLevelToGapState(level);
-  const baseStatus = mapGapStateToNeedStatus(baseState);
-
-  if (activeDeploymentCount <= 0) {
-    return { state: baseState, needStatus: baseStatus };
+export function mapNeedLevelToStatus(level: string): { state: GapState; needStatus: NeedStatus } {
+  switch (level) {
+    case "critical":
+      return { state: "critical", needStatus: "RED" };
+    case "high":
+      return { state: "critical", needStatus: "ORANGE" };
+    case "medium":
+      return { state: "partial", needStatus: "YELLOW" };
+    case "low":
+      return { state: "active", needStatus: "GREEN" };
+    default:
+      return { state: "evaluating", needStatus: "WHITE" };
   }
-
-  // Demand thresholds mirror getEnrichedSectorById in gapService.ts
-  const demand = level === "critical" ? 3 : level === "high" ? 2 : 1;
-
-  // Only downgrade when deployments meet the full demand for this level
-  if (activeDeploymentCount >= demand) {
-    switch (level) {
-      case "critical":
-      case "high":
-        return { state: "partial" as GapState, needStatus: "ORANGE" as NeedStatus };
-      case "medium":
-        return { state: "partial" as GapState, needStatus: "YELLOW" as NeedStatus };
-    }
-  }
-
-  // Partial coverage: keep base severity
-  return { state: baseState, needStatus: baseStatus };
 }
 
 export const gapService = {
@@ -151,16 +118,6 @@ export const gapService = {
       .from("sector_needs_context")
       .select("*, capacity_types(*)")
       .eq("event_id", eventId);
-
-    // Fetch active deployments (confirmed / operating) for coverage adjustment
-    const { data: deployments } = await supabase
-      .from("deployments")
-      .select("sector_id, capacity_type_id, status")
-      .eq("event_id", eventId)
-      .in("status", ["confirmed", "operating", "interested"]);
-
-    // Build a lookup: "sectorId:capacityTypeId" → count of active deployments
-    const deploymentCounts = buildDeploymentCountMap((deployments ?? []) as DeploymentRow[]);
 
     // Type for the joined query result (Supabase joins append the relation as a nested object)
     type NeedWithCapType = NonNullable<typeof needs>[number] & {
@@ -188,8 +145,7 @@ export const gapService = {
       if (!sector || !sectorNeeds) continue;
 
       const gapsWithDetails: GapWithDetails[] = sectorNeeds.map((need) => {
-        const activeCount = deploymentCounts.get(`${need.sector_id}:${need.capacity_type_id}`) ?? 0;
-        const { state, needStatus } = adjustStatusForCoverage(need.level, activeCount);
+        const { state, needStatus } = mapNeedLevelToStatus(need.level);
         return {
           id: need.id,
           event_id: need.event_id,
@@ -268,34 +224,23 @@ export const gapService = {
       return { critical: 0, partial: 0, active: 0, evaluating: 0, sectorsWithGaps: 0 };
     }
 
-    // Fetch active deployments for coverage adjustment
-    const { data: deployments } = await supabase
-      .from("deployments")
-      .select("sector_id, capacity_type_id, status")
-      .eq("event_id", eventId)
-      .in("status", ["confirmed", "operating", "interested"]);
-
-    const deploymentCounts = buildDeploymentCountMap((deployments ?? []) as DeploymentRow[]);
-
     let critical = 0;
     let partial = 0;
     let active = 0;
 
     for (const n of needs) {
-      const count = deploymentCounts.get(`${n.sector_id}:${n.capacity_type_id}`) ?? 0;
-      const { needStatus } = adjustStatusForCoverage(n.level, count);
-      switch (needStatus) {
-        case "RED":
+      switch (n.level) {
+        case "critical":
           critical++;
           break;
-        case "ORANGE":
+        case "high":
           partial++;
           break;
-        case "YELLOW":
-        case "GREEN":
+        case "medium":
+        case "low":
           active++;
           break;
-        // WHITE / default ignored
+        // default (unknown / covered) ignored
       }
     }
 
