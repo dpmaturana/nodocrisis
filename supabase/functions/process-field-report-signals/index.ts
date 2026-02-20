@@ -59,10 +59,9 @@ interface ExtractedData {
 }
 
 /**
- * Map an English item state to signal content that contains the Spanish
- * keywords expected by classifyContent / mapSignalType.
- * Mirrors fieldReportItemToSignalContent from needSignalService.ts but for
- * the English state values that the edge-function LLM produces.
+ * Map an English item state to signal content for display/logging purposes
+ * (used when creating signal records in the `signals` table).
+ * This is NOT used for scoring — see classifyItemState() for the scoring path.
  */
 function itemToSignalContent(name: string, state: string): string {
   switch (state) {
@@ -99,15 +98,21 @@ function itemToConfidence(state: string, urgency: string): number {
 }
 
 /**
- * Classify signal content into a signal type using the same Spanish-keyword
- * patterns as LegacySignalExtractor / mapSignalType in needSignalService.ts.
+ * Classify an extracted item state directly into a signal classification.
+ * The LLM extraction prompt guarantees English-only output, so only English
+ * enum values are handled here. This replaces the fragile string→regex round-trip
+ * via itemToSignalContent + classifyContent.
  */
-function classifyContent(content: string): string {
-  if (/fragil|riesgo|colapso|inestable/i.test(content)) return "FRAGILITY_ALERT";
-  if (/no alcanza|insuficiente|saturado|sin/i.test(content))  return "INSUFFICIENCY";
-  if (/operando|estable|normaliz|restablec/i.test(content))   return "STABILIZATION";
-  if (/llega|despacho|en camino|refuerzo/i.test(content))     return "COVERAGE_ACTIVITY";
-  return "INSUFFICIENCY";
+type SignalClassification = "INSUFFICIENCY" | "STABILIZATION" | "COVERAGE_ACTIVITY" | "FRAGILITY_ALERT" | "DEMAND";
+
+function classifyItemState(state: string): SignalClassification {
+  switch (state) {
+    case "needed":     return "INSUFFICIENCY";
+    case "depleted":   return "INSUFFICIENCY";
+    case "available":  return "STABILIZATION";
+    case "in_transit": return "COVERAGE_ACTIVITY";
+    default:           return "INSUFFICIENCY"; // safe escalation fallback
+  }
 }
 
 /**
@@ -115,14 +120,18 @@ function classifyContent(content: string): string {
  * guardrails (all faithfully reproduced from NeedLevelEngine + evaluator in
  * src/lib/needLevelEngine.ts and src/services/needSignalService.ts).
  *
+ * Signals carry the English state enum directly from the LLM extraction prompt,
+ * and classifyItemState() maps them to signal classifications without any
+ * Spanish string round-trip.
+ *
  * Returns the proposed NeedStatus for the capability.
  */
-function evaluateNeedStatus(signals: Array<{ content: string; confidence: number }>): NeedStatus {
+function evaluateNeedStatus(signals: Array<{ state: string; confidence: number }>): NeedStatus {
   let demand = 0, insuff = 0, stab = 0, frag = 0, coverage = 0;
 
   for (const sig of signals) {
     const delta = sig.confidence * SOURCE_WEIGHT;
-    switch (classifyContent(sig.content)) {
+    switch (classifyItemState(sig.state)) {
       case "INSUFFICIENCY":     insuff += delta;   break;
       case "STABILIZATION":     stab += delta;     break;
       case "FRAGILITY_ALERT":   frag += delta;     break;
@@ -259,7 +268,7 @@ Deno.serve(async (req) => {
 
     for (const [capId, capItems] of itemsByCapId) {
       const signals = capItems.map((item) => ({
-        content:    itemToSignalContent(item.name, item.state),
+        state:      item.state,
         confidence: itemToConfidence(item.state, item.urgency),
       }));
 
