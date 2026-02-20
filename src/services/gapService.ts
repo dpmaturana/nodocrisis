@@ -14,6 +14,8 @@ export interface GapWithDetails extends Gap {
   signals?: Signal[];
   coverage?: Deployment[];
   need_status?: NeedStatus;
+  actor_count?: number;
+  operational_requirements?: string[];
 }
 
 export interface GapCounts {
@@ -119,6 +121,20 @@ export const gapService = {
       .select("*, capacity_types(*)")
       .eq("event_id", eventId);
 
+    // Fetch deployment counts grouped by sector_id + capacity_type_id
+    const { data: deploymentRows } = await supabase
+      .from("deployments")
+      .select("sector_id, capacity_type_id")
+      .eq("event_id", eventId)
+      .in("status", ["interested", "confirmed", "operating"]);
+
+    // Build a map of "sector_id:capacity_type_id" → count
+    const deploymentCounts = new Map<string, number>();
+    (deploymentRows ?? []).forEach((d) => {
+      const key = `${d.sector_id}:${d.capacity_type_id}`;
+      deploymentCounts.set(key, (deploymentCounts.get(key) ?? 0) + 1);
+    });
+
     // Type for the joined query result (Supabase joins append the relation as a nested object)
     type NeedWithCapType = NonNullable<typeof needs>[number] & {
       capacity_types: CapacityType | null;
@@ -157,6 +173,10 @@ export const gapService = {
           sector,
           capacity_type: need.capacity_types ?? undefined,
           need_status: needStatus,
+          actor_count: deploymentCounts.get(`${need.sector_id}:${need.capacity_type_id}`) ?? 0,
+          operational_requirements: (() => {
+            try { return JSON.parse(need.notes ?? "[]"); } catch { return []; }
+          })(),
         };
       });
 

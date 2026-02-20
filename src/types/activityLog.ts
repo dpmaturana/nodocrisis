@@ -1,4 +1,4 @@
-export type ActivitySourceType = "twitter" | "institutional" | "ngo" | "original_context";
+export type ActivitySourceType = "twitter" | "institutional" | "ngo" | "original_context" | "system";
 
 export type ActivityEventType =
   | "SIGNAL_RECEIVED"
@@ -10,6 +10,7 @@ export const SOURCE_TYPE_LABELS: Record<ActivitySourceType, string> = {
   institutional: "Institucional",
   ngo: "ONG",
   original_context: "Contexto Original",
+  system: "Sistema",
 };
 
 export const SOURCE_TYPE_WEIGHTS: Record<ActivitySourceType, number> = {
@@ -17,6 +18,7 @@ export const SOURCE_TYPE_WEIGHTS: Record<ActivitySourceType, number> = {
   institutional: 1,
   ngo: 1,
   original_context: 1,
+  system: 1,
 };
 
 export interface CapabilityActivityLogEntry {
@@ -29,6 +31,8 @@ export interface CapabilityActivityLogEntry {
   source_name: string;
   source_weight: number;
   summary: string;
+  reasoning_summary?: string;
+  guardrails_applied?: string[];
   metadata?: Record<string, unknown>;
   related_ids?: string[];
 }
