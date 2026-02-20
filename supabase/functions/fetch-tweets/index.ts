@@ -6,7 +6,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// ── Inlined classification types & patterns (from src/lib/tweetSignalAggregation.ts) ──
+// ── Types ────────────────────────────────────────────────────────────
 
 type ClassificationType =
   | "SIGNAL_DEMAND_INCREASE"
@@ -61,6 +61,8 @@ interface AggregatedTweetSignal {
   timestamp: string;
 }
 
+// ── Classification patterns ──────────────────────────────────────────
+
 const CLASSIFICATION_PATTERNS: {
   type: ClassificationType;
   patterns: RegExp[];
@@ -68,7 +70,7 @@ const CLASSIFICATION_PATTERNS: {
   {
     type: "SIGNAL_DEMAND_INCREASE",
     patterns: [
-      /\b(necesit\w*|urgente?\w*|emergencia\w*|auxilio|ayuda|socorro|demand\w*|necesidad\w*|faltan?\w*|piden?)\b/i,
+      /\b(necesit\w*|urgente?\w*|emergencia\w*|auxilio|ayuda|socorro|demand\w*|necesidad\w*|faltan?)\b/i,
       /\b(need\w*|urgent\w*|help|emergency|demand\w*|require\w*|shortage)\b/i,
       /\bmás (agua|comida|medicinas|médicos|refugio)\b/i,
     ],
@@ -181,7 +183,6 @@ function aggregateTweetSignals(
     byType.set(c.type, existing);
   }
 
-  // Contradiction detection
   let contradictionDetected = false;
   for (const [typeA, typeB] of CONTRADICTION_PAIRS) {
     const countA = byType.get(typeA)?.length ?? 0;
@@ -273,31 +274,71 @@ function aggregateTweetSignals(
   };
 }
 
-// ── Tweet parsing from xAI response ──────────────────────────────────
+// ── Twitter API v2 ───────────────────────────────────────────────────
 
-function parseTweetsFromResponse(responseText: string): TweetInput[] {
-  const tweets: TweetInput[] = [];
-  // Split on common tweet-like boundaries (lines that look like separate tweets)
-  const lines = responseText.split(/\n+/).filter((l) => l.trim().length > 20);
+async function fetchRecentTweets(
+  query: string,
+  bearerToken: string,
+): Promise<Record<string, unknown>> {
+  const params = new URLSearchParams({
+    query,
+    "tweet.fields": "created_at,public_metrics,author_id",
+    expansions: "author_id",
+    "user.fields": "username",
+    max_results: "20",
+  });
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    // Try to extract @handle
-    const handleMatch = line.match(/@(\w{1,15})/);
-    const handle = handleMatch ? handleMatch[1] : `user_${i}`;
+  const url = `https://api.x.com/2/tweets/search/recent?${params.toString()}`;
 
-    tweets.push({
-      tweet_id: `xai_${crypto.randomUUID()}`,
-      author_handle: handle,
-      author_type_estimate: "social_news",
-      created_at: new Date().toISOString(),
-      text: line.slice(0, 500),
-      retweet_count: 0,
-      reply_count: 0,
-    });
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${bearerToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Twitter API error ${response.status}: ${errorText}`);
   }
 
-  return tweets;
+  return await response.json();
+}
+
+function mapApiTweetsToInput(
+  apiResponse: Record<string, unknown>,
+): TweetInput[] {
+  const data = (apiResponse.data ?? []) as Array<{
+    id: string;
+    text: string;
+    created_at?: string;
+    author_id?: string;
+    public_metrics?: {
+      retweet_count?: number;
+      reply_count?: number;
+    };
+  }>;
+
+  const includes = apiResponse.includes as
+    | { users?: Array<{ id: string; username: string }> }
+    | undefined;
+
+  const userMap = new Map<string, string>();
+  if (includes?.users) {
+    for (const user of includes.users) {
+      userMap.set(user.id, user.username);
+    }
+  }
+
+  return data.map((tweet) => ({
+    tweet_id: tweet.id,
+    author_handle: userMap.get(tweet.author_id ?? "") ?? "unknown",
+    author_type_estimate: "social_news" as const,
+    created_at: tweet.created_at ?? new Date().toISOString(),
+    text: tweet.text,
+    retweet_count: tweet.public_metrics?.retweet_count ?? 0,
+    reply_count: tweet.public_metrics?.reply_count ?? 0,
+  }));
 }
 
 // ── Edge function handler ────────────────────────────────────────────
@@ -322,11 +363,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 1. Call xAI Responses API with x_search tool
-    const xaiApiKey = Deno.env.get("GROK_API_KEY");
-    if (!xaiApiKey) {
+    const bearerToken = Deno.env.get("TWITTER_BEARER_TOKEN");
+    if (!bearerToken) {
       return new Response(
-        JSON.stringify({ error: "GROK_API_KEY secret is not configured" }),
+        JSON.stringify({ error: "TWITTER_BEARER_TOKEN secret is not configured" }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -335,55 +375,19 @@ Deno.serve(async (req) => {
     }
 
     console.log(
-      `Fetching tweets for event ${event_id}, query: "${query}", sector: ${sector_id ?? "none"}`,
+      `Fetching tweets for event ${event_id}, query: "${query}", sector: ${sector_id ?? "none"
+      }`,
     );
 
-    const xaiResponse = await fetch("https://api.x.ai/v1/responses", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${xaiApiKey}`,
-      },
-      body: JSON.stringify({
-        model: "grok-4-0709",
-        tools: [{ type: "x_search" }],
-        input: `Find recent tweets about ${query} related to emergency/crisis`,
-      }),
-    });
+    // 1. Fetch real tweets from Twitter API v2
+    const apiResponse = await fetchRecentTweets(query, bearerToken);
+    console.log("Twitter API response received, result_count:", (apiResponse.meta as any)?.result_count ?? 0);
 
-    if (!xaiResponse.ok) {
-      const errorText = await xaiResponse.text();
-      console.error("xAI API error:", xaiResponse.status, errorText);
-      return new Response(
-        JSON.stringify({
-          error: `xAI API error: ${xaiResponse.status}`,
-        }),
-        {
-          status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
+    // 2. Map to TweetInput[]
+    const tweets = mapApiTweetsToInput(apiResponse);
+    console.log(`Mapped ${tweets.length} tweets from API response`);
 
-    const xaiResult = await xaiResponse.json();
-    console.log("xAI response received");
-
-    // 2. Extract text content from the xAI response
-    let responseText = "";
-    if (xaiResult.output && Array.isArray(xaiResult.output)) {
-      for (const item of xaiResult.output) {
-        if (item.type === "message" && Array.isArray(item.content)) {
-          for (const block of item.content) {
-            if (block.type === "output_text" && block.text) {
-              responseText += block.text + "\n";
-            }
-          }
-        }
-      }
-    }
-
-    if (!responseText.trim()) {
-      console.log("No tweet content found in xAI response");
+    if (tweets.length === 0) {
       return new Response(
         JSON.stringify({
           success: true,
@@ -396,14 +400,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 3. Parse tweets from response text
-    const tweets = parseTweetsFromResponse(responseText);
-    console.log(`Parsed ${tweets.length} tweets from xAI response`);
-
-    // 4. Classify and aggregate
+    // 3. Classify and aggregate
     const aggregated = aggregateTweetSignals(tweets, event_id);
 
-    // 5. Store signals in DB
+    // 4. Store signals in DB
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -423,7 +423,7 @@ Deno.serve(async (req) => {
         }),
         source: topQuote
           ? `Twitter: @${topQuote.author_handle}`
-          : "Twitter/xAI",
+          : "Twitter API",
         confidence: classification.deterministic_agg_confidence,
       });
 
@@ -436,7 +436,7 @@ Deno.serve(async (req) => {
       `Stored ${aggregated.classifications.length} signals for event ${event_id}`,
     );
 
-    // 6. Return aggregated result
+    // 5. Return aggregated result
     return new Response(
       JSON.stringify({
         success: true,
