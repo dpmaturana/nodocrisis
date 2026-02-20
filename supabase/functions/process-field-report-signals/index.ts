@@ -263,6 +263,13 @@ Deno.serve(async (req) => {
         confidence: itemToConfidence(item.state, item.urgency),
       }));
 
+      // Collect operational requirements (bottleneck notes) for needed/depleted items
+      const operationalRequirements: string[] = capItems
+        .filter((item) => item.state === "needed" || item.state === "depleted")
+        .map((item) =>
+          `${item.name}${item.urgency !== "low" ? ` (${item.urgency})` : ""}`
+        );
+
       // Skip capabilities with no signals (no items matched)
       if (signals.length === 0) continue;
 
@@ -283,7 +290,9 @@ Deno.serve(async (req) => {
             capacity_type_id: capId,
             level: needLevel,
             source: "field_report",
-            notes: extracted_data.observations ?? null,
+            notes: operationalRequirements.length > 0
+              ? JSON.stringify(operationalRequirements)
+              : (extracted_data.observations ?? null),
             created_by: null,
             expires_at: null,
           },

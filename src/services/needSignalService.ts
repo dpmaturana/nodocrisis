@@ -15,12 +15,15 @@ import {
 import type { DeploymentStatus, NeedLevel, Signal, SignalType } from "@/types/database";
 import type { NeedStatus } from "@/lib/needStatus";
 import type { ExtractedItem, ExtractedData } from "@/types/fieldReport";
+import type { CapabilityActivityLogEntry } from "@/types/activityLog";
+import { SOURCE_TYPE_WEIGHTS } from "@/types/activityLog";
 
 class InMemoryNeedsRepository implements NeedsRepository {
   private rawInputs = new Map<string, RawInput>();
   private structuredSignals = new Map<string, StructuredSignal>();
   private needStates = new Map<string, NeedState>();
   private audits: NeedAudit[] = [];
+  private activityLog: CapabilityActivityLogEntry[] = [];
 
   async findRawInputByHash(hash: string): Promise<RawInput | null> {
     return this.rawInputs.get(hash) ?? null;
@@ -63,6 +66,27 @@ class InMemoryNeedsRepository implements NeedsRepository {
 
   async appendAudit(audit: NeedAudit): Promise<void> {
     this.audits.push(audit);
+    if (audit.final_status !== audit.previous_status) {
+      this.activityLog.push({
+        id: crypto.randomUUID(),
+        sector_id: audit.sector_id,
+        capability_id: audit.capability_id,
+        event_type: "STATUS_CHANGE",
+        timestamp: audit.timestamp,
+        source_type: "system",
+        source_name: "Motor de decisión",
+        source_weight: SOURCE_TYPE_WEIGHTS.system,
+        summary: `Estado cambiado de ${audit.previous_status} a ${audit.final_status}`,
+        reasoning_summary: audit.reasoning_summary,
+        guardrails_applied: audit.guardrails_applied,
+      });
+    }
+  }
+
+  getLogForSector(sectorId: string): CapabilityActivityLogEntry[] {
+    return this.activityLog
+      .filter((e) => e.sector_id === sectorId)
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }
 }
 
@@ -382,5 +406,12 @@ export const needSignalService = {
     }
 
     return results;
+  },
+
+  /**
+   * Get activity log entries for a sector from the in-memory repository.
+   */
+  getLogForSector(sectorId: string): ReturnType<InMemoryNeedsRepository["getLogForSector"]> {
+    return repository.getLogForSector(sectorId);
   },
 };

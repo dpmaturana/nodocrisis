@@ -9,6 +9,7 @@ import {
   ArrowRightLeft,
   Radio,
   ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 import {
   Dialog,
@@ -29,6 +30,7 @@ const SOURCE_ICON: Record<ActivitySourceType, typeof AtSign> = {
   institutional: Building2,
   ngo: HeartHandshake,
   original_context: FileText,
+  system: Radio,
 };
 
 const SOURCE_BADGE_STYLE: Record<ActivitySourceType, string> = {
@@ -36,6 +38,7 @@ const SOURCE_BADGE_STYLE: Record<ActivitySourceType, string> = {
   institutional: "bg-indigo-500/20 text-indigo-400 border-indigo-500/30",
   ngo: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
   original_context: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  system: "bg-violet-500/20 text-violet-400 border-violet-500/30",
 };
 
 const EVENT_TYPE_ICON: Record<ActivityEventType, typeof Radio> = {
@@ -138,6 +141,21 @@ function ActivityLogItem({ entry }: { entry: CapabilityActivityLogEntry }) {
         <span className="font-medium">{entry.source_name}:</span>{" "}
         {entry.summary}
       </p>
+
+      {/* Reasoning summary for STATUS_CHANGE entries */}
+      {entry.event_type === "STATUS_CHANGE" && entry.reasoning_summary && (
+        <div className="flex items-start gap-1.5 text-xs bg-muted/50 rounded px-2 py-1.5 text-muted-foreground mt-1">
+          <Sparkles className="w-3.5 h-3.5 mt-0.5 shrink-0 text-primary/60" />
+          <div className="space-y-1">
+            <p>{entry.reasoning_summary}</p>
+            {entry.guardrails_applied && entry.guardrails_applied.length > 0 && (
+              <p className="text-[10px] opacity-60">
+                Guardrails: {entry.guardrails_applied.join(", ")}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Footer: timestamp */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">

@@ -1,4 +1,4 @@
-import { MapPin, AlertCircle, AlertTriangle, Activity, X, ChevronDown } from "lucide-react";
+import { MapPin, Activity, X, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,15 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-
-export type SeverityFilter = "critical" | "partial";
-
-interface FilterCounts {
-  sectorsWithGaps: number;
-  critical: number;
-  partial: number;
-  operatingActors: number;
-}
+import { NEED_STATUS_PRESENTATION, type NeedStatus } from "@/lib/needStatus";
 
 interface CapacityOption {
   id: string;
@@ -24,9 +16,13 @@ interface CapacityOption {
 }
 
 interface FilterChipsProps {
-  counts: FilterCounts;
-  activeFilters: SeverityFilter[];
-  onFilterChange: (filters: SeverityFilter[]) => void;
+  counts: {
+    sectorsWithGaps: number;
+    byStatus: Partial<Record<NeedStatus, number>>;
+    operatingActors: number;
+  };
+  activeSectorStatusFilters: NeedStatus[];
+  onSectorStatusFilterChange: (filters: NeedStatus[]) => void;
   onOpenActorsModal: () => void;
   capacityOptions?: CapacityOption[];
   activeCapacityFilters?: string[];
@@ -35,18 +31,18 @@ interface FilterChipsProps {
 
 export function FilterChips({
   counts,
-  activeFilters,
-  onFilterChange,
+  activeSectorStatusFilters,
+  onSectorStatusFilterChange,
   onOpenActorsModal,
   capacityOptions = [],
   activeCapacityFilters = [],
   onCapacityFilterChange,
 }: FilterChipsProps) {
-  const toggleFilter = (filter: SeverityFilter) => {
-    if (activeFilters.includes(filter)) {
-      onFilterChange(activeFilters.filter((f) => f !== filter));
+  const toggleStatus = (status: NeedStatus) => {
+    if (activeSectorStatusFilters.includes(status)) {
+      onSectorStatusFilterChange(activeSectorStatusFilters.filter((s) => s !== status));
     } else {
-      onFilterChange([...activeFilters, filter]);
+      onSectorStatusFilterChange([...activeSectorStatusFilters, status]);
     }
   };
 
@@ -60,11 +56,23 @@ export function FilterChips({
   };
 
   const clearFilters = () => {
-    onFilterChange([]);
+    onSectorStatusFilterChange([]);
     onCapacityFilterChange?.([]);
   };
 
-  const hasActiveFilters = activeFilters.length > 0 || activeCapacityFilters.length > 0;
+  const hasActiveFilters = activeSectorStatusFilters.length > 0 || activeCapacityFilters.length > 0;
+
+  // Status chips ordered: RED, ORANGE, YELLOW, GREEN
+  const STATUS_CHIP_ORDER: NeedStatus[] = ["RED", "ORANGE", "YELLOW", "GREEN"];
+
+  // Static hover class mappings (Tailwind requires complete class names at build time)
+  const STATUS_HOVER_CLASS: Record<NeedStatus, string> = {
+    RED: "hover:text-gap-critical hover:border-gap-critical",
+    ORANGE: "hover:text-orange-400 hover:border-orange-400",
+    YELLOW: "hover:text-warning hover:border-warning",
+    GREEN: "hover:text-coverage hover:border-coverage",
+    WHITE: "hover:text-muted-foreground hover:border-muted-foreground",
+  };
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -74,37 +82,30 @@ export function FilterChips({
         {counts.sectorsWithGaps} sectores con brechas
       </span>
 
-      {/* Critical filter */}
-      <Badge
-        variant="outline"
-        className={cn(
-          "px-3 py-1.5 text-sm font-medium cursor-pointer transition-all",
-          activeFilters.includes("critical")
-            ? "bg-gap-critical text-white border-gap-critical"
-            : "hover:border-gap-critical hover:text-gap-critical",
-          counts.critical === 0 && "opacity-50 cursor-default",
-        )}
-        onClick={counts.critical > 0 ? () => toggleFilter("critical") : undefined}
-      >
-        <AlertCircle className="w-4 h-4 mr-1.5" />
-        {counts.critical} rojo
-      </Badge>
-
-      {/* Partial filter */}
-      <Badge
-        variant="outline"
-        className={cn(
-          "px-3 py-1.5 text-sm font-medium cursor-pointer transition-all",
-          activeFilters.includes("partial")
-            ? "bg-warning text-warning-foreground border-warning"
-            : "hover:border-warning hover:text-warning",
-          counts.partial === 0 && "opacity-50 cursor-default",
-        )}
-        onClick={counts.partial > 0 ? () => toggleFilter("partial") : undefined}
-      >
-        <AlertTriangle className="w-4 h-4 mr-1.5" />
-        {counts.partial} naranja
-      </Badge>
+      {/* NeedStatus filter chips */}
+      {STATUS_CHIP_ORDER.map((status) => {
+        const count = counts.byStatus[status] ?? 0;
+        if (count === 0) return null;
+        const presentation = NEED_STATUS_PRESENTATION[status];
+        const Icon = presentation.icon;
+        const isActive = activeSectorStatusFilters.includes(status);
+        return (
+          <Badge
+            key={status}
+            variant="outline"
+            className={cn(
+              "px-3 py-1.5 text-sm font-medium cursor-pointer transition-all",
+              isActive
+                ? cn(presentation.bg, presentation.text, "border-current")
+                : STATUS_HOVER_CLASS[status],
+            )}
+            onClick={() => toggleStatus(status)}
+          >
+            <Icon className="w-4 h-4 mr-1.5" />
+            {count} {presentation.shortLabel}
+          </Badge>
+        );
+      })}
 
       {/* Capacity type filter dropdown */}
       {capacityOptions.length > 0 && onCapacityFilterChange && (

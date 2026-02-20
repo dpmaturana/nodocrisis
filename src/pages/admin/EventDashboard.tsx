@@ -2,11 +2,11 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { eventService, gapService } from "@/services";
 import { mapGapStateToNeedStatus } from "@/lib/needStatus";
+import type { NeedStatus } from "@/lib/needStatus";
 import { geocodeLocation } from "@/lib/geocode";
 import type { Event, Signal } from "@/types/database";
 import type { GapWithDetails, GapCounts, DashboardMeta, OperatingActor, SectorWithGaps } from "@/services/gapService";
 import type { EnrichedSector } from "@/services/sectorService";
-import type { SeverityFilter } from "@/components/dashboard/FilterChips";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Activity } from "lucide-react";
@@ -37,7 +37,7 @@ export default function EventDashboard() {
   const [counts, setCounts] = useState<GapCounts | null>(null);
   
   // Filter state
-  const [activeFilters, setActiveFilters] = useState<SeverityFilter[]>([]);
+  const [activeSectorStatusFilters, setActiveSectorStatusFilters] = useState<NeedStatus[]>([]);
   const [activeCapacityFilters, setActiveCapacityFilters] = useState<string[]>([]);
   
   // Modal/drawer states
@@ -92,6 +92,16 @@ export default function EventDashboard() {
       });
     });
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [sectorsWithGaps]);
+
+  // Compute sector status counts for FilterChips
+  const statusCounts = useMemo(() => {
+    const counts: Partial<Record<NeedStatus, number>> = {};
+    sectorsWithGaps.forEach(s => {
+      const status = s.sector_need_status ?? "WHITE";
+      counts[status] = (counts[status] ?? 0) + 1;
+    });
+    return counts;
   }, [sectorsWithGaps]);
 
   useEffect(() => {
@@ -203,12 +213,11 @@ export default function EventDashboard() {
         <FilterChips
           counts={{
             sectorsWithGaps: counts?.sectorsWithGaps || 0,
-            critical: counts?.critical || 0,
-            partial: counts?.partial || 0,
+            byStatus: statusCounts,
             operatingActors: dashboardMeta?.operatingCount || 0,
           }}
-          activeFilters={activeFilters}
-          onFilterChange={setActiveFilters}
+          activeSectorStatusFilters={activeSectorStatusFilters}
+          onSectorStatusFilterChange={setActiveSectorStatusFilters}
           onOpenActorsModal={handleOpenOperatingActorsModal}
           capacityOptions={capacityOptions}
           activeCapacityFilters={activeCapacityFilters}
@@ -236,12 +245,9 @@ export default function EventDashboard() {
         <main id="sector-cards-container" className="flex-1 overflow-y-auto min-h-0">
           <SectorGapList
             eventId={event.id}
-            activeFilters={activeFilters}
+            activeSectorStatusFilters={activeSectorStatusFilters}
             activeCapacityFilters={activeCapacityFilters}
             onViewSectorDetails={handleViewSectorDetails}
-            onViewSignals={handleViewSignals}
-            onActivateActors={handleActivateActors}
-            onViewActivityLog={handleViewActivityLog}
             focusedSectorId={focusedSectorId}
             highlightedCardId={highlightedCardId}
             onSectorHover={setFocusedSectorId}

@@ -8,13 +8,14 @@ import {
 } from "@/types/activityLog";
 
 describe("CapabilityActivityLog types", () => {
-  it("SOURCE_TYPE_LABELS covers all four required source types", () => {
+  it("SOURCE_TYPE_LABELS covers all required source types", () => {
     const keys = Object.keys(SOURCE_TYPE_LABELS) as ActivitySourceType[];
     expect(keys).toContain("twitter");
     expect(keys).toContain("institutional");
     expect(keys).toContain("ngo");
     expect(keys).toContain("original_context");
-    expect(keys).toHaveLength(4);
+    expect(keys).toContain("system");
+    expect(keys).toHaveLength(5);
   });
 
   it("SOURCE_TYPE_WEIGHTS assigns expected values", () => {
