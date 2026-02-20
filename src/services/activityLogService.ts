@@ -30,10 +30,12 @@ type DeploymentRow = {
   status: string;
   updated_at: string;
   notes: string | null;
-  profiles: {
-    organization_name: string | null;
-    full_name: string | null;
-  } | null;
+};
+
+type ProfileRow = {
+  user_id: string;
+  organization_name: string | null;
+  full_name: string | null;
 };
 
 const DEPLOYMENT_STATUS_LABELS: Record<string, string> = {
@@ -44,8 +46,21 @@ const DEPLOYMENT_STATUS_LABELS: Record<string, string> = {
   finished:   "finished operations",
 };
 
-function mapDeploymentToEntry(row: DeploymentRow): CapabilityActivityLogEntry {
-  const orgName = row.profiles?.organization_name ?? row.profiles?.full_name ?? row.actor_id;
+async function fetchProfileMap(actorIds: string[]): Promise<Map<string, ProfileRow>> {
+  if (actorIds.length === 0) return new Map();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("user_id, organization_name, full_name")
+    .in("user_id", actorIds);
+  if (error) console.error("activityLogService.fetchProfileMap:", error);
+  return new Map<string, ProfileRow>(
+    (data ?? []).map((p) => [p.user_id, p as ProfileRow]),
+  );
+}
+
+function mapDeploymentToEntry(row: DeploymentRow, profileMap: Map<string, ProfileRow>): CapabilityActivityLogEntry {
+  const profile = profileMap.get(row.actor_id);
+  const orgName = profile?.organization_name ?? profile?.full_name ?? row.actor_id;
   const statusLabel = DEPLOYMENT_STATUS_LABELS[row.status] ?? row.status;
   return {
     id: `deploy-${row.id}-${row.status}`,
@@ -139,7 +154,7 @@ export const activityLogService = {
         .limit(50),
       supabase
         .from("deployments")
-        .select("id, sector_id, capacity_type_id, actor_id, status, updated_at, notes, profiles(organization_name, full_name)")
+        .select("id, sector_id, capacity_type_id, actor_id, status, updated_at, notes")
         .eq("sector_id", sectorId)
         .eq("capacity_type_id", capabilityId)
         .in("status", ["interested", "confirmed", "operating", "suspended", "finished"])
@@ -151,9 +166,13 @@ export const activityLogService = {
     if (auditsResult.error) console.error("activityLogService.getLogForNeed (need_audits):", auditsResult.error);
     if (deploymentsResult.error) console.error("activityLogService.getLogForNeed (deployments):", deploymentsResult.error);
 
+    const deploymentRows = (deploymentsResult.data ?? []) as DeploymentRow[];
+    const actorIds = [...new Set(deploymentRows.map((d) => d.actor_id))];
+    const profileMap = await fetchProfileMap(actorIds);
+
     const signalEntries = (signalsResult.data ?? []).map((s) => mapSignalToEntry(s as SignalRow));
     const statusChangeEntries = (auditsResult.data ?? []).map(mapAuditRowToLogEntry);
-    const deploymentEntries = (deploymentsResult.data ?? []).map((d) => mapDeploymentToEntry(d as DeploymentRow));
+    const deploymentEntries = deploymentRows.map((d) => mapDeploymentToEntry(d, profileMap));
 
     return [...signalEntries, ...statusChangeEntries, ...deploymentEntries]
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
@@ -180,7 +199,7 @@ export const activityLogService = {
         .limit(50),
       supabase
         .from("deployments")
-        .select("id, sector_id, capacity_type_id, actor_id, status, updated_at, notes, profiles(organization_name, full_name)")
+        .select("id, sector_id, capacity_type_id, actor_id, status, updated_at, notes")
         .eq("sector_id", sectorId)
         .in("status", ["interested", "confirmed", "operating", "suspended", "finished"])
         .order("updated_at", { ascending: false })
@@ -191,9 +210,13 @@ export const activityLogService = {
     if (auditsResult.error) console.error("activityLogService.getLogForSector (need_audits):", auditsResult.error);
     if (deploymentsResult.error) console.error("activityLogService.getLogForSector (deployments):", deploymentsResult.error);
 
+    const deploymentRows = (deploymentsResult.data ?? []) as DeploymentRow[];
+    const actorIds = [...new Set(deploymentRows.map((d) => d.actor_id))];
+    const profileMap = await fetchProfileMap(actorIds);
+
     const signalEntries = (signalsResult.data ?? []).map((s) => mapSignalToEntry(s as SignalRow));
     const statusChangeEntries = (auditsResult.data ?? []).map(mapAuditRowToLogEntry);
-    const deploymentEntries = (deploymentsResult.data ?? []).map((d) => mapDeploymentToEntry(d as DeploymentRow));
+    const deploymentEntries = deploymentRows.map((d) => mapDeploymentToEntry(d, profileMap));
 
     return [...signalEntries, ...statusChangeEntries, ...deploymentEntries]
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
