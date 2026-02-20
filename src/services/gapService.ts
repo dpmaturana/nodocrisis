@@ -207,7 +207,7 @@ export const gapService = {
       .from("deployments")
       .select("sector_id, capacity_type_id, status")
       .eq("event_id", eventId)
-      .in("status", ["confirmed", "operating"]);
+      .in("status", ["confirmed", "operating", "interested"]);
 
     // Build a lookup: "sectorId:capacityTypeId" → count of active deployments
     const deploymentCounts = buildDeploymentCountMap((deployments ?? []) as DeploymentRow[]);
@@ -418,7 +418,7 @@ export const gapService = {
         .from("deployments")
         .select("sector_id, capacity_type_id, status")
         .eq("event_id", eventId)
-        .in("status", ["confirmed", "operating"]);
+        .in("status", ["confirmed", "operating", "interested"]);
 
       const deploymentCounts = buildDeploymentCountMap((deployments ?? []) as DeploymentRow[]);
 
