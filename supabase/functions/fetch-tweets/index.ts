@@ -345,7 +345,7 @@ Deno.serve(async (req) => {
         Authorization: `Bearer ${xaiApiKey}`,
       },
       body: JSON.stringify({
-        model: "grok-3-mini",
+        model: "grok-4-0709",
         tools: [{ type: "x_search" }],
         input: `Find recent tweets about ${query} related to emergency/crisis`,
       }),
