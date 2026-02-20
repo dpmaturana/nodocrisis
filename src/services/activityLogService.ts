@@ -5,6 +5,7 @@ import type {
   ActivityEventType,
 } from "@/types/activityLog";
 import { SOURCE_TYPE_WEIGHTS } from "@/types/activityLog";
+import { supabase } from "@/integrations/supabase/client";
 
 // ─── Mock Activity Log Entries ───────────────────────────────────
 
@@ -132,29 +133,91 @@ const MOCK_ACTIVITY_LOG: CapabilityActivityLogEntry[] = [
   },
 ];
 
+// ─── Helpers ─────────────────────────────────────────────────────
+
+function mapAuditRowToLogEntry(row: {
+  id: string;
+  sector_id: string;
+  capability_id: string;
+  timestamp: string;
+  previous_status: string;
+  final_status: string;
+  reasoning_summary: string;
+  guardrails_applied: string[];
+}): CapabilityActivityLogEntry {
+  return {
+    id: row.id,
+    sector_id: row.sector_id,
+    capability_id: row.capability_id,
+    event_type: "STATUS_CHANGE",
+    timestamp: row.timestamp,
+    source_type: "system",
+    source_name: "Motor de decisión",
+    source_weight: SOURCE_TYPE_WEIGHTS.system,
+    summary: `Estado cambiado de ${row.previous_status} a ${row.final_status}`,
+    reasoning_summary: row.reasoning_summary,
+    guardrails_applied: row.guardrails_applied,
+  };
+}
+
 // ─── Service ─────────────────────────────────────────────────────
 
 export const activityLogService = {
   /**
    * Get activity log entries for a specific sector + capability pair.
+   * Merges STATUS_CHANGE entries from need_audits with mock SIGNAL_RECEIVED entries.
    */
   async getLogForNeed(
     sectorId: string,
     capabilityId: string,
   ): Promise<CapabilityActivityLogEntry[]> {
     await simulateDelay(80);
-    return MOCK_ACTIVITY_LOG
-      .filter((e) => e.sector_id === sectorId && e.capability_id === capabilityId)
+
+    const mockEntries = MOCK_ACTIVITY_LOG
+      .filter((e) => e.sector_id === sectorId && e.capability_id === capabilityId);
+
+    const { data: auditRows, error: auditError } = await supabase
+      .from("need_audits")
+      .select("id, sector_id, capability_id, timestamp, previous_status, final_status, reasoning_summary, guardrails_applied")
+      .eq("sector_id", sectorId)
+      .eq("capability_id", capabilityId)
+      .order("timestamp", { ascending: false })
+      .limit(50);
+
+    if (auditError) {
+      console.error("[activityLogService] Failed to query need_audits:", auditError);
+    }
+
+    const statusChangeEntries: CapabilityActivityLogEntry[] = (auditRows ?? []).map(mapAuditRowToLogEntry);
+
+    return [...mockEntries, ...statusChangeEntries]
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   },
 
   /**
    * Get all activity log entries for a sector (across all capabilities).
+   * Merges STATUS_CHANGE entries from need_audits with mock SIGNAL_RECEIVED entries.
    */
   async getLogForSector(sectorId: string): Promise<CapabilityActivityLogEntry[]> {
     await simulateDelay(80);
-    return MOCK_ACTIVITY_LOG
-      .filter((e) => e.sector_id === sectorId)
+
+    const mockEntries = MOCK_ACTIVITY_LOG
+      .filter((e) => e.sector_id === sectorId);
+
+    const { data: auditRows, error: auditError } = await supabase
+      .from("need_audits")
+      .select("id, sector_id, capability_id, timestamp, previous_status, final_status, reasoning_summary, guardrails_applied")
+      .eq("sector_id", sectorId)
+      .order("timestamp", { ascending: false })
+      .limit(50);
+
+    if (auditError) {
+      console.error("[activityLogService] Failed to query need_audits:", auditError);
+    }
+
+    const statusChangeEntries: CapabilityActivityLogEntry[] = (auditRows ?? []).map(mapAuditRowToLogEntry);
+
+    return [...mockEntries, ...statusChangeEntries]
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   },
 };

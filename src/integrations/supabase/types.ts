@@ -421,6 +421,100 @@ export type Database = {
         }
         Relationships: []
       }
+      need_audits: {
+        Row: {
+          id: string
+          sector_id: string
+          capability_id: string
+          event_id: string
+          timestamp: string
+          previous_status: string
+          proposed_status: string
+          final_status: string
+          llm_confidence: number
+          reasoning_summary: string
+          contradiction_detected: boolean
+          key_evidence: string[]
+          legal_transition: boolean
+          illegal_transition_reason: string | null
+          guardrails_applied: string[]
+          scores_snapshot: Json | null
+          booleans_snapshot: Json | null
+          model: string | null
+          prompt_version: string | null
+          config_snapshot: Json | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          sector_id: string
+          capability_id: string
+          event_id: string
+          timestamp: string
+          previous_status: string
+          proposed_status: string
+          final_status: string
+          llm_confidence?: number
+          reasoning_summary: string
+          contradiction_detected?: boolean
+          key_evidence?: string[]
+          legal_transition?: boolean
+          illegal_transition_reason?: string | null
+          guardrails_applied?: string[]
+          scores_snapshot?: Json | null
+          booleans_snapshot?: Json | null
+          model?: string | null
+          prompt_version?: string | null
+          config_snapshot?: Json | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          sector_id?: string
+          capability_id?: string
+          event_id?: string
+          timestamp?: string
+          previous_status?: string
+          proposed_status?: string
+          final_status?: string
+          llm_confidence?: number
+          reasoning_summary?: string
+          contradiction_detected?: boolean
+          key_evidence?: string[]
+          legal_transition?: boolean
+          illegal_transition_reason?: string | null
+          guardrails_applied?: string[]
+          scores_snapshot?: Json | null
+          booleans_snapshot?: Json | null
+          model?: string | null
+          prompt_version?: string | null
+          config_snapshot?: Json | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "need_audits_sector_id_fkey"
+            columns: ["sector_id"]
+            isOneToOne: false
+            referencedRelation: "sectors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "need_audits_capability_id_fkey"
+            columns: ["capability_id"]
+            isOneToOne: false
+            referencedRelation: "capacity_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "need_audits_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sector_needs_context: {
         Row: {
           capacity_type_id: string

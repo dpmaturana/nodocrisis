@@ -281,6 +281,9 @@ Deno.serve(async (req) => {
       );
 
       // Upsert sector_needs_context based on engine decision — NOT deriveNeedLevel
+      // TODO: Audit persistence (need_audits table inserts) is handled client-side
+      // via needSignalService.appendAudit(). This edge function does not use the
+      // NeedLevelEngine directly, so need_audits are not written from this path.
       const { error: upsertError } = await supabase
         .from("sector_needs_context")
         .upsert(
