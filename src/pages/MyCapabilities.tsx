@@ -9,6 +9,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { CapacityIcon } from "@/components/ui/CapacityIcon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -30,6 +40,9 @@ export default function MyCapabilities() {
   const [unit, setUnit] = useState("");
   const [availability, setAvailability] = useState<AvailabilityStatus>("ready");
   const [notes, setNotes] = useState("");
+
+  // Delete confirmation state
+  const [pendingDelete, setPendingDelete] = useState<CapabilityWithType | null>(null);
 
   // Profile form state (read-only in mock)
   const orgName = profile?.organization_name || "";
@@ -105,6 +118,7 @@ export default function MyCapabilities() {
     try {
       await capabilityService.delete(id);
       setCapabilities(capabilities.filter((c) => c.id !== id));
+      setPendingDelete(null);
 
       toast({
         title: "Capability deleted",
@@ -335,7 +349,7 @@ export default function MyCapabilities() {
                         variant="ghost"
                         size="icon"
                         className="text-muted-foreground hover:text-destructive"
-                        onClick={() => handleDeleteCapability(capability.id)}
+                        onClick={() => setPendingDelete(capability)}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -347,6 +361,44 @@ export default function MyCapabilities() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar capacidad?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>Estás a punto de eliminar la siguiente capacidad pre-registrada:</p>
+                {pendingDelete?.capacity_type && (
+                  <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                    <CapacityIcon
+                      name={pendingDelete.capacity_type.name}
+                      icon={pendingDelete.capacity_type.icon}
+                      showLabel
+                    />
+                    {pendingDelete.quantity && (
+                      <span className="text-sm font-mono">
+                        {pendingDelete.quantity} {pendingDelete.unit || "unidades"}
+                      </span>
+                    )}
+                  </div>
+                )}
+                <p>Esta acción no se puede deshacer.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => pendingDelete && handleDeleteCapability(pendingDelete.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
