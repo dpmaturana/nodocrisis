@@ -79,7 +79,7 @@ export function SectorDetailDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
+      <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col m-2">
         <SheetHeader className="p-6 pb-4 border-b bg-muted/30">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -88,7 +88,7 @@ export function SectorDetailDrawer({
             <div className="flex-1 min-w-0">
               <SheetTitle className="text-xl">{sectorData.canonical_name}</SheetTitle>
               <SheetDescription>{event.name}</SheetDescription>
-              <Badge variant={config.badgeVariant} className={`mt-2 ${config.textClass}`}>
+              <Badge variant={config.badgeVariant} className="mt-2">
                 {config.icon} {config.label}
               </Badge>
             </div>
@@ -137,9 +137,6 @@ export function SectorDetailDrawer({
               
               {relevantGaps.length > 0 && (
                 <div className="space-y-2 mb-4">
-                  <p className="text-xs text-muted-foreground">
-                    Compatible with your capabilities ({relevantGaps.length})
-                  </p>
                   {relevantGaps.map((gap) => {
                     const needStatus = needLevelToStatus(gap.maxLevel);
                     const presentation = NEED_STATUS_PRESENTATION[needStatus];
@@ -257,7 +254,7 @@ export function SectorDetailDrawer({
                     {recentSignals.slice(0, 3).map((signal) => (
                       <div 
                         key={signal.id}
-                        className="flex items-start gap-2 text-sm"
+                        className="flex items-start gap-2 text-sm overflow-hidden"
                       >
                         {signal.signal_type === "field_report" ? (
                           <FileText className="w-4 h-4 text-primary shrink-0 mt-0.5" />
@@ -265,7 +262,7 @@ export function SectorDetailDrawer({
                           <MessageSquare className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm truncate">{signal.content}</p>
+                          <p className="text-sm break-words line-clamp-2">{signal.content}</p>
                           <p className="text-xs text-muted-foreground">
                             {formatDistanceToNow(new Date(signal.created_at), { 
                               addSuffix: true
