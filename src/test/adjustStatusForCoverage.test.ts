@@ -79,4 +79,48 @@ describe("adjustStatusForCoverage", () => {
       expect(one.needStatus).toBe("ORANGE");
     });
   });
+
+  describe("with interested-only deployments (NGO says 'I am coming')", () => {
+    it("downgrades critical from RED to YELLOW when NGO is interested", () => {
+      const result = adjustStatusForCoverage("critical", 0, 1);
+      expect(result.state).toBe("partial");
+      expect(result.needStatus).toBe("YELLOW");
+    });
+
+    it("downgrades high from RED to YELLOW when NGO is interested", () => {
+      const result = adjustStatusForCoverage("high", 0, 1);
+      expect(result.state).toBe("partial");
+      expect(result.needStatus).toBe("YELLOW");
+    });
+
+    it("downgrades medium to YELLOW when NGO is interested", () => {
+      const result = adjustStatusForCoverage("medium", 0, 2);
+      expect(result.state).toBe("partial");
+      expect(result.needStatus).toBe("YELLOW");
+    });
+
+    it("keeps low level at GREEN when NGO is interested", () => {
+      const result = adjustStatusForCoverage("low", 0, 1);
+      expect(result.state).toBe("active");
+      expect(result.needStatus).toBe("GREEN");
+    });
+
+    it("keeps unknown level at WHITE even with interested deployments", () => {
+      const result = adjustStatusForCoverage("unknown", 0, 1);
+      expect(result.state).toBe("evaluating");
+      expect(result.needStatus).toBe("WHITE");
+    });
+  });
+
+  describe("active deployments take priority over interested", () => {
+    it("prefers ORANGE over YELLOW when both active and interested exist for critical", () => {
+      const result = adjustStatusForCoverage("critical", 1, 2);
+      expect(result.needStatus).toBe("ORANGE");
+    });
+
+    it("prefers YELLOW (active) for medium even with interested", () => {
+      const result = adjustStatusForCoverage("medium", 1, 3);
+      expect(result.needStatus).toBe("YELLOW");
+    });
+  });
 });

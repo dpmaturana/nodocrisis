@@ -213,6 +213,10 @@ export const needSignalService = {
     let signalType: SignalType;
 
     switch (params.deploymentStatus) {
+      case "interested":
+        content = `Deployment ${actor} interested – cobertura en validación`;
+        signalType = "actor_report";
+        break;
       case "operating":
         content = `Deployment ${actor} operating – coverage activity confirmed`;
         signalType = "actor_report";

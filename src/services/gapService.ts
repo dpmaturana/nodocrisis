@@ -116,7 +116,7 @@ function mapNeedLevelToGapState(level: string): GapState {
 /** Minimal shape returned by the deployments query used for coverage counting. */
 type DeploymentRow = { sector_id: string; capacity_type_id: string };
 
-/** Build a lookup map of "sectorId:capacityTypeId" → active deployment count. */
+/** Build a lookup map of "sectorId:capacityTypeId" → deployment count. */
 function buildDeploymentCountMap(rows: DeploymentRow[]): Map<string, number> {
   const map = new Map<string, number>();
   rows.forEach((d) => {
@@ -129,24 +129,40 @@ function buildDeploymentCountMap(rows: DeploymentRow[]): Map<string, number> {
 export function adjustStatusForCoverage(
   level: string,
   activeDeploymentCount: number,
+  interestedDeploymentCount: number = 0,
 ): { state: GapState; needStatus: NeedStatus } {
   const baseState = mapNeedLevelToGapState(level);
   const baseStatus = mapGapStateToNeedStatus(baseState);
 
-  if (activeDeploymentCount <= 0) {
-    return { state: baseState, needStatus: baseStatus };
+  // Confirmed/operating deployments provide stronger coverage signal
+  if (activeDeploymentCount > 0) {
+    switch (level) {
+      case "critical":
+      case "high":
+        return { state: "partial" as GapState, needStatus: "ORANGE" as NeedStatus };
+      case "medium":
+        return { state: "partial" as GapState, needStatus: "YELLOW" as NeedStatus };
+      case "low":
+      default:
+        return { state: baseState, needStatus: baseStatus };
+    }
   }
 
-  switch (level) {
-    case "critical":
-    case "high":
-      return { state: "partial" as GapState, needStatus: "ORANGE" as NeedStatus };
-    case "medium":
-      return { state: "partial" as GapState, needStatus: "YELLOW" as NeedStatus };
-    case "low":
-    default:
-      return { state: baseState, needStatus: baseStatus };
+  // Interested-only deployments: coverage is being validated (RED → YELLOW)
+  if (interestedDeploymentCount > 0) {
+    switch (level) {
+      case "critical":
+      case "high":
+        return { state: "partial" as GapState, needStatus: "YELLOW" as NeedStatus };
+      case "medium":
+        return { state: "partial" as GapState, needStatus: "YELLOW" as NeedStatus };
+      case "low":
+      default:
+        return { state: baseState, needStatus: baseStatus };
+    }
   }
+
+  return { state: baseState, needStatus: baseStatus };
 }
 
 export const gapService = {
@@ -202,15 +218,19 @@ export const gapService = {
       .select("*, capacity_types(*)")
       .eq("event_id", eventId);
 
-    // Fetch active deployments (confirmed / operating) for coverage adjustment
+    // Fetch deployments (interested / confirmed / operating) for coverage adjustment
     const { data: deployments } = await supabase
       .from("deployments")
       .select("sector_id, capacity_type_id, status")
       .eq("event_id", eventId)
-      .in("status", ["confirmed", "operating"]);
+      .in("status", ["interested", "confirmed", "operating"]);
 
-    // Build a lookup: "sectorId:capacityTypeId" → count of active deployments
-    const deploymentCounts = buildDeploymentCountMap((deployments ?? []) as DeploymentRow[]);
+    const allDeps = (deployments ?? []) as (DeploymentRow & { status: string })[];
+    // Build separate lookups: active (confirmed/operating) vs interested-only
+    const activeDeps = allDeps.filter((d) => d.status === "confirmed" || d.status === "operating");
+    const interestedDeps = allDeps.filter((d) => d.status === "interested");
+    const deploymentCounts = buildDeploymentCountMap(activeDeps);
+    const interestedCounts = buildDeploymentCountMap(interestedDeps);
 
     // Type for the joined query result (Supabase joins append the relation as a nested object)
     type NeedWithCapType = NonNullable<typeof needs>[number] & {
@@ -238,8 +258,10 @@ export const gapService = {
       if (!sector || !sectorNeeds) continue;
 
       const gapsWithDetails: GapWithDetails[] = sectorNeeds.map((need) => {
-        const activeCount = deploymentCounts.get(`${need.sector_id}:${need.capacity_type_id}`) ?? 0;
-        const { state, needStatus } = adjustStatusForCoverage(need.level, activeCount);
+        const key = `${need.sector_id}:${need.capacity_type_id}`;
+        const activeCount = deploymentCounts.get(key) ?? 0;
+        const interestedCount = interestedCounts.get(key) ?? 0;
+        const { state, needStatus } = adjustStatusForCoverage(need.level, activeCount, interestedCount);
         return {
           id: need.id,
           event_id: need.event_id,
@@ -413,22 +435,28 @@ export const gapService = {
       .eq("event_id", eventId);
 
     if (needs && needs.length > 0) {
-      // Fetch active deployments for coverage adjustment
+      // Fetch deployments for coverage adjustment (interested + confirmed + operating)
       const { data: deployments } = await supabase
         .from("deployments")
         .select("sector_id, capacity_type_id, status")
         .eq("event_id", eventId)
-        .in("status", ["confirmed", "operating"]);
+        .in("status", ["interested", "confirmed", "operating"]);
 
-      const deploymentCounts = buildDeploymentCountMap((deployments ?? []) as DeploymentRow[]);
+      const allDeps = (deployments ?? []) as (DeploymentRow & { status: string })[];
+      const activeDeps = allDeps.filter((d) => d.status === "confirmed" || d.status === "operating");
+      const interestedDeps = allDeps.filter((d) => d.status === "interested");
+      const deploymentCounts = buildDeploymentCountMap(activeDeps);
+      const interestedCounts = buildDeploymentCountMap(interestedDeps);
 
       let critical = 0;
       let partial = 0;
       let active = 0;
 
       for (const n of needs) {
-        const count = deploymentCounts.get(`${n.sector_id}:${n.capacity_type_id}`) ?? 0;
-        const { needStatus } = adjustStatusForCoverage(n.level, count);
+        const key = `${n.sector_id}:${n.capacity_type_id}`;
+        const count = deploymentCounts.get(key) ?? 0;
+        const interested = interestedCounts.get(key) ?? 0;
+        const { needStatus } = adjustStatusForCoverage(n.level, count, interested);
         switch (needStatus) {
           case "RED":
             critical++;

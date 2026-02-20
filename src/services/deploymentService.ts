@@ -191,6 +191,15 @@ export const deploymentService = {
       .single();
 
     if (error) throw error;
+
+    // Notify the need signal service so the dashboard reflects the new interest
+    needSignalService.onDeploymentStatusChange({
+      eventId,
+      sectorId,
+      capabilityId: capacityTypeId,
+      deploymentStatus: "interested",
+    }).catch((e) => { console.warn('Need re-evaluation failed for enrollment', data.id, e); });
+
     return data;
   },
 
