@@ -5,35 +5,36 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const EXTRACTION_PROMPT = `Eres un asistente de análisis para reportes de campo de ayuda humanitaria.
-Tu tarea es extraer información estructurada de la nota escrita de un operador en terreno.
+const EXTRACTION_PROMPT = `You are a humanitarian field report analysis assistant.
+Your task is to extract structured information from an operator's written field note.
 
-Extrae la siguiente información y devuelve SOLO un objeto JSON válido:
+Extract the following information and return ONLY a valid JSON object:
 
 {
-  "sector_mentioned": string | null,  // Nombre del sector/zona mencionado
-  "capability_types": string[],        // Tipos de capacidad detectados. Usa EXACTAMENTE estos nombres del sistema: {{CAPABILITY_LIST}}
+  "sector_mentioned": string | null,  // Name of the sector/zone mentioned
+  "capability_types": string[],        // Detected capability types. Use EXACTLY these system names: {{CAPABILITY_LIST}}
   "items": [
     {
-      "name": string,                  // Nombre del item/recurso
-      "quantity": number | null,       // Cantidad si se menciona
-      "unit": string,                  // Unidad (personas, litros, kg, unidades, etc.)
-      "state": "disponible" | "necesario" | "en_camino" | "agotado",
-      "urgency": "baja" | "media" | "alta" | "crítica"
+      "name": string,                  // Item/resource name
+      "quantity": number | null,       // Quantity if mentioned
+      "unit": string,                  // Unit (people, liters, kg, units, etc.)
+      "state": "available" | "needed" | "in_transit" | "depleted",
+      "urgency": "low" | "medium" | "high" | "critical"
     }
   ],
-  "location_detail": string | null,   // Detalles específicos de ubicación
-  "observations": string | null,       // Resumen público de 1-2 oraciones (máx 200 caracteres) que otros actores verán
-  "evidence_quotes": string[],         // Frases textuales relevantes del reporte
-  "confidence": number                 // 0.0-1.0 qué tan seguro estás de la extracción
+  "location_detail": string | null,   // Specific location details
+  "observations": string | null,       // Public 1-2 sentence summary (max 200 chars) in English that other actors will see
+  "evidence_quotes": string[],         // Relevant verbatim quotes from the report
+  "confidence": number                 // 0.0-1.0 how confident you are in the extraction
 }
 
-IMPORTANTE:
-- Si no se menciona algo, usa null o array vacío
-- "observations" debe ser un resumen útil para otros actores en terreno
-- Sé conservador con urgency: solo "crítica" si hay peligro de vida inmediato
-- Identifica capacity_types incluso si no se mencionan items específicos
-- Usa SOLO los nombres exactos de la lista proporcionada para capability_types`;
+IMPORTANT:
+- If something is not mentioned, use null or empty array
+- "observations" must be a useful summary in English for other field actors
+- Be conservative with urgency: only "critical" if there is immediate danger to life
+- Identify capability_types even if no specific items are mentioned
+- Use ONLY the exact names from the provided list for capability_types
+- ALL output text must be in English, regardless of input language`;
 
 interface ExtractedData {
   sector_mentioned: string | null;
@@ -124,7 +125,7 @@ Deno.serve(async (req) => {
       .select("id, name");
     const capList = capTypes && capTypes.length > 0
       ? capTypes.map((c: { id: string; name: string }) => `"${c.name}"`).join(", ")
-      : '"agua","alimentos","albergue","salud","comunicaciones","rescate","logistica","energia"';
+      : '"water","food","shelter","health","communications","rescue","logistics","energy"';
 
     // Inject dynamic capability list into prompt
     const finalExtractionPrompt = EXTRACTION_PROMPT.replace("{{CAPABILITY_LIST}}", capList);
@@ -139,7 +140,7 @@ Deno.serve(async (req) => {
         model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: finalExtractionPrompt },
-          { role: "user", content: `Nota escrita del operador:\n\n"${text_note}"` },
+          { role: "user", content: `Operator field note:\n\n"${text_note}"` },
         ],
         temperature: 0.2,
         max_tokens: 1000,

@@ -179,12 +179,12 @@ export const eventService = {
           event_id: params.eventId,
           sector_id: params.sectorId,
           capacity_type_id: params.capacityTypeId,
-          level: params.level,
+          level: params.level as "low" | "medium" | "high" | "critical",
           source: params.source,
           notes: params.notes || null,
           created_by: null,
           expires_at: null,
-        },
+        } as any,
         { onConflict: "event_id,sector_id,capacity_type_id" },
       );
     if (error) throw new Error(error.message);

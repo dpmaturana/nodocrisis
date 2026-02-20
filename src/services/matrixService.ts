@@ -35,7 +35,7 @@ export const matrixService = {
           notes: null,
           created_by: null,
           expires_at: null,
-        },
+        } as any,
         { onConflict: "event_id,sector_id,capacity_type_id" },
       );
     if (error) throw new Error(error.message);

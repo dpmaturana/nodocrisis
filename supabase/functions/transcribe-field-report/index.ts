@@ -6,26 +6,26 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const EXTRACTION_PROMPT = `Eres un asistente de emergencias que analiza reportes de campo (pueden incluir nota escrita y/o transcripción de audio).
+const EXTRACTION_PROMPT = `You are an emergency analysis assistant that processes field reports (may include written notes and/or audio transcription).
 
-Extrae la siguiente información estructurada combinando TODAS las fuentes de información:
+Extract the following structured information by combining ALL sources of information:
 
-1. sector_mentioned: Nombre del sector o ubicación mencionada (string o null)
-2. capability_types: Array de tipos de capacidad detectados. Usa EXACTAMENTE estos nombres del sistema: {{CAPABILITY_LIST}}
-3. items: Array de objetos con:
-   - name: nombre del item/recurso
-   - quantity: cantidad mencionada (number o null)
-   - unit: unidad (ej: "litros", "personas", "unidades")
-   - state: estado actual ("disponible", "necesario", "en_camino", "agotado")
-   - urgency: nivel de urgencia ("baja", "media", "alta", "crítica")
-4. location_detail: Descripción más específica de la ubicación dentro del sector
-5. observations: Resumen breve (1-2 oraciones) de la situación que será visible para otros actores. DEBE capturar la esencia del reporte de forma clara y accionable, combinando la información de la nota escrita y la transcripción.
-6. evidence_quotes: Array de citas textuales relevantes
-7. confidence: Nivel de confianza en la extracción (0.0 a 1.0)
+1. sector_mentioned: Name of the sector or location mentioned (string or null)
+2. capability_types: Array of detected capability types. Use EXACTLY these system names: {{CAPABILITY_LIST}}
+3. items: Array of objects with:
+   - name: item/resource name
+   - quantity: mentioned quantity (number or null)
+   - unit: unit (e.g., "liters", "people", "units")
+   - state: current state ("available", "needed", "in_transit", "depleted")
+   - urgency: urgency level ("low", "medium", "high", "critical")
+4. location_detail: More specific location description within the sector
+5. observations: Brief summary (1-2 sentences) in English of the situation that will be visible to other actors. MUST capture the essence of the report clearly and actionably, combining information from written notes and transcription.
+6. evidence_quotes: Array of relevant verbatim quotes
+7. confidence: Confidence level in the extraction (0.0 to 1.0)
 
-IMPORTANTE: Analiza TANTO la nota escrita como la transcripción de audio. Extrae capability_types de AMBAS fuentes. Usa SOLO los nombres exactos de la lista proporcionada.
+IMPORTANT: Analyze BOTH the written note and the audio transcription. Extract capability_types from BOTH sources. Use ONLY the exact names from the provided list. ALL output text must be in English, regardless of input language.
 
-Responde SOLO con JSON válido, sin markdown ni explicaciones.`;
+Respond ONLY with valid JSON, no markdown or explanations.`;
 
 interface ExtractedData {
   sector_mentioned: string | null;
@@ -189,7 +189,7 @@ serve(async (req) => {
       .select('id, name');
     const capList = capTypes && capTypes.length > 0
       ? capTypes.map((c: { id: string; name: string }) => `"${c.name}"`).join(', ')
-      : '"agua","alimentos","albergue","salud","comunicaciones","rescate","logistica","energia"';
+      : '"water","food","shelter","health","communications","rescue","logistics","energy"';
 
     // Inject dynamic capability list into prompt
     const finalExtractionPrompt = EXTRACTION_PROMPT.replace('{{CAPABILITY_LIST}}', capList);
@@ -197,8 +197,8 @@ serve(async (req) => {
     // Combine text_note and transcript for LLM analysis
     const textNote = report.text_note || '';
     const combinedInput = [
-      textNote ? `Nota escrita del operador: "${textNote}"` : null,
-      transcript ? `Transcripción de audio: "${transcript}"` : null,
+      textNote ? `Operator written note: "${textNote}"` : null,
+      transcript ? `Audio transcription: "${transcript}"` : null,
     ].filter(Boolean).join('\n\n');
 
     console.log('Calling LLM for extraction with combined input...');
@@ -215,7 +215,7 @@ serve(async (req) => {
         model: 'google/gemini-2.5-flash',
         messages: [
           { role: 'system', content: finalExtractionPrompt },
-          { role: 'user', content: `Reporte de campo:\n\n${combinedInput}` }
+          { role: 'user', content: `Field report:\n\n${combinedInput}` }
         ],
         temperature: 0.2,
       }),

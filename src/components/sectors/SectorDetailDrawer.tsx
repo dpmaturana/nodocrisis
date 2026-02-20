@@ -100,20 +100,6 @@ export function SectorDetailDrawer({
                 Sector Context
               </h3>
               <div className="space-y-3">
-                {context.accessInfo && (
-                  <div className="flex items-start gap-2 text-sm">
-                    <span className="font-medium text-muted-foreground w-20 shrink-0">Access:</span>
-                    <span>{context.accessInfo}</span>
-                  </div>
-                )}
-                {context.isolationLevel && context.isolationLevel !== "none" && (
-                  <div className="flex items-start gap-2 text-sm">
-                    <span className="font-medium text-muted-foreground w-20 shrink-0">Isolation:</span>
-                    <span className={context.isolationLevel === "total" ? "text-gap-critical font-medium" : ""}>
-                      {context.isolationLevel === "partial" ? "Partial" : "Total"}
-                    </span>
-                  </div>
-                )}
                 <p className="text-sm text-muted-foreground mt-2">
                   {context.extendedContext}
                 </p>
@@ -232,23 +218,7 @@ export function SectorDetailDrawer({
               )}
             </section>
 
-            {/* Estimated Magnitude */}
-            {context.estimatedAffected && (
-              <>
-                <Separator />
-                <section>
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                    Estimated Magnitude
-                  </h3>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Info className="w-4 h-4 text-muted-foreground" />
-                    <span>
-                      People affected: {context.estimatedAffected} (estimated)
-                    </span>
-                  </div>
-                </section>
-              </>
-            )}
+            {/* Estimated Magnitude - placeholder for future use */}
 
             {/* Recent Signals */}
             {recentSignals.length > 0 && (

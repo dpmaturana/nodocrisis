@@ -43,6 +43,7 @@ export const tweetSignalService = {
       id: `tweet-signal-${idx}`,
       event_id: params.eventId,
       sector_id: params.sectorId,
+      capacity_type_id: params.capabilityId,
       signal_type: "social" as const,
       level: "sector" as const,
       content: input.text,

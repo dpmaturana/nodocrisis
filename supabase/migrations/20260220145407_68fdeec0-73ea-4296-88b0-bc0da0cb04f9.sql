@@ -1,0 +1,1 @@
+ALTER TABLE public.signals ADD COLUMN capacity_type_id uuid REFERENCES public.capacity_types(id);
