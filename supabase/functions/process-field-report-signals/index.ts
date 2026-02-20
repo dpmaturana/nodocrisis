@@ -32,7 +32,7 @@ const SOURCE_WEIGHT = 1.0;
 // Thresholds (mirror defaultNeedEngineConfig in needLevelEngine.ts)
 const THRESHOLDS = {
   demandEscalation: 1,
-  insufficiencyEscalation: 0.9,
+  insufficiencyEscalation: 0.75,
   stabilizationDowngrade: 1.8,
   fragilityReactivation: 0.9,
   coverageActivation: 0.9,

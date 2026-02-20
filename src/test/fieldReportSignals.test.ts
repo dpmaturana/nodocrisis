@@ -247,7 +247,7 @@ describe("engine path replaces deriveNeedLevel for sector_needs_context", () => 
     expect(results.length).toBe(1);
     expect(results[0].needState).not.toBeNull();
     // Two high-confidence insufficiency signals (1.0 each, NGO weight 1.0)
-    // sum to 2.0, exceeding insufficiencyEscalation threshold of 0.9,
+    // sum to 2.0, exceeding insufficiencyEscalation threshold of 0.75,
     // and no coverage signals → engine proposes RED → 'critical'.
     expect(results[0].needLevel).toBe("critical");
   });
