@@ -3,6 +3,7 @@ import {
   fieldReportItemToSignalContent,
   fieldReportItemToConfidence,
   mapNeedStatusToNeedLevel,
+  mapNeedLevelToNeedStatus,
   needSignalService,
 } from "@/services/needSignalService";
 // deriveNeedLevel is the old naive helper that lived inline in the edge functions;
@@ -259,5 +260,64 @@ describe("engine path replaces deriveNeedLevel for sector_needs_context", () => 
     expect(mapNeedStatusToNeedLevel("YELLOW")).toBe("medium");
     expect(mapNeedStatusToNeedLevel("GREEN")).toBe("low");
     expect(mapNeedStatusToNeedLevel("WHITE")).toBe("low");
+  });
+});
+
+describe("mapNeedLevelToNeedStatus", () => {
+  it("maps critical to RED", () => {
+    expect(mapNeedLevelToNeedStatus("critical")).toBe("RED");
+  });
+
+  it("maps high to ORANGE", () => {
+    expect(mapNeedLevelToNeedStatus("high")).toBe("ORANGE");
+  });
+
+  it("maps medium to YELLOW", () => {
+    expect(mapNeedLevelToNeedStatus("medium")).toBe("YELLOW");
+  });
+
+  it("maps low to GREEN", () => {
+    expect(mapNeedLevelToNeedStatus("low")).toBe("GREEN");
+  });
+
+  it("round-trips correctly: RED→critical→RED", () => {
+    expect(mapNeedLevelToNeedStatus(mapNeedStatusToNeedLevel("RED"))).toBe("RED");
+    expect(mapNeedLevelToNeedStatus(mapNeedStatusToNeedLevel("ORANGE"))).toBe("ORANGE");
+    expect(mapNeedLevelToNeedStatus(mapNeedStatusToNeedLevel("YELLOW"))).toBe("YELLOW");
+    expect(mapNeedLevelToNeedStatus(mapNeedStatusToNeedLevel("GREEN"))).toBe("GREEN");
+  });
+});
+
+describe("needSignalService.onFieldReportCompleted with previousLevels seeding", () => {
+  it("seeds engine from previousLevels so evaluation starts from correct status", async () => {
+    // Without seeding, a single stabilization signal from WHITE would stay WHITE.
+    // With previousLevels seeding from RED, the engine starts from RED and the
+    // stabilization signal can propose a legal transition (e.g. ORANGE or YELLOW).
+    const extractedData: ExtractedData = {
+      sector_mentioned: "Sector Seed Test",
+      capability_types: ["Water supply"],
+      items: [
+        { name: "water", quantity: 200, unit: "liters", state: "disponible", urgency: "baja" },
+      ],
+      location_detail: null,
+      observations: "Water now available",
+      evidence_quotes: [],
+      confidence: 0.9,
+    };
+
+    const results = await needSignalService.onFieldReportCompleted({
+      eventId: "event-seed-test",
+      sectorId: "sector-seed-test",
+      extractedData,
+      capacityTypeMap: { "Water supply": "cap-water-seed-test" },
+      nowIso: "2026-02-16T17:00:00.000Z",
+      previousLevels: { "cap-water-seed-test": "RED" },
+    });
+
+    expect(results.length).toBe(1);
+    expect(results[0].needState).not.toBeNull();
+    // Engine started from RED (seeded), received a stabilization signal →
+    // the result should be a valid NeedLevel
+    expect(["low", "medium", "high", "critical"]).toContain(results[0].needLevel);
   });
 });

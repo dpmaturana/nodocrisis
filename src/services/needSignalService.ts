@@ -14,6 +14,7 @@ import {
 } from "@/lib/needLevelEngine";
 import type { DeploymentStatus, NeedLevel, Signal, SignalType } from "@/types/database";
 import type { NeedStatus } from "@/lib/needStatus";
+
 import type { ExtractedItem, ExtractedData } from "@/types/fieldReport";
 import type { CapabilityActivityLogEntry } from "@/types/activityLog";
 import { SOURCE_TYPE_WEIGHTS } from "@/types/activityLog";
@@ -61,6 +62,12 @@ class InMemoryNeedsRepository implements NeedsRepository {
   }
 
   async upsertNeedState(state: NeedState): Promise<void> {
+    this.needStates.set(`${state.sector_id}:${state.capability_id}`, state);
+  }
+
+  // Synchronous variant used to pre-seed the engine with the current DB state
+  // before evaluation, ensuring it starts from the correct previous status.
+  seedNeedState(state: NeedState): void {
     this.needStates.set(`${state.sector_id}:${state.capability_id}`, state);
   }
 
@@ -144,6 +151,8 @@ class RuleBasedNeedEvaluator implements NeedEvaluatorModel {
       proposed_status = "ORANGE";
     } else if (stabilizationStrong && !fragilityAlert && !demandStrong && !insuffStrong) {
       proposed_status = "GREEN";
+    } else if (input.scores.stabilization_score > 0 && !demandStrong && !insuffStrong) {
+      proposed_status = "YELLOW";
     } else if (coverageActive) {
       proposed_status = "YELLOW";
     } else {
@@ -243,6 +252,21 @@ export function mapNeedStatusToNeedLevel(status: NeedStatus): NeedLevel {
   }
 }
 
+/**
+ * Map a NeedLevel from sector_needs_context back to a NeedStatus for engine seeding.
+ * Defaults to WHITE (monitoring) for any unrecognised value, which is the
+ * safest starting state when seeding from an unexpected DB value.
+ */
+export function mapNeedLevelToNeedStatus(level: NeedLevel): NeedStatus {
+  switch (level) {
+    case 'critical': return 'RED';
+    case 'high': return 'ORANGE';
+    case 'medium': return 'YELLOW';
+    case 'low': return 'GREEN';
+    default: return 'WHITE';
+  }
+}
+
 const repository = new InMemoryNeedsRepository();
 const extractor = new LegacySignalExtractor();
 const evaluator = new RuleBasedNeedEvaluator();
@@ -255,8 +279,30 @@ export const needSignalService = {
     capabilityId: string;
     signals: Signal[];
     nowIso?: string;
+    previousStatus?: NeedStatus;
   }): Promise<NeedState | null> {
     const nowIso = params.nowIso ?? new Date().toISOString();
+
+    // Seed the in-memory repository with the current DB state so the engine
+    // starts from the correct previous status rather than always WHITE.
+    if (params.previousStatus) {
+      repository.seedNeedState({
+        sector_id: params.sectorId,
+        capability_id: params.capabilityId,
+        current_status: params.previousStatus,
+        demand_score: 0,
+        insufficiency_score: 0,
+        stabilization_score: 0,
+        fragility_score: 0,
+        coverage_score: 0,
+        stabilization_consecutive_windows: 0,
+        last_window_id: null,
+        operational_requirements: [],
+        fragility_notes: [],
+        last_updated_at: nowIso,
+        last_status_change_at: null,
+      });
+    }
 
     for (const signal of params.signals) {
       await engine.processRawInput({
@@ -289,6 +335,7 @@ export const needSignalService = {
     deploymentStatus: DeploymentStatus;
     actorName?: string;
     nowIso?: string;
+    previousStatus?: NeedStatus;
   }): Promise<NeedState | null> {
     const effectiveNowIso = params.nowIso ?? new Date().toISOString();
     const actor = params.actorName ?? "actor";
@@ -336,6 +383,7 @@ export const needSignalService = {
       capabilityId: params.capabilityId,
       signals: [signal],
       nowIso: effectiveNowIso,
+      previousStatus: params.previousStatus,
     });
   },
 
@@ -350,6 +398,7 @@ export const needSignalService = {
     extractedData: ExtractedData;
     capacityTypeMap: Record<string, string>; // capability name → capacity_type_id
     nowIso?: string;
+    previousLevels?: Record<string, NeedStatus>; // capacity_type_id → current NeedStatus from DB
   }): Promise<Array<{ capabilityId: string; needLevel: NeedLevel; needState: NeedState | null }>> {
     const effectiveNow = params.nowIso ?? new Date().toISOString();
     const results: Array<{ capabilityId: string; needLevel: NeedLevel; needState: NeedState | null }> = [];
@@ -399,6 +448,7 @@ export const needSignalService = {
         capabilityId: capId,
         signals,
         nowIso: effectiveNow,
+        previousStatus: params.previousLevels?.[capId],
       });
 
       const needLevel = needState ? mapNeedStatusToNeedLevel(needState.current_status) : 'medium';
