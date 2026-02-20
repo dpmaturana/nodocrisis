@@ -3,9 +3,11 @@ import {
   fieldReportItemToSignalContent,
   fieldReportItemToConfidence,
   mapNeedStatusToNeedLevel,
+  mapNeedLevelToNeedStatus,
   needSignalService,
 } from "@/services/needSignalService";
 import type { ExtractedItem, ExtractedData } from "@/types/fieldReport";
+import type { SignalType } from "@/types/database";
 
 describe("fieldReportItemToSignalContent", () => {
   it("maps 'disponible' state to stabilization keywords", () => {
@@ -245,5 +247,122 @@ describe("needSignalService integration: ORANGE need + positive signal", () => {
     expect(needLevel).toBe("high");
     // "high" should NOT be treated as "critical" in the gap service
     // This is validated by adjustStatusForCoverage tests
+  });
+});
+
+describe("mapNeedLevelToNeedStatus", () => {
+  it("maps critical → RED", () => expect(mapNeedLevelToNeedStatus("critical")).toBe("RED"));
+  it("maps high → ORANGE", () => expect(mapNeedLevelToNeedStatus("high")).toBe("ORANGE"));
+  it("maps medium → YELLOW", () => expect(mapNeedLevelToNeedStatus("medium")).toBe("YELLOW"));
+  it("maps low → GREEN", () => expect(mapNeedLevelToNeedStatus("low")).toBe("GREEN"));
+
+  it("is the inverse of mapNeedStatusToNeedLevel for RED/ORANGE/YELLOW/GREEN", () => {
+    expect(mapNeedLevelToNeedStatus(mapNeedStatusToNeedLevel("RED"))).toBe("RED");
+    expect(mapNeedLevelToNeedStatus(mapNeedStatusToNeedLevel("ORANGE"))).toBe("ORANGE");
+    expect(mapNeedLevelToNeedStatus(mapNeedStatusToNeedLevel("YELLOW"))).toBe("YELLOW");
+    expect(mapNeedLevelToNeedStatus(mapNeedStatusToNeedLevel("GREEN"))).toBe("GREEN");
+  });
+});
+
+describe("needSignalService.seedNeedState", () => {
+  it("seeds the engine so it starts from DB state instead of WHITE", async () => {
+    const sectorId = "seed-test-sec";
+    const capId = "seed-test-cap";
+    const eventId = "seed-test-evt";
+    const nowIso = "2026-02-16T15:00:00.000Z";
+
+    // Seed with "critical" (RED) — simulating existing DB state
+    await needSignalService.seedNeedState({
+      sectorId,
+      capabilityId: capId,
+      currentLevel: "critical",
+      nowIso,
+    });
+
+    // Now send a single positive signal (stabilization)
+    const state = await needSignalService.evaluateGapNeed({
+      eventId,
+      sectorId,
+      capabilityId: capId,
+      signals: [{
+        id: "seed-sig-1",
+        event_id: eventId,
+        sector_id: sectorId,
+        capacity_type_id: capId,
+        signal_type: "field_report" as SignalType,
+        level: "sector",
+        content: "recurso disponible, operando estable",
+        source: "ngo",
+        confidence: 0.8,
+        created_at: nowIso,
+      }],
+      nowIso,
+    });
+
+    expect(state).not.toBeNull();
+    // Engine should NOT be at WHITE — it was seeded with RED, and a single
+    // stabilization signal alone cannot jump all the way down to WHITE.
+    // With RED as the starting point, allowed transitions are [YELLOW, ORANGE].
+    // A single stabilization signal should move toward YELLOW or ORANGE, not WHITE.
+    expect(state!.current_status).not.toBe("WHITE");
+  });
+
+  it("does not overwrite existing in-memory state", async () => {
+    const sectorId = "seed-noop-sec";
+    const capId = "seed-noop-cap";
+    const eventId = "seed-noop-evt";
+    const nowIso = "2026-02-16T15:30:00.000Z";
+
+    // First, process a signal to create in-memory state
+    await needSignalService.evaluateGapNeed({
+      eventId,
+      sectorId,
+      capabilityId: capId,
+      signals: [{
+        id: "seed-noop-sig-1",
+        event_id: eventId,
+        sector_id: sectorId,
+        capacity_type_id: capId,
+        signal_type: "field_report" as SignalType,
+        level: "sector",
+        content: "recurso necesario, no alcanza, insuficiente",
+        source: "ngo",
+        confidence: 1.0,
+        created_at: nowIso,
+      }],
+      nowIso,
+    });
+
+    // Now try to seed with "low" (GREEN) — should be ignored since state exists
+    await needSignalService.seedNeedState({
+      sectorId,
+      capabilityId: capId,
+      currentLevel: "low",
+      nowIso,
+    });
+
+    // Send another signal to see the current state
+    const state = await needSignalService.evaluateGapNeed({
+      eventId,
+      sectorId,
+      capabilityId: capId,
+      signals: [{
+        id: "seed-noop-sig-2",
+        event_id: eventId,
+        sector_id: sectorId,
+        capacity_type_id: capId,
+        signal_type: "field_report" as SignalType,
+        level: "sector",
+        content: "recurso necesario, insuficiente",
+        source: "ngo",
+        confidence: 1.0,
+        created_at: "2026-02-16T15:31:00.000Z",
+      }],
+      nowIso: "2026-02-16T15:31:00.000Z",
+    });
+
+    // State should be RED (from accumulated insufficiency), not GREEN from seed
+    expect(state).not.toBeNull();
+    expect(state!.current_status).toBe("RED");
   });
 });

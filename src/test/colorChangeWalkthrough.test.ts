@@ -22,6 +22,8 @@
  *     e.g. { name: "medical care", state: "disponible", urgency: "baja" }
  *     ↓
  *   fieldReportService.processCompletedReport()          [fieldReportService.ts]
+ *     ↓  reads current sector_needs_context levels from DB
+ *     ↓  calls needSignalService.seedNeedState() to prime the engine
  *     ↓
  *   needSignalService.onFieldReportCompleted()            [needSignalService.ts]
  *     ↓  fieldReportItemToSignalContent("disponible") → "operando estable"
@@ -79,6 +81,7 @@ import {
   fieldReportItemToSignalContent,
   fieldReportItemToConfidence,
   mapNeedStatusToNeedLevel,
+  mapNeedLevelToNeedStatus,
   needSignalService,
 } from "@/services/needSignalService";
 import { adjustStatusForCoverage } from "@/services/gapService";
@@ -303,5 +306,48 @@ describe("Bug report: positive signal to ORANGE emergency medical care", () => {
     const dbLevel = mapNeedStatusToNeedLevel(afterPositive!.current_status);
     const { needStatus: display } = adjustStatusForCoverage(dbLevel, 0);
     expect(display).not.toBe("RED");
+  });
+});
+
+// ─── Engine seeding from DB ────────────────────────────────────────────────
+
+describe("Engine seeding: starts from DB state, not WHITE", () => {
+  it("engine seeded with RED does not drop to WHITE on a single stabilization signal", async () => {
+    const sec = "seed-wk-sec";
+    const cap = "seed-wk-cap";
+    const evt = "seed-wk-evt";
+    const nowIso = "2026-02-16T16:00:00.000Z";
+
+    // Seed: the DB currently has this need at "critical" (RED)
+    await needSignalService.seedNeedState({
+      sectorId: sec,
+      capabilityId: cap,
+      currentLevel: "critical",
+      nowIso,
+    });
+
+    // Now a positive signal arrives
+    const state = await needSignalService.evaluateGapNeed({
+      eventId: evt, sectorId: sec, capabilityId: cap,
+      signals: [{
+        id: "seed-wk-pos", event_id: evt, sector_id: sec, capacity_type_id: cap,
+        signal_type: "field_report" as SignalType, level: "sector",
+        content: "recurso disponible, operando estable",
+        source: "ngo", confidence: 0.8, created_at: nowIso,
+      }],
+      nowIso,
+    });
+
+    // Should not have defaulted to WHITE — it started from RED
+    expect(state).not.toBeNull();
+    expect(state!.current_status).not.toBe("WHITE");
+  });
+
+  it("mapNeedLevelToNeedStatus is the correct inverse of mapNeedStatusToNeedLevel", () => {
+    // Verify that the seeding uses the correct mapping
+    expect(mapNeedLevelToNeedStatus("critical")).toBe("RED");
+    expect(mapNeedLevelToNeedStatus("high")).toBe("ORANGE");
+    expect(mapNeedLevelToNeedStatus("medium")).toBe("YELLOW");
+    expect(mapNeedLevelToNeedStatus("low")).toBe("GREEN");
   });
 });
