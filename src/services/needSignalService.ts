@@ -206,7 +206,7 @@ export const needSignalService = {
     actorName?: string;
     nowIso?: string;
   }): Promise<NeedState | null> {
-    const nowIso = params.nowIso ?? new Date().toISOString();
+    const effectiveNowIso = params.nowIso ?? new Date().toISOString();
     const actor = params.actorName ?? "actor";
 
     let content: string;
@@ -242,7 +242,7 @@ export const needSignalService = {
       content,
       source: `deployment:${actor}`,
       confidence: 0.9,
-      created_at: nowIso,
+      created_at: effectiveNowIso,
     };
 
     return this.evaluateGapNeed({
@@ -250,7 +250,7 @@ export const needSignalService = {
       sectorId: params.sectorId,
       capabilityId: params.capabilityId,
       signals: [signal],
-      nowIso,
+      nowIso: effectiveNowIso,
     });
   },
 };

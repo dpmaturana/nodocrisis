@@ -211,7 +211,7 @@ export const deploymentService = {
         sectorId: deployment.sector_id,
         capabilityId: deployment.capacity_type_id,
         deploymentStatus: status,
-      }).catch(() => {/* best-effort */});
+      }).catch((e) => { console.warn('Need re-evaluation failed for deployment', id, e); });
     }
   },
 
@@ -234,7 +234,7 @@ export const deploymentService = {
         sectorId: deployment.sector_id,
         capabilityId: deployment.capacity_type_id,
         deploymentStatus: status,
-      }).catch(() => {/* best-effort */});
+      }).catch((e) => { console.warn('Need re-evaluation failed for deployment', id, e); });
     }
   },
 
@@ -300,7 +300,7 @@ export const deploymentService = {
         sectorId: deployment.sector_id,
         capabilityId: deployment.capacity_type_id,
         deploymentStatus: status,
-      }).catch(() => {/* best-effort */});
+      }).catch((e) => { console.warn('Need re-evaluation failed for deployment', id, e); });
     }
   },
 };
