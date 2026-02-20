@@ -5,7 +5,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import type { Sector, SignalType } from "@/types/database";
 import type { GapWithDetails } from "@/services/gapService";
-import type { SectorContext } from "@/services/mock/data";
+import type { SectorContext } from "@/services/deploymentService";
 import { NEED_STATUS_ORDER, NEED_STATUS_PRESENTATION, mapGapStateToNeedStatus, type NeedStatus } from "@/lib/needStatus";
 
 interface SectorCardAdminProps {

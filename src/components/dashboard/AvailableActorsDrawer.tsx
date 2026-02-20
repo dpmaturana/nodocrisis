@@ -1,11 +1,7 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, Building2, Check, Users } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { 
-  MOCK_ACTOR_CAPABILITIES,
-  MOCK_CAPACITY_TYPES,
-  getCapacityTypeById,
-} from "@/services/mock/data";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Sheet,
   SheetContent,
@@ -45,18 +41,57 @@ export function AvailableActorsDrawer({
 
   useEffect(() => {
     if (gap && open) {
-      // Find actors with matching capacity type
-      const matchingActors = MOCK_ACTOR_CAPABILITIES
-        .filter(cap => cap.capacity_type_id === gap.capacity_type_id)
-        .map(cap => ({
-          actorId: cap.user_id,
-          actorName: cap.user_id === 'admin-mock-1' ? 'Cruz Roja Regional' : 'Bomberos Chillán',
-          capability: cap,
-          capacityTypeName: getCapacityTypeById(cap.capacity_type_id)?.name || 'Capacidad',
-        }));
-      
-      setActors(matchingActors);
-      setInvitedActors(new Set());
+      const fetchActors = async () => {
+        const { data: caps } = await supabase
+          .from("actor_capabilities")
+          .select("*, capacity_types(name)")
+          .eq("capacity_type_id", gap.capacity_type_id ?? "")
+          .neq("availability", "unavailable");
+
+        if (!caps || caps.length === 0) {
+          setActors([]);
+          return;
+        }
+
+        const userIds = caps.map((c) => c.user_id);
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name, organization_name")
+          .in("user_id", userIds);
+
+        const profileMap = new Map<string, { full_name: string | null; organization_name: string | null }>();
+        (profiles ?? []).forEach((p) => profileMap.set(p.user_id, p));
+
+        type CapWithType = typeof caps[number] & { capacity_types: { name: string } | null };
+        const matchingActors = (caps as CapWithType[]).map((cap) => {
+          const profile = profileMap.get(cap.user_id);
+          const actorName = profile?.organization_name ?? profile?.full_name ?? cap.user_id;
+          const capTypeName = cap.capacity_types?.name ?? "Capacidad";
+          // Map DB row to ActorCapability shape (cap already matches ActorCapability fields)
+          const capability: ActorCapability = {
+            id: cap.id,
+            user_id: cap.user_id,
+            capacity_type_id: cap.capacity_type_id,
+            quantity: cap.quantity,
+            unit: cap.unit,
+            availability: cap.availability as ActorCapability["availability"],
+            notes: cap.notes,
+            created_at: cap.created_at,
+            updated_at: cap.updated_at,
+          };
+          return {
+            actorId: cap.user_id,
+            actorName,
+            capability,
+            capacityTypeName: capTypeName,
+          };
+        });
+
+        setActors(matchingActors);
+        setInvitedActors(new Set());
+      };
+
+      fetchActors();
     }
   }, [gap, open]);
 
