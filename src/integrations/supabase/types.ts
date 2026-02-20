@@ -592,6 +592,7 @@ export type Database = {
       }
       signals: {
         Row: {
+          capacity_type_id: string | null
           confidence: number
           content: string
           created_at: string
@@ -604,6 +605,7 @@ export type Database = {
           source: string
         }
         Insert: {
+          capacity_type_id?: string | null
           confidence?: number
           content: string
           created_at?: string
@@ -616,6 +618,7 @@ export type Database = {
           source: string
         }
         Update: {
+          capacity_type_id?: string | null
           confidence?: number
           content?: string
           created_at?: string
@@ -628,6 +631,13 @@ export type Database = {
           source?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "signals_capacity_type_id_fkey"
+            columns: ["capacity_type_id"]
+            isOneToOne: false
+            referencedRelation: "capacity_types"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "signals_event_id_fkey"
             columns: ["event_id"]

@@ -201,6 +201,7 @@ export interface Signal {
   id: string;
   event_id: string;
   sector_id: string | null;
+  capacity_type_id: string | null;
   signal_type: SignalType;
   level: SignalLevel;
   content: string;
