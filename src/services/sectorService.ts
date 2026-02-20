@@ -146,6 +146,18 @@ export const sectorService = {
 
     const deployments = dbDeployments ?? [];
 
+    // Fetch actor's own active deployments to exclude already-subscribed sectors
+    const { data: dbActorDeployments } = await supabase
+      .from("deployments")
+      .select("sector_id")
+      .eq("actor_id", actorId)
+      .in("sector_id", sectorIds)
+      .not("status", "in", '("finished","suspended")');
+
+    const subscribedSectorIds = new Set(
+      (dbActorDeployments ?? []).map((d: { sector_id: string }) => d.sector_id)
+    );
+
     // Fetch recent signals for these sectors
     const { data: dbSignals } = await supabase
       .from("signals")
@@ -169,6 +181,9 @@ export const sectorService = {
     const enrichedSectors: EnrichedSector[] = [];
 
     for (const sector of sectors) {
+      // Skip sectors where this actor already has an active deployment
+      if (subscribedSectorIds.has(sector.id)) continue;
+
       const event = eventMap.get(sector.event_id);
       if (!event) continue;
 
