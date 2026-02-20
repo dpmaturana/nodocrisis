@@ -1,45 +1,60 @@
 
 
-# Fix: Include "interested" Deployments in Coverage Queries
+# Fix Field Report Signals: English Output + Real Capability Linking
 
 ## Problem
 
-The last merge correctly added deployment coverage logic to `gapService.ts`, but the database queries filter by `status IN ('confirmed', 'operating')` only. When an NGO subscribes, the deployment is created with status `interested`, which gets excluded from the count. The colors never change.
+1. **Spanish output**: The LLM extraction prompts are entirely in Spanish, producing Spanish signal content (e.g., "Se reporta la perdida de viviendas...") instead of English
+2. **No capability linking**: The `capacity_type_id` column was accidentally removed from the `signals` table, breaking the link between signals and capabilities
+3. **Hardcoded labels**: Both edge functions use hardcoded Spanish capability names ("salud", "agua") instead of the real 17 English names from `capacity_types`
 
-## Fix
+## Solution
 
-Two lines need to change in `src/services/gapService.ts`:
+### 1. Restore `capacity_type_id` column on `signals` table
 
-### Line 210 (in `getGapsGroupedBySector`)
+Add a migration to re-create the column with a foreign key to `capacity_types`:
 
-Change:
-```typescript
-.in("status", ["confirmed", "operating"]);
-```
-To:
-```typescript
-.in("status", ["confirmed", "operating", "interested"]);
+```sql
+ALTER TABLE signals ADD COLUMN capacity_type_id uuid REFERENCES capacity_types(id);
 ```
 
-### Line 421 (in `getCounts`)
+### 2. Update `extract-text-report/index.ts`
 
-Same change:
-```typescript
-.in("status", ["confirmed", "operating"]);
+- Rewrite `EXTRACTION_PROMPT` in English
+- The function already fetches `capacity_types` and injects them into the prompt -- keep that pattern but ensure the prompt instructs the LLM to output English observations and use exact English capability names
+- The function already creates per-capability signals with `capacity_type_id` -- this will work once the column is restored and the LLM outputs correct names
+
+### 3. Update `transcribe-field-report/index.ts`
+
+- Same prompt rewrite to English
+- Already fetches `capacity_types` dynamically and creates per-capability signals
+- Ensure prompt instructs: output English observations, use exact capability names from the provided list
+
+### Key Prompt Changes
+
+**Before** (Spanish, hardcoded):
 ```
-To:
-```typescript
-.in("status", ["confirmed", "operating", "interested"]);
+capability_types: [...] Valores validos: "agua", "alimentos", ...
+observations: Resumen publico de 1-2 oraciones...
 ```
 
-## Expected Result
+**After** (English, dynamic):
+```
+capability_types: Use EXACTLY these names: "Emergency medical care", "Search and rescue", "Shelter", ...
+observations: A 1-2 sentence public summary in English...
+```
 
-- After subscribing as an NGO, "Emergency medical care" in Tagus River Basin and Levante Coast should change from RED to ORANGE (1 deployment against demand of 2 for "high" level)
-- Dashboard metric cards update accordingly (fewer critical, more partial)
-
-## Files Changed
+### Files to Change
 
 | File | Change |
 |---|---|
-| `src/services/gapService.ts` | Add `"interested"` to deployment status filters on lines 210 and 421 |
+| Migration (new) | Re-add `capacity_type_id` column to `signals` |
+| `supabase/functions/extract-text-report/index.ts` | Rewrite prompt to English, ensure correct capability name matching |
+| `supabase/functions/transcribe-field-report/index.ts` | Same prompt rewrite to English |
+
+### Result
+
+- Signal content will be in English (matching the internationalization standard)
+- Each signal will be linked to its `capacity_type_id`, enabling gap engine integration
+- The LLM will output real capability names like "Emergency medical care" instead of "salud"
 
