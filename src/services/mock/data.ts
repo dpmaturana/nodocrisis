@@ -193,13 +193,13 @@ export const MOCK_GAPS: Gap[] = [
 // ============== SIGNALS ==============
 export const MOCK_SIGNALS: Signal[] = [
   // Gap 1 signals (Agua y Bomberos - San Carlos Rural)
-  { id: "sig-1", event_id: "evt-mock-1", sector_id: "sec-1", signal_type: "sms", level: "sector", content: "Necesitamos agua urgente, llevamos 2 días sin suministro", source: "+56912345678", confidence: 0.85, created_at: "2026-01-21T10:30:00Z" },
-  { id: "sig-2", event_id: "evt-mock-1", sector_id: "sec-1", signal_type: "sms", level: "sector", content: "El fuego está muy cerca, no hay bomberos", source: "+56987654321", confidence: 0.9, created_at: "2026-01-21T10:00:00Z" },
-  { id: "sig-3", event_id: "evt-mock-1", sector_id: "sec-1", signal_type: "field_report", level: "sector", content: "Sector sin acceso a agua potable. Cisternas requeridas.", source: "Equipo Terreno A", confidence: 0.95, created_at: "2026-01-21T09:30:00Z" },
-  { id: "sig-4", event_id: "evt-mock-1", sector_id: "sec-1", signal_type: "context", level: "sector", content: "Zona rural aislada, infraestructura hídrica dañada por incendio anterior", source: "Reporte Situación Inicial", confidence: 1.0, created_at: "2026-01-15T08:00:00Z" },
+  { id: "sig-1", event_id: "evt-mock-1", sector_id: "sec-1", capacity_type_id: "cap-1", signal_type: "sms", level: "sector", content: "Necesitamos agua urgente, llevamos 2 días sin suministro", source: "+56912345678", confidence: 0.85, created_at: "2026-01-21T10:30:00Z" },
+  { id: "sig-2", event_id: "evt-mock-1", sector_id: "sec-1", capacity_type_id: "cap-2", signal_type: "sms", level: "sector", content: "El fuego está muy cerca, no hay bomberos", source: "+56987654321", confidence: 0.9, created_at: "2026-01-21T10:00:00Z" },
+  { id: "sig-3", event_id: "evt-mock-1", sector_id: "sec-1", capacity_type_id: "cap-1", signal_type: "field_report", level: "sector", content: "Sector sin acceso a agua potable. Cisternas requeridas.", source: "Equipo Terreno A", confidence: 0.95, created_at: "2026-01-21T09:30:00Z" },
+  { id: "sig-4", event_id: "evt-mock-1", sector_id: "sec-1", capacity_type_id: null, signal_type: "context", level: "sector", content: "Zona rural aislada, infraestructura hídrica dañada por incendio anterior", source: "Reporte Situación Inicial", confidence: 1.0, created_at: "2026-01-15T08:00:00Z" },
   // Gap 3 signals (Salud - Ñiquén Norte)
-  { id: "sig-7", event_id: "evt-mock-1", sector_id: "sec-4", signal_type: "sms", level: "sector", content: "Necesitamos ambulancia, hay heridos", source: "+56922222222", confidence: 0.85, created_at: "2026-01-21T09:45:00Z" },
-  { id: "sig-8", event_id: "evt-mock-1", sector_id: "sec-4", signal_type: "official", level: "sector", content: "Hospital local saturado, requiere apoyo externo", source: "SEREMI Salud", confidence: 1.0, created_at: "2026-01-21T08:00:00Z" },
+  { id: "sig-7", event_id: "evt-mock-1", sector_id: "sec-4", capacity_type_id: "cap-3", signal_type: "sms", level: "sector", content: "Necesitamos ambulancia, hay heridos", source: "+56922222222", confidence: 0.85, created_at: "2026-01-21T09:45:00Z" },
+  { id: "sig-8", event_id: "evt-mock-1", sector_id: "sec-4", capacity_type_id: "cap-3", signal_type: "official", level: "sector", content: "Hospital local saturado, requiere apoyo externo", source: "SEREMI Salud", confidence: 1.0, created_at: "2026-01-21T08:00:00Z" },
 ];
 
 // ============== NEED LEVEL MATRIX ==============

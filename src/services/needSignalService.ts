@@ -237,6 +237,7 @@ export const needSignalService = {
       id: `deploy-signal-${Date.now()}`,
       event_id: params.eventId,
       sector_id: params.sectorId,
+      capacity_type_id: params.capabilityId,
       signal_type: signalType,
       level: "sector",
       content,
