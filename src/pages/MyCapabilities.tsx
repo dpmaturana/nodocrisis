@@ -379,7 +379,7 @@ export default function MyCapabilities() {
                     />
                     {pendingDelete.quantity && (
                       <span className="text-sm font-mono">
-                        {pendingDelete.quantity} {pendingDelete.unit || "units"}
+                        {pendingDelete.quantity} {pendingDelete.unit || "unidades"}
                       </span>
                     )}
                   </div>
