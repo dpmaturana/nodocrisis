@@ -42,6 +42,7 @@ const THRESHOLDS = {
   stabilizationDowngrade: 1.8,
   fragilityReactivation: 0.9,
   coverageActivation: 0.9,
+  coverageIntent: 0.4,
 };
 
 interface ExtractedItem {
@@ -139,6 +140,7 @@ interface EvaluationResult {
     stabilizationStrong: boolean;
     fragilityAlert: boolean;
     coverageActive: boolean;
+    coverageIntent: boolean;
   };
   guardrailsApplied: string[];
 }
@@ -176,8 +178,9 @@ function evaluateNeedStatus(signals: Array<{ state: string; confidence: number }
   const stabilizationStrong = stab    >= THRESHOLDS.stabilizationDowngrade;
   const fragilityAlert      = frag    >= THRESHOLDS.fragilityReactivation;
   const coverageActive      = coverage >= THRESHOLDS.coverageActivation;
+  const coverageIntent      = coverage >= THRESHOLDS.coverageIntent;
 
-  const booleans = { demandStrong, insuffStrong, stabilizationStrong, fragilityAlert, coverageActive };
+  const booleans = { demandStrong, insuffStrong, stabilizationStrong, fragilityAlert, coverageActive, coverageIntent };
   const guardrailsApplied: string[] = [];
 
   // RuleBasedNeedEvaluator (from needSignalService.ts)
@@ -188,7 +191,7 @@ function evaluateNeedStatus(signals: Array<{ state: string; confidence: number }
     proposed = "ORANGE";
   } else if (stabilizationStrong && !fragilityAlert && !demandStrong && !insuffStrong) {
     proposed = "GREEN";
-  } else if (coverageActive) {
+  } else if ((coverageActive || (coverageIntent && !demandStrong && !insuffStrong))) {
     proposed = "YELLOW";
   }
 

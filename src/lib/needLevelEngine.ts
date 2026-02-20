@@ -26,7 +26,7 @@ export interface SignalClassification {
   confidence: number;
   short_quote: string;
   note?: string;
-  coverage_kind?: "augmentation" | "baseline";
+  coverage_kind?: "augmentation" | "baseline" | "intent";
 }
 
 export interface StructuredSignal {
@@ -66,6 +66,7 @@ export interface NeedEngineConfig {
     stabilizationMinConsecutiveWindows: number;
     fragilityReactivation: number;
     coverageActivation: number;
+    coverageIntent: number;
   };
   minLlmConfidence: number;
   rollingWindowHours: number;
@@ -88,6 +89,7 @@ export const defaultNeedEngineConfig: NeedEngineConfig = {
     stabilizationMinConsecutiveWindows: 2,
     fragilityReactivation: 0.9,
     coverageActivation: 0.9,
+    coverageIntent: 0.4,
   },
   minLlmConfidence: 0.65,
   rollingWindowHours: 24,
@@ -104,7 +106,7 @@ export interface EvaluatorEvidenceItem {
   reliability: SourceReliability;
   short_quote: string;
   note?: string;
-  coverage_kind?: "augmentation" | "baseline";
+  coverage_kind?: "augmentation" | "baseline" | "intent";
 }
 
 export interface NeedEvaluatorInput {
@@ -126,6 +128,7 @@ export interface NeedEvaluatorInput {
     stabilizationStrong: boolean;
     fragilityAlert: boolean;
     coverageActive: boolean;
+    coverageIntent: boolean;
   };
   window_id: string;
   top_evidence: EvaluatorEvidenceItem[];
@@ -172,6 +175,7 @@ export interface NeedAudit {
     stabilizationStrong: boolean;
     fragilityAlert: boolean;
     coverageActive: boolean;
+    coverageIntent: boolean;
   };
   model: string;
   prompt_version: string;
@@ -255,6 +259,7 @@ function evaluateBooleans(state: NeedState, cfg: NeedEngineConfig) {
     stabilizationStrong: state.stabilization_score >= cfg.thresholds.stabilizationDowngrade,
     fragilityAlert: state.fragility_score >= cfg.thresholds.fragilityReactivation,
     coverageActive: state.coverage_score >= cfg.thresholds.coverageActivation,
+    coverageIntent: state.coverage_score >= cfg.thresholds.coverageIntent,
   };
 }
 

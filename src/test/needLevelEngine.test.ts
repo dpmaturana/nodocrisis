@@ -357,4 +357,48 @@ describe("NeedLevelEngine", () => {
     // Guardrail F should allow ORANGE→YELLOW when stabilization_score > 0
     expect(state?.current_status).toBe("YELLOW");
   });
+
+  it("proposes YELLOW when coverageIntent is true (coverage score above 0.4 but below 0.9)", async () => {
+    const repo = new InMemoryRepo();
+    // A single low-confidence coverage signal (0.5) — mimics "interested" deployment
+    const extractor = new StaticExtractor({
+      ...baseExtractor,
+      classifications: [
+        { type: "SIGNAL_COVERAGE_ACTIVITY", confidence: 0.5, short_quote: "actor declared intent", coverage_kind: "intent" as const },
+      ],
+    });
+    // Evaluator proposes YELLOW (rule-based path via coverageIntent)
+    const evaluator = new StaticEvaluator({ ...baseEval, proposed_status: "YELLOW", confidence: 0.8 });
+    const engine = new NeedLevelEngine(repo, extractor, evaluator, {
+      ...defaultNeedEngineConfig,
+      thresholds: { ...defaultNeedEngineConfig.thresholds, coverageIntent: 0.4 },
+    });
+
+    await engine.processRawInput({ source_type: "institutional", source_name: "agency", timestamp: now, text: "interested actor" });
+    const state = await repo.getNeedState("sec-1", "cap-1");
+    expect(state?.current_status).toBe("YELLOW");
+    // coverage_score should be 0.5 (below coverageActivation 0.9 but above coverageIntent 0.4)
+    expect(state?.coverage_score).toBe(0.5);
+  });
+
+  it("coverageIntent alone does not reach coverageActive threshold", async () => {
+    const repo = new InMemoryRepo();
+    const cfg = { ...defaultNeedEngineConfig };
+    // Single 0.7-confidence coverage signal (confirmed deployment)
+    const extractor = new StaticExtractor({
+      ...baseExtractor,
+      classifications: [
+        { type: "SIGNAL_COVERAGE_ACTIVITY", confidence: 0.7, short_quote: "en camino, awaiting field report", coverage_kind: "intent" as const },
+      ],
+    });
+    const evaluator = new StaticEvaluator({ ...baseEval, proposed_status: "YELLOW", confidence: 0.8 });
+    const engine = new NeedLevelEngine(repo, extractor, evaluator, cfg);
+
+    await engine.processRawInput({ source_type: "institutional", source_name: "agency", timestamp: now, text: "confirmed actor" });
+    const state = await repo.getNeedState("sec-1", "cap-1");
+    // coverage_score 0.7 < coverageActivation 0.9 → coverageActive = false
+    // coverage_score 0.7 >= coverageIntent 0.4 → coverageIntent = true → YELLOW
+    expect(state?.coverage_score).toBe(0.7);
+    expect(state?.current_status).toBe("YELLOW");
+  });
 });
