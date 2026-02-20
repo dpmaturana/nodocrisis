@@ -7,11 +7,13 @@ import { CapabilityRow } from "./CapabilityRow";
 import { FieldStatusReport } from "./FieldStatusReport";
 import { CapacityIcon } from "@/components/ui/CapacityIcon";
 import { SectorDetailDrawer } from "@/components/sectors/SectorDetailDrawer";
+import { EnrollmentModal } from "@/components/sectors/EnrollmentModal";
 import { useToast } from "@/hooks/use-toast";
 import { deploymentService, type SectorDeploymentGroup } from "@/services/deploymentService";
 import { sectorService, type EnrichedSector } from "@/services/sectorService";
-import type { Signal } from "@/types/database";
-import { MapPin, Activity, ChevronRight, Users, CheckCircle } from "@/lib/icons";
+import { capabilityService } from "@/services";
+import type { Signal, ActorCapability } from "@/types/database";
+import { MapPin, Activity, ChevronRight, Users, CheckCircle, Plus } from "@/lib/icons";
 
 interface SectorDeploymentCardProps {
   group: SectorDeploymentGroup;
@@ -57,15 +59,24 @@ export function SectorDeploymentCard({ group, actorId, onRefresh }: SectorDeploy
   const [isMarkingOperating, setIsMarkingOperating] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isAddCapabilityOpen, setIsAddCapabilityOpen] = useState(false);
   const [enrichedSector, setEnrichedSector] = useState<EnrichedSector | null>(null);
+  const [userCapabilities, setUserCapabilities] = useState<ActorCapability[]>([]);
 
   const { sector, event, sectorState, sectorContext, deployments, operatingPhase, otherActors } = group;
   const stateConfig = sectorStateConfig[sectorState];
   const phase = phaseConfig[operatingPhase];
 
-  // Fetch real enriched sector data when drawer is opened
+  // Fetch actor capabilities on mount
   useEffect(() => {
-    if (isDrawerOpen) {
+    capabilityService.getByActor(actorId).then(setUserCapabilities).catch((err) => {
+      console.error("Failed to fetch actor capabilities:", err);
+    });
+  }, [actorId]);
+
+  // Fetch real enriched sector data when drawer or add-capability modal is opened
+  useEffect(() => {
+    if (isDrawerOpen || isAddCapabilityOpen) {
       sectorService.getEnrichedSectors(actorId).then((sectors) => {
         const found = sectors.find((s) => s.sector.id === sector.id);
         if (found) {
@@ -88,7 +99,17 @@ export function SectorDeploymentCard({ group, actorId, onRefresh }: SectorDeploy
     } else {
       setEnrichedSector(null);
     }
-  }, [isDrawerOpen, actorId, sector, event, sectorState, sectorContext, otherActors]);
+  }, [isDrawerOpen, isAddCapabilityOpen, actorId, sector, event, sectorState, sectorContext, otherActors]);
+
+  // Filter out capabilities the user is already enrolled with in this sector
+  const alreadyEnrolledTypeIds = new Set(
+    deployments
+      .filter((d) => d.status !== "finished" && d.status !== "suspended")
+      .map((d) => d.capacity_type_id)
+  );
+  const availableCapabilities = userCapabilities.filter(
+    (cap) => !alreadyEnrolledTypeIds.has(cap.capacity_type_id)
+  );
 
   // Build EnrichedSector for the drawer
   const drawerSector: EnrichedSector = enrichedSector ?? {
@@ -198,6 +219,8 @@ export function SectorDeploymentCard({ group, actorId, onRefresh }: SectorDeploy
             onMarkOperating={handleMarkAsOperating}
             isLoading={isMarkingOperating}
             onOpenSectorContext={() => setIsDrawerOpen(true)}
+            onAddCapability={() => setIsAddCapabilityOpen(true)}
+            hasAvailableCapabilities={availableCapabilities.length > 0}
           />
         )}
 
@@ -209,6 +232,8 @@ export function SectorDeploymentCard({ group, actorId, onRefresh }: SectorDeploy
             onRefresh={onRefresh}
             onFinish={handleFinishOperations}
             isFinishing={isFinishing}
+            onAddCapability={() => setIsAddCapabilityOpen(true)}
+            hasAvailableCapabilities={availableCapabilities.length > 0}
           />
         )}
 
@@ -217,6 +242,8 @@ export function SectorDeploymentCard({ group, actorId, onRefresh }: SectorDeploy
             deployments={deployments}
             onFinish={handleFinishOperations}
             isFinishing={isFinishing}
+            onAddCapability={() => setIsAddCapabilityOpen(true)}
+            hasAvailableCapabilities={availableCapabilities.length > 0}
           />
         )}
       </CardContent>
@@ -228,6 +255,19 @@ export function SectorDeploymentCard({ group, actorId, onRefresh }: SectorDeploy
         onOpenChange={setIsDrawerOpen}
         onEnroll={() => {}}
         hideEnrollButton
+      />
+
+      {/* Add Capability Modal */}
+      <EnrollmentModal
+        sector={drawerSector}
+        userCapabilities={availableCapabilities}
+        userId={actorId}
+        open={isAddCapabilityOpen}
+        onOpenChange={setIsAddCapabilityOpen}
+        onSuccess={() => {
+          setIsAddCapabilityOpen(false);
+          onRefresh();
+        }}
       />
     </Card>
   );
@@ -242,6 +282,8 @@ interface PreparingPhaseContentProps {
   onMarkOperating: () => void;
   isLoading: boolean;
   onOpenSectorContext: () => void;
+  onAddCapability: () => void;
+  hasAvailableCapabilities: boolean;
 }
 
 function PreparingPhaseContent({
@@ -251,6 +293,8 @@ function PreparingPhaseContent({
   onMarkOperating,
   isLoading,
   onOpenSectorContext,
+  onAddCapability,
+  hasAvailableCapabilities,
 }: PreparingPhaseContentProps) {
   return (
     <>
@@ -315,6 +359,12 @@ function PreparingPhaseContent({
           View sector overview
           <ChevronRight className="w-4 h-4" />
         </Button>
+        {hasAvailableCapabilities && (
+          <Button variant="outline" size="sm" className="gap-2" onClick={onAddCapability}>
+            <Plus className="w-4 h-4" />
+            Add capability
+          </Button>
+        )}
       </div>
     </>
   );
@@ -327,6 +377,8 @@ interface OperatingPhaseContentProps {
   onRefresh: () => void;
   onFinish: () => void;
   isFinishing: boolean;
+  onAddCapability: () => void;
+  hasAvailableCapabilities: boolean;
 }
 
 function OperatingPhaseContent({
@@ -336,6 +388,8 @@ function OperatingPhaseContent({
   onRefresh,
   onFinish,
   isFinishing,
+  onAddCapability,
+  hasAvailableCapabilities,
 }: OperatingPhaseContentProps) {
   return (
     <>
@@ -358,6 +412,12 @@ function OperatingPhaseContent({
           <CheckCircle className="w-4 h-4" />
           Complete operation
         </Button>
+        {hasAvailableCapabilities && (
+          <Button variant="outline" size="sm" className="gap-2 mt-2" onClick={onAddCapability}>
+            <Plus className="w-4 h-4" />
+            Add capability
+          </Button>
+        )}
       </div>
     </>
   );
@@ -367,9 +427,11 @@ interface StabilizingPhaseContentProps {
   deployments: SectorDeploymentGroup["deployments"];
   onFinish: () => void;
   isFinishing: boolean;
+  onAddCapability: () => void;
+  hasAvailableCapabilities: boolean;
 }
 
-function StabilizingPhaseContent({ deployments, onFinish, isFinishing }: StabilizingPhaseContentProps) {
+function StabilizingPhaseContent({ deployments, onFinish, isFinishing, onAddCapability, hasAvailableCapabilities }: StabilizingPhaseContentProps) {
   return (
     <>
       {/* Success message */}
@@ -407,6 +469,12 @@ function StabilizingPhaseContent({ deployments, onFinish, isFinishing }: Stabili
         <Button variant="secondary" onClick={onFinish} disabled={isFinishing} className="flex-1">
           End operation
         </Button>
+        {hasAvailableCapabilities && (
+          <Button variant="outline" size="sm" className="gap-2" onClick={onAddCapability}>
+            <Plus className="w-4 h-4" />
+            Add capability
+          </Button>
+        )}
       </div>
     </>
   );
