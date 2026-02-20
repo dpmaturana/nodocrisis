@@ -248,6 +248,14 @@ export const deploymentService = {
   },
 
   async markSectorAsOperating(sectorId: string, actorId: string): Promise<void> {
+    // Fetch affected deployments before updating so we can trigger re-evaluation
+    const { data: affected } = await supabase
+      .from("deployments")
+      .select("id, event_id, sector_id, capacity_type_id")
+      .eq("sector_id", sectorId)
+      .eq("actor_id", actorId)
+      .in("status", ["interested", "confirmed"]);
+
     const { error } = await supabase
       .from("deployments")
       .update({ status: "operating" as DeploymentStatus })
@@ -255,6 +263,18 @@ export const deploymentService = {
       .eq("actor_id", actorId)
       .in("status", ["interested", "confirmed"]);
     if (error) throw error;
+
+    // Trigger need re-evaluation for each affected deployment
+    if (affected) {
+      for (const dep of affected) {
+        needSignalService.onDeploymentStatusChange({
+          eventId: dep.event_id,
+          sectorId: dep.sector_id,
+          capabilityId: dep.capacity_type_id,
+          deploymentStatus: "operating",
+        }).catch((e) => { console.warn('Need re-evaluation failed for deployment', dep.id, e); });
+      }
+    }
   },
 
   async getActiveCount(): Promise<number> {

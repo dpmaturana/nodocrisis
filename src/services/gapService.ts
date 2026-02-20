@@ -106,18 +106,21 @@ function mapNeedLevelToGapState(level: string): GapState {
 }
 
 /**
- * Adjust the NeedStatus for a given need level based on deployment coverage.
+ * Deployment counts split by status tier, used to determine gap color.
  *
- * When actors are confirmed/operating (activeDeploymentCount > 0):
- *   critical/high  – RED  → ORANGE  (has some coverage, still insufficient)
- *   medium         – ORANGE → YELLOW (coverage in validation)
- *   low            – GREEN  (unchanged)
+ * Color lifecycle (for critical/high needs):
+ *   RED  → NGO enrolls (interested) → YELLOW
+ *   YELLOW → admin confirms (confirmed) → ORANGE
+ *   ORANGE → actor operates (operating) → GREEN
  *
- * When actors are only interested (interestedDeploymentCount > 0, no active):
- *   critical/high  – RED  → YELLOW  (coverage being validated, NGO en route)
- *   medium         – ORANGE → YELLOW (coverage being validated)
- *   low            – GREEN  (unchanged)
+ * Priority: operating > confirmed > interested.
  */
+export interface DeploymentCounts {
+  interested?: number;
+  confirmed?: number;
+  operating?: number;
+}
+
 /** Minimal shape returned by the deployments query used for coverage counting. */
 type DeploymentRow = { sector_id: string; capacity_type_id: string };
 
@@ -133,14 +136,31 @@ function buildDeploymentCountMap(rows: DeploymentRow[]): Map<string, number> {
 
 export function adjustStatusForCoverage(
   level: string,
-  activeDeploymentCount: number,
-  interestedDeploymentCount: number = 0,
+  counts: DeploymentCounts,
 ): { state: GapState; needStatus: NeedStatus } {
   const baseState = mapNeedLevelToGapState(level);
   const baseStatus = mapGapStateToNeedStatus(baseState);
 
-  // Confirmed/operating deployments provide stronger coverage signal
-  if (activeDeploymentCount > 0) {
+  const operating = counts.operating ?? 0;
+  const confirmed = counts.confirmed ?? 0;
+  const interested = counts.interested ?? 0;
+
+  // Operating deployments: actor is on the ground → stabilized
+  if (operating > 0) {
+    switch (level) {
+      case "critical":
+      case "high":
+        return { state: "active" as GapState, needStatus: "GREEN" as NeedStatus };
+      case "medium":
+        return { state: "active" as GapState, needStatus: "GREEN" as NeedStatus };
+      case "low":
+      default:
+        return { state: baseState, needStatus: baseStatus };
+    }
+  }
+
+  // Confirmed deployments: actor en route → insufficient coverage
+  if (confirmed > 0) {
     switch (level) {
       case "critical":
       case "high":
@@ -153,8 +173,8 @@ export function adjustStatusForCoverage(
     }
   }
 
-  // Interested-only deployments: coverage is being validated (RED → YELLOW)
-  if (interestedDeploymentCount > 0) {
+  // Interested-only deployments: coverage being validated
+  if (interested > 0) {
     switch (level) {
       case "critical":
       case "high":
@@ -231,11 +251,10 @@ export const gapService = {
       .in("status", ["interested", "confirmed", "operating"]);
 
     const allDeps = (deployments ?? []) as (DeploymentRow & { status: string })[];
-    // Build separate lookups: active (confirmed/operating) vs interested-only
-    const activeDeps = allDeps.filter((d) => d.status === "confirmed" || d.status === "operating");
-    const interestedDeps = allDeps.filter((d) => d.status === "interested");
-    const deploymentCounts = buildDeploymentCountMap(activeDeps);
-    const interestedCounts = buildDeploymentCountMap(interestedDeps);
+    // Build separate lookups per deployment status tier
+    const interestedCounts = buildDeploymentCountMap(allDeps.filter((d) => d.status === "interested"));
+    const confirmedCounts = buildDeploymentCountMap(allDeps.filter((d) => d.status === "confirmed"));
+    const operatingCounts = buildDeploymentCountMap(allDeps.filter((d) => d.status === "operating"));
 
     // Type for the joined query result (Supabase joins append the relation as a nested object)
     type NeedWithCapType = NonNullable<typeof needs>[number] & {
@@ -264,9 +283,11 @@ export const gapService = {
 
       const gapsWithDetails: GapWithDetails[] = sectorNeeds.map((need) => {
         const key = `${need.sector_id}:${need.capacity_type_id}`;
-        const activeCount = deploymentCounts.get(key) ?? 0;
-        const interestedCount = interestedCounts.get(key) ?? 0;
-        const { state, needStatus } = adjustStatusForCoverage(need.level, activeCount, interestedCount);
+        const { state, needStatus } = adjustStatusForCoverage(need.level, {
+          interested: interestedCounts.get(key) ?? 0,
+          confirmed: confirmedCounts.get(key) ?? 0,
+          operating: operatingCounts.get(key) ?? 0,
+        });
         return {
           id: need.id,
           event_id: need.event_id,
@@ -448,10 +469,9 @@ export const gapService = {
         .in("status", ["interested", "confirmed", "operating"]);
 
       const allDeps = (deployments ?? []) as (DeploymentRow & { status: string })[];
-      const activeDeps = allDeps.filter((d) => d.status === "confirmed" || d.status === "operating");
-      const interestedDeps = allDeps.filter((d) => d.status === "interested");
-      const deploymentCounts = buildDeploymentCountMap(activeDeps);
-      const interestedCounts = buildDeploymentCountMap(interestedDeps);
+      const interestedCounts = buildDeploymentCountMap(allDeps.filter((d) => d.status === "interested"));
+      const confirmedCounts = buildDeploymentCountMap(allDeps.filter((d) => d.status === "confirmed"));
+      const operatingCounts = buildDeploymentCountMap(allDeps.filter((d) => d.status === "operating"));
 
       let critical = 0;
       let partial = 0;
@@ -459,9 +479,11 @@ export const gapService = {
 
       for (const n of needs) {
         const key = `${n.sector_id}:${n.capacity_type_id}`;
-        const count = deploymentCounts.get(key) ?? 0;
-        const interested = interestedCounts.get(key) ?? 0;
-        const { needStatus } = adjustStatusForCoverage(n.level, count, interested);
+        const { needStatus } = adjustStatusForCoverage(n.level, {
+          interested: interestedCounts.get(key) ?? 0,
+          confirmed: confirmedCounts.get(key) ?? 0,
+          operating: operatingCounts.get(key) ?? 0,
+        });
         switch (needStatus) {
           case "RED":
             critical++;
