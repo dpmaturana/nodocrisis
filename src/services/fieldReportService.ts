@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { FieldReport, CreateFieldReportParams, ExtractedData, FieldReportStatus } from "@/types/fieldReport";
+import { needSignalService, mapNeedStatusToNeedLevel } from "@/services/needSignalService";
+import { eventService } from "@/services/eventService";
 
 // Helper to transform DB response to typed FieldReport
 function toFieldReport(row: any): FieldReport {
@@ -197,5 +199,48 @@ export const fieldReportService = {
 
       poll();
     });
+  },
+
+  /**
+   * Process a completed field report: convert extracted data into signals,
+   * feed them into the NeedLevelEngine, and update sector_needs_context.
+   */
+  async processCompletedReport(report: FieldReport): Promise<void> {
+    if (report.status !== 'completed' || !report.extracted_data) {
+      console.debug(`Skipping need update for report ${report.id}: status=${report.status}, hasData=${!!report.extracted_data}`);
+      return;
+    }
+
+    // Resolve capability names to capacity_type IDs
+    const { data: capacityTypes } = await supabase
+      .from('capacity_types')
+      .select('id, name');
+
+    if (!capacityTypes || capacityTypes.length === 0) return;
+
+    const capacityTypeMap: Record<string, string> = {};
+    for (const ct of capacityTypes) {
+      capacityTypeMap[ct.name] = ct.id;
+    }
+
+    // Feed extracted data through the need signal engine
+    const results = await needSignalService.onFieldReportCompleted({
+      eventId: report.event_id,
+      sectorId: report.sector_id,
+      extractedData: report.extracted_data,
+      capacityTypeMap,
+    });
+
+    // Update sector_needs_context for each capability
+    for (const result of results) {
+      await eventService.addContextualDemand({
+        eventId: report.event_id,
+        sectorId: report.sector_id,
+        capacityTypeId: result.capabilityId,
+        level: result.needLevel,
+        source: 'field_report',
+        notes: `Updated from field report ${report.id}`,
+      });
+    }
   },
 };

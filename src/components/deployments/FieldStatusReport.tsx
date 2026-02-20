@@ -299,6 +299,13 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
           }
         }
       }
+
+      // 3. Process field report signals through the need engine and update sector_needs_context
+      if (reportWithResults?.status === 'completed' && reportWithResults.extracted_data) {
+        fieldReportService.processCompletedReport(reportWithResults).catch((e) => {
+          console.warn(`Need level update from field report ${reportWithResults.id} failed:`, e);
+        });
+      }
       
       // Set completed state with results
       setProcessingState("completed");

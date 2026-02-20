@@ -12,7 +12,9 @@ import {
   type RawInput,
   type StructuredSignal,
 } from "@/lib/needLevelEngine";
-import type { DeploymentStatus, Signal, SignalType } from "@/types/database";
+import type { DeploymentStatus, NeedLevel, Signal, SignalType } from "@/types/database";
+import type { NeedStatus } from "@/lib/needStatus";
+import type { ExtractedItem, ExtractedData } from "@/types/fieldReport";
 
 class InMemoryNeedsRepository implements NeedsRepository {
   private rawInputs = new Map<string, RawInput>();
@@ -159,6 +161,64 @@ function mapSignalType(signalType: SignalType, content: string) {
   return "SIGNAL_INSUFFICIENCY" as const;
 }
 
+/**
+ * Convert a field report extracted item's state/urgency into signal content
+ * that the mapSignalType classifier will correctly categorize.
+ */
+export function fieldReportItemToSignalContent(item: ExtractedItem): string {
+  switch (item.state) {
+    case 'disponible':
+      return `${item.name}: recurso disponible, operando estable`;
+    case 'necesario':
+      return `${item.name}: recurso necesario, no alcanza, insuficiente`;
+    case 'en_camino':
+      return `${item.name}: recurso en camino, despacho en ruta`;
+    case 'agotado':
+      return `${item.name}: recurso agotado, sin stock, saturado`;
+    default:
+      return `${item.name}: estado reportado`;
+  }
+}
+
+/**
+ * Map a field report item's urgency to a signal confidence value.
+ * For stabilization (disponible), lower urgency means higher confidence
+ * in stabilization. For other states, higher urgency = higher confidence
+ * in the insufficiency/demand signal.
+ */
+export function fieldReportItemToConfidence(item: ExtractedItem): number {
+  if (item.state === 'disponible') {
+    switch (item.urgency) {
+      case 'baja': return 1.0;
+      case 'media': return 0.8;
+      case 'alta': return 0.5;
+      case 'crítica': return 0.3;
+      default: return 0.6;
+    }
+  }
+  switch (item.urgency) {
+    case 'baja': return 0.3;
+    case 'media': return 0.6;
+    case 'alta': return 0.8;
+    case 'crítica': return 1.0;
+    default: return 0.5;
+  }
+}
+
+/**
+ * Map a NeedStatus from the engine back to a NeedLevel for sector_needs_context.
+ */
+export function mapNeedStatusToNeedLevel(status: NeedStatus): NeedLevel {
+  switch (status) {
+    case 'RED': return 'critical';
+    case 'ORANGE': return 'high';
+    case 'YELLOW': return 'medium';
+    case 'GREEN': return 'low';
+    case 'WHITE': return 'low';
+    default: return 'medium';
+  }
+}
+
 const repository = new InMemoryNeedsRepository();
 const extractor = new LegacySignalExtractor();
 const evaluator = new RuleBasedNeedEvaluator();
@@ -253,5 +313,74 @@ export const needSignalService = {
       signals: [signal],
       nowIso: effectiveNowIso,
     });
+  },
+
+  /**
+   * Process a completed field report by converting its extracted items into
+   * signals and feeding them through the NeedLevelEngine. Returns per-capability
+   * results with updated need levels.
+   */
+  async onFieldReportCompleted(params: {
+    eventId: string;
+    sectorId: string;
+    extractedData: ExtractedData;
+    capacityTypeMap: Record<string, string>; // capability name → capacity_type_id
+    nowIso?: string;
+  }): Promise<Array<{ capabilityId: string; needLevel: NeedLevel; needState: NeedState | null }>> {
+    const effectiveNow = params.nowIso ?? new Date().toISOString();
+    const results: Array<{ capabilityId: string; needLevel: NeedLevel; needState: NeedState | null }> = [];
+
+    // Group items by matching capability type
+    const itemsByCapId = new Map<string, ExtractedItem[]>();
+    for (const item of params.extractedData.items) {
+      for (const [capName, capId] of Object.entries(params.capacityTypeMap)) {
+        const capLower = capName.toLowerCase();
+        const itemLower = item.name.toLowerCase();
+        if (capLower.includes(itemLower) || itemLower.includes(capLower.split(' ')[0])) {
+          if (!itemsByCapId.has(capId)) itemsByCapId.set(capId, []);
+          itemsByCapId.get(capId)!.push(item);
+        }
+      }
+    }
+
+    // Also ensure capability_types from extracted data are included
+    for (const capName of params.extractedData.capability_types) {
+      const capId = params.capacityTypeMap[capName];
+      if (capId && !itemsByCapId.has(capId)) {
+        itemsByCapId.set(capId, []);
+      }
+    }
+
+    // Process each capability type through the engine
+    for (const [capId, items] of itemsByCapId) {
+      const batchTs = Date.now();
+      const signals: Signal[] = items.map((item, i) => ({
+        id: `field-report-signal-${batchTs}-${capId}-${i}`,
+        event_id: params.eventId,
+        sector_id: params.sectorId,
+        capacity_type_id: capId,
+        signal_type: 'field_report' as SignalType,
+        level: 'sector' as const,
+        content: fieldReportItemToSignalContent(item),
+        source: 'field_report',
+        confidence: fieldReportItemToConfidence(item),
+        created_at: effectiveNow,
+      }));
+
+      if (signals.length === 0) continue;
+
+      const needState = await this.evaluateGapNeed({
+        eventId: params.eventId,
+        sectorId: params.sectorId,
+        capabilityId: capId,
+        signals,
+        nowIso: effectiveNow,
+      });
+
+      const needLevel = needState ? mapNeedStatusToNeedLevel(needState.current_status) : 'medium';
+      results.push({ capabilityId: capId, needLevel, needState });
+    }
+
+    return results;
   },
 };
