@@ -163,4 +163,30 @@ export const eventService = {
     if (error) throw new Error(error.message);
     return data as Sector;
   },
+
+  async addContextualDemand(params: {
+    eventId: string;
+    sectorId: string;
+    capacityTypeId: string;
+    level: string;
+    source: string;
+    notes?: string;
+  }): Promise<void> {
+    const { error } = await supabase
+      .from("sector_needs_context")
+      .upsert(
+        {
+          event_id: params.eventId,
+          sector_id: params.sectorId,
+          capacity_type_id: params.capacityTypeId,
+          level: params.level,
+          source: params.source,
+          notes: params.notes || null,
+          created_by: null,
+          expires_at: null,
+        },
+        { onConflict: "event_id,sector_id,capacity_type_id" },
+      );
+    if (error) throw new Error(error.message);
+  },
 };

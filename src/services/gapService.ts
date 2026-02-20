@@ -1,36 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
-import { simulateDelay } from "./mock/delay";
-import {
-  MOCK_GAPS,
-  MOCK_CAPACITY_TYPES,
-  MOCK_SECTOR_CAPABILITY_MATRIX,
-  MOCK_DEPLOYMENTS,
-  getVisibleGaps,
-  getGapById as getGapByIdFromData,
-  getGapsByEventId,
-  getSignalsByGap,
-  getSignalsBySector,
-  getDeploymentsByGap,
-  countGapsByState,
-  getSectorsWithGaps as getSectorsWithGapsFromData,
-  getSectorById,
-  getCapacityTypeById,
-  getEventById,
-  getOperatingCount,
-  MOCK_SECTOR_CONTEXT,
-  getLastSignalForEvent,
-  getGlobalConfidence,
-  getDominantSignalTypesForGap,
-  getOperatingActorsForEvent,
-  getActorsInSector,
-  type SectorContext,
-  type OperatingActorInfo,
-  type NeedLevelExtended,
-} from "./mock/data";
+import type { SectorContext } from "./deploymentService";
 import { getGapStateConfig } from "@/lib/stateTransitions";
 import { mapGapStateToNeedStatus, NEED_STATUS_ORDER, type NeedStatus } from "@/lib/needStatus";
-import { needSignalService } from "@/services/needSignalService";
 import { computeSectorSeverity, type NeedCriticalityLevel } from "@/lib/sectorNeedAggregation";
+import type { NeedLevelExtended } from "./matrixService";
 import type { Gap, GapState, Signal, Deployment, Sector, CapacityType, Event, SignalType, SectorGap, NeedLevel } from "@/types/database";
 import type { EnrichedSector } from "./sectorService";
 
@@ -151,38 +124,8 @@ export function adjustStatusForCoverage(
 
 export const gapService = {
   /**
-   * Get only visible gaps (critical + partial) for dashboard
-   */
-  async getVisibleGapsForEvent(eventId: string): Promise<GapWithDetails[]> {
-    await simulateDelay(150);
-    const gaps = getVisibleGaps(eventId);
-    const enriched = await Promise.all(gaps.map(async (gap) => {
-      const signals = getSignalsByGap(gap.sector_id, gap.capacity_type_id);
-      const evaluatedNeed = await needSignalService.evaluateGapNeed({
-        eventId: gap.event_id,
-        sectorId: gap.sector_id,
-        capabilityId: gap.capacity_type_id,
-        signals,
-      });
-
-      return {
-      ...gap,
-      sector: getSectorById(gap.sector_id),
-      capacity_type: getCapacityTypeById(gap.capacity_type_id),
-      event: getEventById(gap.event_id),
-      need_status: evaluatedNeed?.current_status ?? mapGapStateToNeedStatus(gap.state),
-    }}));
-
-    return enriched.sort((a, b) => {
-      const orderDelta = NEED_STATUS_ORDER.indexOf(a.need_status ?? "WHITE") - NEED_STATUS_ORDER.indexOf(b.need_status ?? "WHITE");
-      if (orderDelta !== 0) return orderDelta;
-      return new Date(b.last_updated_at).getTime() - new Date(a.last_updated_at).getTime();
-    });
-  },
-
-  /**
    * Get gaps grouped by sector for admin dashboard.
-   * Queries Supabase first; falls back to mock data for legacy mock event IDs.
+   * Queries Supabase; returns empty array when no sectors exist in DB.
    */
   async getGapsGroupedBySector(eventId: string): Promise<SectorWithGaps[]> {
     // Try to fetch real sectors from DB
@@ -192,8 +135,7 @@ export const gapService = {
       .eq("event_id", eventId);
 
     if (sectorsError || !dbSectors || dbSectors.length === 0) {
-      // Fall back to mock data implementation for mock/legacy events
-      return this._mockGetGapsGroupedBySector(eventId);
+      return [];
     }
 
     // Fetch sector_needs_context for this event, joined with capacity_types
@@ -291,133 +233,22 @@ export const gapService = {
     });
   },
 
-  /** Mock-based fallback implementation for legacy/mock event IDs */
-  async _mockGetGapsGroupedBySector(eventId: string): Promise<SectorWithGaps[]> {
-    await simulateDelay(150);
-    const visibleGaps = await this.getVisibleGapsForEvent(eventId);
-    
-    // Group gaps by sector_id
-    const gapsBySector: Record<string, GapWithDetails[]> = {};
-    visibleGaps.forEach(gap => {
-      if (!gapsBySector[gap.sector_id]) {
-        gapsBySector[gap.sector_id] = [];
-      }
-      gapsBySector[gap.sector_id].push(gap);
-    });
-    
-    // Build SectorWithGaps for each sector
-    const sectorsWithGaps: SectorWithGaps[] = Object.entries(gapsBySector).map(([sectorId, gaps]) => {
-      const sector = getSectorById(sectorId);
-      const context = MOCK_SECTOR_CONTEXT[sectorId] || {
-        keyPoints: [],
-        extendedContext: "",
-        operationalSummary: "",
-      };
-      
-      const gapsWithDetails: GapWithDetails[] = gaps.map(gap => ({
-        ...gap,
-        sector: sector,
-        capacity_type: getCapacityTypeById(gap.capacity_type_id),
-        event: getEventById(gap.event_id),
-        coverage: getDeploymentsByGap(gap.sector_id, gap.capacity_type_id),
-        need_status: gap.need_status ?? mapGapStateToNeedStatus(gap.state),
-      }));
-      
-      // Get signal types for each gap
-      const gapSignalTypes: Record<string, SignalType[]> = {};
-      gaps.forEach(gap => {
-        gapSignalTypes[gap.id] = getDominantSignalTypesForGap(gap.sector_id, gap.capacity_type_id);
-      });
-      
-      const criticalCount = gaps.filter(g => g.state === 'critical').length;
-      const partialCount = gaps.filter(g => g.state === 'partial').length;
-
-      const sectorPopulation = Math.max(1, sector?.population_affected ?? 1);
-      const sectorAgg = computeSectorSeverity(
-        gapsWithDetails.map((gap) => ({
-          need_id: gap.id,
-          need_status: gap.need_status ?? mapGapStateToNeedStatus(gap.state),
-          criticality_level: inferNeedCriticality(gap),
-          population_weight: sectorPopulation,
-        })),
-      );
-      
-      return {
-        sector: sector!,
-        context,
-        gaps: gapsWithDetails,
-        hasCritical: criticalCount > 0,
-        gapCounts: { critical: criticalCount, partial: partialCount },
-        gapSignalTypes,
-        sector_need_status: sectorAgg.status,
-        sector_need_score: sectorAgg.score,
-        sector_high_uncertainty: sectorAgg.high_uncertainty,
-        sector_override_reasons: sectorAgg.override_reasons,
-      };
-    });
-    
-    // Sort by computed sector severity first, then fallback to legacy counters
-    return sectorsWithGaps.sort((a, b) => {
-      const scoreA = a.sector_need_score ?? 0;
-      const scoreB = b.sector_need_score ?? 0;
-      if (scoreA !== scoreB) return scoreB - scoreA;
-
-      if (a.hasCritical && !b.hasCritical) return -1;
-      if (!a.hasCritical && b.hasCritical) return 1;
-      if (a.gapCounts.critical !== b.gapCounts.critical) {
-        return b.gapCounts.critical - a.gapCounts.critical;
-      }
-      return b.gapCounts.partial - a.gapCounts.partial;
-    });
-  },
-
-  /**
-   * Get all gaps including evaluating (for monitoring section)
-   */
-  async getAllGapsForEvent(eventId: string): Promise<GapWithDetails[]> {
-    await simulateDelay(150);
-    const gaps = getGapsByEventId(eventId);
-    
-    return gaps.map(gap => ({
-      ...gap,
-      sector: getSectorById(gap.sector_id),
-      capacity_type: getCapacityTypeById(gap.capacity_type_id),
-      event: getEventById(gap.event_id),
-    }));
-  },
-
-  /**
-   * Get gap detail with signals and coverage
-   */
-  async getGapById(gapId: string): Promise<GapWithDetails | null> {
-    await simulateDelay(100);
-    const gap = getGapByIdFromData(gapId);
-    if (!gap) return null;
-
-    const signals = getSignalsByGap(gap.sector_id, gap.capacity_type_id);
-    const coverage = getDeploymentsByGap(gap.sector_id, gap.capacity_type_id);
-
-    return {
-      ...gap,
-      sector: getSectorById(gap.sector_id),
-      capacity_type: getCapacityTypeById(gap.capacity_type_id),
-      event: getEventById(gap.event_id),
-      signals,
-      coverage,
-    };
-  },
-
   /**
    * Get signals for a specific gap
    */
-  async getSignalsForGap(sectorId: string, capacityTypeId: string): Promise<Signal[]> {
-    await simulateDelay(50);
-    return getSignalsBySector(sectorId);
+  async getSignalsForGap(sectorId: string, _capacityTypeId: string): Promise<Signal[]> {
+    const { data } = await supabase
+      .from("signals")
+      .select("*")
+      .eq("sector_id", sectorId)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    return (data ?? []) as Signal[];
   },
 
   /**
    * Get counts for metrics cards.
-   * Queries Supabase for real events; falls back to mock for legacy mock event IDs.
+   * Queries Supabase for real events.
    */
   async getCounts(eventId: string): Promise<GapCounts> {
     const { data: needs } = await supabase
@@ -425,136 +256,223 @@ export const gapService = {
       .select("level, sector_id, capacity_type_id")
       .eq("event_id", eventId);
 
-    if (needs && needs.length > 0) {
-      // Fetch active deployments for coverage adjustment
-      const { data: deployments } = await supabase
-        .from("deployments")
-        .select("sector_id, capacity_type_id, status")
-        .eq("event_id", eventId)
-        .in("status", ["confirmed", "operating", "interested"]);
-
-      const deploymentCounts = buildDeploymentCountMap((deployments ?? []) as DeploymentRow[]);
-
-      let critical = 0;
-      let partial = 0;
-      let active = 0;
-
-      for (const n of needs) {
-        const count = deploymentCounts.get(`${n.sector_id}:${n.capacity_type_id}`) ?? 0;
-        const { needStatus } = adjustStatusForCoverage(n.level, count);
-        switch (needStatus) {
-          case "RED":
-            critical++;
-            break;
-          case "ORANGE":
-            partial++;
-            break;
-          case "YELLOW":
-          case "GREEN":
-            active++;
-            break;
-          // WHITE / default ignored
-        }
-      }
-
-      const { data: dbSectors } = await supabase
-        .from("sectors")
-        .select("id")
-        .eq("event_id", eventId);
-      const sectorsWithGaps = dbSectors ? dbSectors.length : 0;
-
-      return { critical, partial, active, evaluating: 0, sectorsWithGaps };
+    if (!needs || needs.length === 0) {
+      return { critical: 0, partial: 0, active: 0, evaluating: 0, sectorsWithGaps: 0 };
     }
 
-    // Fallback to mock data for legacy/mock event IDs
-    return this._mockGetCounts(eventId);
-  },
+    // Fetch active deployments for coverage adjustment
+    const { data: deployments } = await supabase
+      .from("deployments")
+      .select("sector_id, capacity_type_id, status")
+      .eq("event_id", eventId)
+      .in("status", ["confirmed", "operating", "interested"]);
 
-  async _mockGetCounts(eventId: string): Promise<GapCounts> {
-    await simulateDelay(100);
-    const counts = countGapsByState(eventId);
-    const sectorsWithGaps = getSectorsWithGapsFromData(eventId).length;
-    return { ...counts, sectorsWithGaps };
+    const deploymentCounts = buildDeploymentCountMap((deployments ?? []) as DeploymentRow[]);
+
+    let critical = 0;
+    let partial = 0;
+    let active = 0;
+
+    for (const n of needs) {
+      const count = deploymentCounts.get(`${n.sector_id}:${n.capacity_type_id}`) ?? 0;
+      const { needStatus } = adjustStatusForCoverage(n.level, count);
+      switch (needStatus) {
+        case "RED":
+          critical++;
+          break;
+        case "ORANGE":
+          partial++;
+          break;
+        case "YELLOW":
+        case "GREEN":
+          active++;
+          break;
+        // WHITE / default ignored
+      }
+    }
+
+    const { data: dbSectors } = await supabase
+      .from("sectors")
+      .select("id")
+      .eq("event_id", eventId);
+    const sectorsWithGaps = dbSectors ? dbSectors.length : 0;
+
+    return { critical, partial, active, evaluating: 0, sectorsWithGaps };
   },
 
   /**
-   * Get dashboard meta info (last signal, global confidence, etc.)
+   * Get dashboard meta info (last signal, global confidence, operating count).
    */
   async getDashboardMeta(eventId: string): Promise<DashboardMeta> {
-    await simulateDelay(50);
-    return {
-      lastSignal: getLastSignalForEvent(eventId),
-      globalConfidence: getGlobalConfidence(eventId),
-      operatingCount: getOperatingCount(eventId),
-    };
+    const [signalResult, deploymentResult] = await Promise.all([
+      supabase
+        .from("signals")
+        .select("*")
+        .eq("event_id", eventId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("deployments")
+        .select("id", { count: "exact", head: true })
+        .eq("event_id", eventId)
+        .in("status", ["operating", "confirmed"]),
+    ]);
+
+    const lastSignal = signalResult.data as Signal | null;
+    const operatingCount = deploymentResult.count ?? 0;
+
+    // Derive confidence from recency of last signal
+    let globalConfidence: "high" | "medium" | "low" = "medium";
+    if (lastSignal) {
+      const ageHours = (Date.now() - new Date(lastSignal.created_at).getTime()) / 3600000;
+      if (ageHours < 1) globalConfidence = "high";
+      else if (ageHours > 6) globalConfidence = "low";
+    } else {
+      globalConfidence = "low";
+    }
+
+    return { lastSignal, globalConfidence, operatingCount };
   },
 
   /**
    * Get operating actors for modal
    */
   async getOperatingActors(eventId: string): Promise<OperatingActor[]> {
-    await simulateDelay(100);
-    return getOperatingActorsForEvent(eventId);
+    const { data: deps } = await supabase
+      .from("deployments")
+      .select("actor_id, sector_id, capacity_type_id, status, updated_at, capacity_types(name)")
+      .eq("event_id", eventId)
+      .in("status", ["operating", "confirmed"]);
+
+    if (!deps || deps.length === 0) return [];
+
+    const actorIds = [...new Set(deps.map((d) => d.actor_id))];
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("user_id, full_name, organization_name, organization_type, phone")
+      .in("user_id", actorIds);
+
+    type ProfileRow = {
+      user_id: string;
+      full_name: string | null;
+      organization_name: string | null;
+      organization_type: string | null;
+      phone: string | null;
+    };
+
+    const profileMap = new Map<string, ProfileRow>();
+    (profiles ?? []).forEach((p) => profileMap.set(p.user_id, p as ProfileRow));
+
+    // Group deployments by actor
+    const byActor = new Map<string, typeof deps>();
+    deps.forEach((d) => {
+      if (!byActor.has(d.actor_id)) byActor.set(d.actor_id, []);
+      byActor.get(d.actor_id)!.push(d);
+    });
+
+    return Array.from(byActor.entries()).map(([actorId, actorDeps]) => {
+      const profile = profileMap.get(actorId);
+      const lastDep = actorDeps.sort(
+        (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+      )[0];
+      type CapType = { name: string };
+      const capName = (lastDep.capacity_types as CapType | null)?.name ?? "Capacidad";
+
+      return {
+        id: actorId,
+        name: profile?.organization_name ?? profile?.full_name ?? actorId,
+        type: (profile?.organization_type as OperatingActor["type"]) ?? "ong",
+        sectors: [...new Set(actorDeps.map((d) => d.sector_id))],
+        capacity: capName,
+        lastConfirmation: lastDep.updated_at ?? null,
+        contact: profile?.phone ? { name: profile.full_name ?? "", phone: profile.phone } : undefined,
+      };
+    });
   },
 
   /**
-   * Get sectors that have visible gaps
+   * Get sectors that have visible gaps (distinct sector IDs from sector_needs_context)
    */
   async getSectorsWithGaps(eventId: string): Promise<string[]> {
-    await simulateDelay(50);
-    return getSectorsWithGapsFromData(eventId);
+    const { data } = await supabase
+      .from("sector_needs_context")
+      .select("sector_id")
+      .eq("event_id", eventId);
+    return [...new Set((data ?? []).map((r) => r.sector_id))];
   },
 
   /**
    * Get evaluating gaps count (for collapsed section)
    */
-  async getEvaluatingCount(eventId: string): Promise<number> {
-    await simulateDelay(50);
-    const counts = countGapsByState(eventId);
-    return counts.evaluating;
+  async getEvaluatingCount(_eventId: string): Promise<number> {
+    return 0;
   },
 
   /**
-   * Get enriched sector by ID for Admin Dashboard detail drawer
-   * Unlike the ONG version, this shows ALL gaps (not filtered by actor capabilities)
+   * Get enriched sector by ID for Admin Dashboard detail drawer.
+   * Unlike the ONG version, this shows ALL gaps (not filtered by actor capabilities).
    */
   async getEnrichedSectorById(sectorId: string): Promise<EnrichedSector | null> {
-    await simulateDelay(150);
-    
-    const sector = getSectorById(sectorId);
-    if (!sector) return null;
-    
-    const event = getEventById(sector.event_id);
-    if (!event) return null;
-    
-    const context = MOCK_SECTOR_CONTEXT[sectorId] || {
-      keyPoints: ["Sin información adicional"],
-      extendedContext: "No hay contexto disponible para este sector.",
-      operationalSummary: "Sector sin evaluación detallada.",
-    };
-    
-    // Build gaps from capability matrix
-    const matrix = MOCK_SECTOR_CAPABILITY_MATRIX[sectorId] || {};
+    const { data: sectorData } = await supabase
+      .from("sectors")
+      .select("*")
+      .eq("id", sectorId)
+      .maybeSingle();
+    if (!sectorData) return null;
+    const sector = sectorData as unknown as Sector;
+
+    const { data: eventData } = await supabase
+      .from("events")
+      .select("*")
+      .eq("id", sector.event_id)
+      .maybeSingle();
+    if (!eventData) return null;
+    const event = eventData as unknown as Event;
+
+    const { data: needsData } = await supabase
+      .from("sector_needs_context")
+      .select("*, capacity_types(*)")
+      .eq("sector_id", sectorId);
+
+    const { data: deploymentsData } = await supabase
+      .from("deployments")
+      .select("*")
+      .eq("sector_id", sectorId)
+      .in("status", ["operating", "confirmed"]);
+
+    const { data: signalsData } = await supabase
+      .from("signals")
+      .select("*")
+      .eq("sector_id", sectorId)
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    const deployments = (deploymentsData ?? []) as unknown as Array<{ capacity_type_id: string }>;
     const gaps: SectorGap[] = [];
-    
-    MOCK_CAPACITY_TYPES.forEach(capacity => {
-      const level = matrix[capacity.id] as NeedLevelExtended || "unknown";
-      if (level === "unknown" || level === "covered") return;
-      
-      const deployments = MOCK_DEPLOYMENTS.filter(
-        d => d.sector_id === sectorId && 
-             d.capacity_type_id === capacity.id &&
-             (d.status === "operating" || d.status === "confirmed")
-      );
-      
-      const coverage = deployments.length;
+
+    type NeedRow = {
+      capacity_type_id: string;
+      level: string;
+      capacity_types: CapacityType | null;
+    };
+    const needs = (needsData ?? []) as NeedRow[];
+
+    for (const need of needs) {
+      const capType = need.capacity_types;
+      if (!capType) continue;
+
+      const level = need.level as NeedLevelExtended;
+      if (level === "unknown" || level === "covered") continue;
+
+      const coverage = deployments.filter((d) => d.capacity_type_id === need.capacity_type_id).length;
       const demand = level === "critical" ? 3 : level === "high" ? 2 : 1;
       const gap = Math.max(0, demand - coverage);
-      
+
       if (gap > 0) {
         gaps.push({
           sector,
-          capacityType: capacity,
+          capacityType: capType,
           smsDemand: 0,
           contextDemand: demand,
           totalDemand: demand,
@@ -565,24 +483,27 @@ export const gapService = {
           maxLevel: level as NeedLevel,
         });
       }
-    });
-    
-    const hasCritical = gaps.some(g => g.isCritical);
-    const state: EnrichedSector["state"] = hasCritical ? "critical" : "partial";
-    
-    const actorsInSector = getActorsInSector(sectorId);
-    const recentSignals = getSignalsBySector(sectorId).slice(0, 5);
-    
+    }
+
+    const hasCritical = gaps.some((g) => g.isCritical);
+    const state: EnrichedSector["state"] = hasCritical ? "critical" : gaps.length > 0 ? "partial" : "contained";
+
+    const context = {
+      keyPoints: [],
+      extendedContext: "",
+      operationalSummary: "",
+    };
+
     return {
       sector,
       event,
       state,
       context,
       gaps,
-      relevantGaps: gaps, // Admin sees all gaps as relevant
+      relevantGaps: gaps,
       bestMatchGaps: gaps.slice(0, 2),
-      actorsInSector,
-      recentSignals,
+      actorsInSector: [],
+      recentSignals: (signalsData ?? []) as Signal[],
     };
   },
 

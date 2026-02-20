@@ -1,22 +1,44 @@
-import { simulateDelay } from "./mock/delay";
-import { 
-  MOCK_SECTOR_CAPABILITY_MATRIX,
-  updateMatrixCell,
-  type NeedLevelExtended,
-} from "./mock/data";
+import { supabase } from "@/integrations/supabase/client";
 
-export type { NeedLevelExtended };
+export type NeedLevelExtended = "unknown" | "low" | "medium" | "high" | "critical" | "covered";
 
 export const matrixService = {
   async getMatrix(eventId?: string): Promise<Record<string, Record<string, NeedLevelExtended>>> {
-    await simulateDelay(150);
-    // For now, return the full matrix. In a real app, you'd filter by event sectors
-    return { ...MOCK_SECTOR_CAPABILITY_MATRIX };
+    if (!eventId) return {};
+
+    const { data, error } = await supabase
+      .from("sector_needs_context")
+      .select("sector_id, capacity_type_id, level")
+      .eq("event_id", eventId);
+
+    if (error || !data) return {};
+
+    const matrix: Record<string, Record<string, NeedLevelExtended>> = {};
+    for (const row of data) {
+      if (!matrix[row.sector_id]) matrix[row.sector_id] = {};
+      matrix[row.sector_id][row.capacity_type_id] = row.level as NeedLevelExtended;
+    }
+    return matrix;
   },
 
-  async updateCell(sectorId: string, capacityId: string, level: NeedLevelExtended): Promise<void> {
-    await simulateDelay(200);
-    updateMatrixCell(sectorId, capacityId, level);
+  async updateCell(sectorId: string, capacityId: string, level: NeedLevelExtended, eventId?: string): Promise<void> {
+    if (!eventId) return;
+    const { error } = await supabase
+      .from("sector_needs_context")
+      .upsert(
+        {
+          event_id: eventId,
+          sector_id: sectorId,
+          capacity_type_id: capacityId,
+          level,
+          source: "manual",
+          notes: null,
+          created_by: null,
+          expires_at: null,
+        },
+        { onConflict: "event_id,sector_id,capacity_type_id" },
+      );
+    if (error) throw new Error(error.message);
   },
 
   getLevelColor(level: NeedLevelExtended): string {

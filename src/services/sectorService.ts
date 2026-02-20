@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { SectorContext, ActorInSector } from "./mock/data";
+import type { SectorContext, ActorInSector } from "./deploymentService";
 import type { Sector, Event, CapacityType, SectorGap, NeedLevel, Signal } from "@/types/database";
 
 export interface RecommendedSector {

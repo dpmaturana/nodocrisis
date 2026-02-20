@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import { useSearchParams, Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { eventService } from "@/services";
-import { MOCK_EVENTS, MOCK_SECTORS, addEvent, addSector, MOCK_SECTOR_CAPABILITY_MATRIX, updateMatrixCell } from "@/services/mock/data";
-import type { NeedLevelExtended } from "@/services/mock/data";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,8 +69,9 @@ export default function Coordination() {
   useEffect(() => {
     const eventId = selectedEventForDemand || selectedEventForSector;
     if (eventId) {
-      const eventSectors = MOCK_SECTORS.filter(s => s.event_id === eventId);
-      setSectors(eventSectors);
+      eventService.getSectorsForEvent(eventId).then(setSectors).catch(console.error);
+    } else {
+      setSectors([]);
     }
   }, [selectedEventForDemand, selectedEventForSector]);
 
@@ -81,7 +80,7 @@ export default function Coordination() {
 
     setIsSaving(true);
     try {
-      const newEvent = addEvent({
+      await eventService.create({
         name: newEventName.trim(),
         population_affected: newEventPopulationAffected ? Number(newEventPopulationAffected) : null,
         type: null,
@@ -103,7 +102,8 @@ export default function Coordination() {
       setNewEventLocation("");
       setNewEventDescription("");
       setNewEventPopulationAffected("");
-      setEvents([...MOCK_EVENTS]);
+      const updatedEvents = await eventService.getAll();
+      setEvents(updatedEvents);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -125,17 +125,11 @@ export default function Coordination() {
         .map((a) => a.trim())
         .filter((a) => a);
 
-      addSector({
-        event_id: selectedEventForSector,
-        canonical_name: newSectorName.trim(),
-        population_affected: null,
-        aliases: aliases.length > 0 ? aliases : null,
-        status: "unresolved",
-        source: "manual",
-        confidence: 1,
-        latitude: null,
-        longitude: null,
-      });
+      await eventService.addSector(
+        selectedEventForSector,
+        newSectorName.trim(),
+        aliases.length > 0 ? aliases : undefined,
+      );
 
       toast({
         title: "Sector creado",
@@ -147,8 +141,8 @@ export default function Coordination() {
       setSectorAliases("");
 
       // Refresh sectors
-      const eventSectors = MOCK_SECTORS.filter(s => s.event_id === selectedEventForSector);
-      setSectors(eventSectors);
+      const updatedSectors = await eventService.getSectorsForEvent(selectedEventForSector);
+      setSectors(updatedSectors);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -165,14 +159,14 @@ export default function Coordination() {
 
     setIsSaving(true);
     try {
-      // Update the matrix with the demand level
-      const levelMap: Record<NeedLevel, NeedLevelExtended> = {
-        low: "low",
-        medium: "medium",
-        high: "high",
-        critical: "critical",
-      };
-      updateMatrixCell(selectedSector, selectedCapacity, levelMap[demandLevel]);
+      await eventService.addContextualDemand({
+        eventId: selectedEventForDemand,
+        sectorId: selectedSector,
+        capacityTypeId: selectedCapacity,
+        level: demandLevel,
+        source: demandSource,
+        notes: demandNotes.trim() || undefined,
+      });
 
       toast({
         title: "Demanda agregada",
