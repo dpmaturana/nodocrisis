@@ -442,7 +442,7 @@ export const gapService = {
 
     const { data: deploymentsData } = await supabase
       .from("deployments")
-      .select("*")
+      .select("*, profiles(user_id, full_name, organization_name)")
       .eq("sector_id", sectorId)
       .in("status", ["operating", "confirmed"]);
 
@@ -453,8 +453,15 @@ export const gapService = {
       .order("created_at", { ascending: false })
       .limit(5);
 
-    const deployments = (deploymentsData ?? []) as unknown as Array<{ capacity_type_id: string }>;
+    type DeploymentRow = {
+      capacity_type_id: string;
+      actor_id: string;
+      status: string;
+      profiles: { user_id: string; full_name: string | null; organization_name: string | null } | null;
+    };
+    const deployments = (deploymentsData ?? []) as unknown as DeploymentRow[];
     const gaps: SectorGap[] = [];
+    const resolvedGaps: SectorGap[] = [];
 
     type NeedRow = {
       capacity_type_id: string;
@@ -468,9 +475,32 @@ export const gapService = {
       if (!capType) continue;
 
       const level = need.level as NeedLevelExtended;
-      if (level === "unknown" || level === "covered") continue;
+      if (level === "unknown") continue;
 
-      const coverage = deployments.filter((d) => d.capacity_type_id === need.capacity_type_id).length;
+      const matchingDeployments = deployments.filter((d) => d.capacity_type_id === need.capacity_type_id);
+      const coveringActors = matchingDeployments.map((d) => ({
+        name: d.profiles?.organization_name ?? d.profiles?.full_name ?? "Actor desconocido",
+        status: d.status,
+      }));
+
+      if (level === "covered") {
+        resolvedGaps.push({
+          sector,
+          capacityType: capType,
+          smsDemand: 0,
+          contextDemand: 0,
+          totalDemand: 0,
+          coverage: matchingDeployments.length,
+          gap: 0,
+          isUncovered: false,
+          isCritical: false,
+          maxLevel: "low" as NeedLevel,
+          coveringActors,
+        });
+        continue;
+      }
+
+      const coverage = matchingDeployments.length;
       const demand = level === "critical" ? 3 : level === "high" ? 2 : 1;
       const gap = Math.max(0, demand - coverage);
 
@@ -486,6 +516,7 @@ export const gapService = {
           isUncovered: coverage === 0,
           isCritical: level === "critical" || level === "high",
           maxLevel: level as NeedLevel,
+          coveringActors,
         });
       }
     }
@@ -509,6 +540,7 @@ export const gapService = {
       bestMatchGaps: gaps.slice(0, 2),
       actorsInSector: [],
       recentSignals: (signalsData ?? []) as Signal[],
+      resolvedGaps,
     };
   },
 

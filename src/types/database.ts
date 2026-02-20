@@ -222,6 +222,7 @@ export interface SectorGap {
   isUncovered: boolean;
   isCritical: boolean;
   maxLevel: NeedLevel;
+  coveringActors?: Array<{ name: string; status: string }>;
 }
 
 export interface DashboardStats {
