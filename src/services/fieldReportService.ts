@@ -1,7 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { FieldReport, CreateFieldReportParams, ExtractedData, FieldReportStatus } from "@/types/fieldReport";
-import { needSignalService, mapNeedStatusToNeedLevel } from "@/services/needSignalService";
+import { needSignalService, mapNeedStatusToNeedLevel, mapNeedLevelToNeedStatus } from "@/services/needSignalService";
 import { eventService } from "@/services/eventService";
+import type { NeedStatus } from "@/lib/needStatus";
 
 // Helper to transform DB response to typed FieldReport
 function toFieldReport(row: any): FieldReport {
@@ -223,12 +224,27 @@ export const fieldReportService = {
       capacityTypeMap[ct.name] = ct.id;
     }
 
+    // Fetch current need levels from DB so the engine starts from the correct state
+    const { data: currentNeeds } = await supabase
+      .from('sector_needs_context')
+      .select('capacity_type_id, level')
+      .eq('event_id', report.event_id)
+      .eq('sector_id', report.sector_id);
+
+    const previousLevels: Record<string, NeedStatus> = {};
+    if (currentNeeds) {
+      for (const row of currentNeeds) {
+        previousLevels[row.capacity_type_id] = mapNeedLevelToNeedStatus(row.level);
+      }
+    }
+
     // Feed extracted data through the need signal engine
     const results = await needSignalService.onFieldReportCompleted({
       eventId: report.event_id,
       sectorId: report.sector_id,
       extractedData: report.extracted_data,
       capacityTypeMap,
+      previousLevels,
     });
 
     // Update sector_needs_context for each capability

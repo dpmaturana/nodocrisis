@@ -324,4 +324,37 @@ describe("NeedLevelEngine", () => {
     // Guardrail G should catch WHITE and escalate to ORANGE
     expect(state?.current_status).toBe("ORANGE");
   });
+
+  it("allows ORANGE->YELLOW with stabilization signal (guardrail F fix)", async () => {
+    const repo = new InMemoryRepo();
+    repo.needs.set("sec-1::cap-1", {
+      sector_id: "sec-1",
+      capability_id: "cap-1",
+      current_status: "ORANGE",
+      demand_score: 0,
+      insufficiency_score: 0,
+      stabilization_score: 0,
+      fragility_score: 0,
+      coverage_score: 0,
+      stabilization_consecutive_windows: 0,
+      last_window_id: null,
+      operational_requirements: [],
+      fragility_notes: [],
+      last_updated_at: now,
+      last_status_change_at: now,
+    });
+
+    // A stabilization signal without augmentation
+    const extractor = new StaticExtractor({
+      ...baseExtractor,
+      classifications: [{ type: "SIGNAL_STABILIZATION", confidence: 0.8, short_quote: "stabilizing" }],
+    });
+
+    const engine = new NeedLevelEngine(repo, extractor, new StaticEvaluator({ ...baseEval, proposed_status: "YELLOW" }));
+
+    await engine.processRawInput({ source_type: "ngo", source_name: "ngo", timestamp: now, text: "stabilization" });
+    const state = await repo.getNeedState("sec-1", "cap-1");
+    // Guardrail F should allow ORANGE→YELLOW when stabilization_score > 0
+    expect(state?.current_status).toBe("YELLOW");
+  });
 });
