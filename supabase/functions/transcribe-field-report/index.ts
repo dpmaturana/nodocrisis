@@ -43,17 +43,6 @@ interface ExtractedData {
   confidence: number;
 }
 
-/** Pick the highest urgency from extracted items; default to "medium". */
-function deriveNeedLevel(items: ExtractedData["items"]): string {
-  const rank: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
-  let best: string | null = null;
-  let bestRank = 0;
-  for (const item of items) {
-    const r = rank[item.urgency] ?? 0;
-    if (r > bestRank) { bestRank = r; best = item.urgency; }
-  }
-  return best ?? "medium";
-}
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -313,27 +302,34 @@ serve(async (req) => {
           );
         console.log(`${linkedCapabilities.length} signal(s) created for report:`, report_id);
 
-        // Upsert sector_needs_context so the gap engine can see the need
-        const needLevel = deriveNeedLevel(extractedData.items ?? []);
-        const { error: needError } = await supabase
-          .from('sector_needs_context')
-          .upsert(
-            linkedCapabilities.map((capTypeId: string) => ({
+        // Delegate need-level decision to the NeedLevelEngine (canonical path).
+        // sector_needs_context is updated inside process-field-report-signals.
+        const processSignalsUrl = Deno.env.get('PROCESS_FIELD_REPORT_SIGNALS_URL');
+        if (processSignalsUrl) {
+          const capacityTypeMap: Record<string, string> = {};
+          for (const ct of (capTypes ?? [])) {
+            capacityTypeMap[(ct as { id: string; name: string }).name] = (ct as { id: string; name: string }).id;
+          }
+          const engineResponse = await fetch(processSignalsUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
               event_id: report.event_id,
               sector_id: report.sector_id,
-              capacity_type_id: capTypeId,
-              level: needLevel,
-              source: 'field_report',
-              notes: extractedData.observations || null,
-              created_by: null,
-              expires_at: null,
-            })),
-            { onConflict: 'event_id,sector_id,capacity_type_id' },
-          );
-        if (needError) {
-          console.error('sector_needs_context upsert error:', needError);
+              extracted_data: extractedData,
+              capacity_type_map: capacityTypeMap,
+              report_id,
+            }),
+          });
+          if (!engineResponse.ok) {
+            console.error('[engine path] process-field-report-signals error:', await engineResponse.text());
+          } else {
+            const engineResult = await engineResponse.json();
+            console.log('[engine path] NeedLevelEngine results:', JSON.stringify(engineResult));
+          }
+        } else {
+          console.warn('[engine path] PROCESS_FIELD_REPORT_SIGNALS_URL not set; skipping engine invocation');
         }
-        console.log(`${linkedCapabilities.length} sector_needs_context row(s) upserted (level: ${needLevel})`);
       } else {
         // Fallback: create a generic signal without capacity_type_id
         await supabase
