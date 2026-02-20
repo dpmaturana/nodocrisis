@@ -243,15 +243,15 @@ Deno.serve(async (req) => {
     }
 
     // Ensure capability_types explicitly listed in extractedData are represented
-    // even when no items matched them. They are only added when absent so that
-    // item-matched capabilities are not overwritten with empty arrays.
-    // (Mirrors the same pattern in needSignalService.onFieldReportCompleted.)
-    // NOTE: capabilities added here with no items will be skipped below when
-    // signals.length === 0, which is the correct/intended behaviour.
+    // even when no items matched them. Assign ALL unmatched items to these
+    // capabilities so the engine can still evaluate need levels.
     for (const capName of capabilityNames) {
       const capId = capacity_type_map[capName];
       if (capId && !itemsByCapId.has(capId)) {
-        itemsByCapId.set(capId, []);
+        // Assign all items to this capability as a fallback — the LLM
+        // explicitly listed this capability, so the items likely relate to it
+        // even if substring matching failed.
+        itemsByCapId.set(capId, items.length > 0 ? [...items] : []);
       }
     }
 
