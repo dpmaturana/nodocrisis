@@ -141,7 +141,7 @@ function evaluateNeedStatus(signals: Array<{ content: string; confidence: number
   let proposed: NeedStatus = "WHITE";
   if (demandStrong && !coverageActive) {
     proposed = "RED";
-  } else if (insuffStrong && coverageActive) {
+  } else if ((insuffStrong || demandStrong) && coverageActive) {
     proposed = "ORANGE";
   } else if (stabilizationStrong && !fragilityAlert && !demandStrong && !insuffStrong) {
     proposed = "GREEN";
@@ -157,6 +157,12 @@ function evaluateNeedStatus(signals: Array<{ content: string; confidence: number
   // Guardrail B: insufficiency without coverage → RED
   if (insuffStrong && !coverageActive && proposed !== "RED") {
     proposed = "RED";
+  }
+
+  // Guardrail G: worsening escalation — when demand is strong, ensure at
+  // least ORANGE so that NGO worsening signals are reflected.
+  if (proposed !== "RED" && proposed !== "ORANGE" && demandStrong) {
+    proposed = "ORANGE";
   }
 
   return proposed;

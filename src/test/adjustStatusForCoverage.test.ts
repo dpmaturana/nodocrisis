@@ -34,20 +34,20 @@ describe("adjustStatusForCoverage", () => {
     });
   });
 
-  describe("with active deployments", () => {
-    it("downgrades critical from RED to ORANGE when coverage exists", () => {
-      const result = adjustStatusForCoverage("critical", 1);
+  describe("with active deployments meeting demand threshold", () => {
+    it("downgrades critical from RED to ORANGE when deployments meet demand (3)", () => {
+      const result = adjustStatusForCoverage("critical", 3);
       expect(result.state).toBe("partial");
       expect(result.needStatus).toBe("ORANGE");
     });
 
-    it("downgrades high from RED to ORANGE when coverage exists", () => {
+    it("downgrades high from RED to ORANGE when deployments meet demand (2)", () => {
       const result = adjustStatusForCoverage("high", 2);
       expect(result.state).toBe("partial");
       expect(result.needStatus).toBe("ORANGE");
     });
 
-    it("downgrades medium from ORANGE to YELLOW when coverage exists", () => {
+    it("downgrades medium from ORANGE to YELLOW when deployments meet demand (1)", () => {
       const result = adjustStatusForCoverage("medium", 1);
       expect(result.state).toBe("partial");
       expect(result.needStatus).toBe("YELLOW");
@@ -66,17 +66,42 @@ describe("adjustStatusForCoverage", () => {
     });
   });
 
+  describe("with partial deployments below demand threshold", () => {
+    it("keeps critical at RED when only 1 deployment (demand=3)", () => {
+      const result = adjustStatusForCoverage("critical", 1);
+      expect(result.state).toBe("critical");
+      expect(result.needStatus).toBe("RED");
+    });
+
+    it("keeps critical at RED when only 2 deployments (demand=3)", () => {
+      const result = adjustStatusForCoverage("critical", 2);
+      expect(result.state).toBe("critical");
+      expect(result.needStatus).toBe("RED");
+    });
+
+    it("keeps high at RED when only 1 deployment (demand=2)", () => {
+      const result = adjustStatusForCoverage("high", 1);
+      expect(result.state).toBe("critical");
+      expect(result.needStatus).toBe("RED");
+    });
+  });
+
   describe("edge cases", () => {
     it("treats negative deployment count same as zero", () => {
       const result = adjustStatusForCoverage("critical", -1);
       expect(result.needStatus).toBe("RED");
     });
 
-    it("handles multiple deployments same as single for critical", () => {
-      const one = adjustStatusForCoverage("critical", 1);
-      const ten = adjustStatusForCoverage("critical", 10);
-      expect(one.needStatus).toBe(ten.needStatus);
-      expect(one.needStatus).toBe("ORANGE");
+    it("downgrades critical when deployments exceed demand", () => {
+      const result = adjustStatusForCoverage("critical", 10);
+      expect(result.needStatus).toBe("ORANGE");
+    });
+
+    it("1 deployment is insufficient for critical but sufficient for medium", () => {
+      const critical = adjustStatusForCoverage("critical", 1);
+      const medium = adjustStatusForCoverage("medium", 1);
+      expect(critical.needStatus).toBe("RED");
+      expect(medium.needStatus).toBe("YELLOW");
     });
   });
 });

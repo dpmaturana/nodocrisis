@@ -81,10 +81,12 @@ function mapNeedLevelToGapState(level: string): GapState {
 /**
  * Adjust the NeedStatus for a given need level based on active deployment
  * coverage.  When actors are confirmed/operating for a sector+capability the
- * status should improve:
- *   critical/high  – RED  → ORANGE  (has some coverage, still insufficient)
- *   medium         – ORANGE → YELLOW (coverage in validation)
- *   low            – GREEN  (unchanged)
+ * status should improve, but only when the number of deployments meets the
+ * full demand for that need level:
+ *   critical (demand=3)  – RED  → ORANGE  only when deployments ≥ 3
+ *   high     (demand=2)  – RED  → ORANGE  only when deployments ≥ 2
+ *   medium   (demand=1)  – ORANGE → YELLOW when deployments ≥ 1
+ *   low                  – GREEN  (unchanged)
  */
 /** Minimal shape returned by the deployments query used for coverage counting. */
 type DeploymentRow = { sector_id: string; capacity_type_id: string };
@@ -110,16 +112,22 @@ export function adjustStatusForCoverage(
     return { state: baseState, needStatus: baseStatus };
   }
 
-  switch (level) {
-    case "critical":
-    case "high":
-      return { state: "partial" as GapState, needStatus: "ORANGE" as NeedStatus };
-    case "medium":
-      return { state: "partial" as GapState, needStatus: "YELLOW" as NeedStatus };
-    case "low":
-    default:
-      return { state: baseState, needStatus: baseStatus };
+  // Demand thresholds mirror getEnrichedSectorById (line 469)
+  const demand = level === "critical" ? 3 : level === "high" ? 2 : 1;
+
+  // Only downgrade when deployments meet the full demand for this level
+  if (activeDeploymentCount >= demand) {
+    switch (level) {
+      case "critical":
+      case "high":
+        return { state: "partial" as GapState, needStatus: "ORANGE" as NeedStatus };
+      case "medium":
+        return { state: "partial" as GapState, needStatus: "YELLOW" as NeedStatus };
+    }
   }
+
+  // Partial coverage: keep base severity
+  return { state: baseState, needStatus: baseStatus };
 }
 
 export const gapService = {
