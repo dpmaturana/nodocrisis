@@ -25,6 +25,11 @@ class InMemoryNeedsRepository implements NeedsRepository {
   private needStates = new Map<string, NeedState>();
   private audits: NeedAudit[] = [];
   private activityLog: CapabilityActivityLogEntry[] = [];
+  private currentEventId: string | null = null;
+
+  setEventId(eventId: string): void {
+    this.currentEventId = eventId;
+  }
 
   async findRawInputByHash(hash: string): Promise<RawInput | null> {
     return this.rawInputs.get(hash) ?? null;
@@ -87,6 +92,34 @@ class InMemoryNeedsRepository implements NeedsRepository {
         reasoning_summary: audit.reasoning_summary,
         guardrails_applied: audit.guardrails_applied,
       });
+
+      if (this.currentEventId) {
+        const { supabase } = await import("@/integrations/supabase/client");
+        const { error } = await supabase.from("need_audits").insert({
+          sector_id: audit.sector_id,
+          capability_id: audit.capability_id,
+          event_id: this.currentEventId,
+          timestamp: audit.timestamp,
+          previous_status: audit.previous_status,
+          proposed_status: audit.proposed_status,
+          final_status: audit.final_status,
+          llm_confidence: audit.llm_confidence,
+          reasoning_summary: audit.reasoning_summary,
+          contradiction_detected: audit.contradiction_detected,
+          key_evidence: audit.key_evidence,
+          legal_transition: audit.legal_transition,
+          illegal_transition_reason: audit.illegal_transition_reason ?? null,
+          guardrails_applied: audit.guardrails_applied,
+          scores_snapshot: audit.scores_snapshot as any,
+          booleans_snapshot: audit.booleans_snapshot as any,
+          model: audit.model,
+          prompt_version: audit.prompt_version,
+          config_snapshot: audit.config_snapshot as any,
+        });
+        if (error) {
+          console.error("[needSignalService] Failed to persist need_audit:", error);
+        }
+      }
     }
   }
 
@@ -283,6 +316,8 @@ export const needSignalService = {
   }): Promise<NeedState | null> {
     const nowIso = params.nowIso ?? new Date().toISOString();
 
+    repository.setEventId(params.eventId);
+
     // Seed the in-memory repository with the current DB state so the engine
     // starts from the correct previous status rather than always WHITE.
     if (params.previousStatus) {
@@ -339,6 +374,8 @@ export const needSignalService = {
   }): Promise<NeedState | null> {
     const effectiveNowIso = params.nowIso ?? new Date().toISOString();
     const actor = params.actorName ?? "actor";
+
+    repository.setEventId(params.eventId);
 
     let content: string;
     let signalType: SignalType;
@@ -402,6 +439,8 @@ export const needSignalService = {
   }): Promise<Array<{ capabilityId: string; needLevel: NeedLevel; needState: NeedState | null }>> {
     const effectiveNow = params.nowIso ?? new Date().toISOString();
     const results: Array<{ capabilityId: string; needLevel: NeedLevel; needState: NeedState | null }> = [];
+
+    repository.setEventId(params.eventId);
 
     // Group items by matching capability type
     const itemsByCapId = new Map<string, ExtractedItem[]>();
