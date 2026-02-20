@@ -1,136 +1,51 @@
-import { simulateDelay } from "./mock/delay";
+import { supabase } from "@/integrations/supabase/client";
 import type {
   CapabilityActivityLogEntry,
   ActivitySourceType,
-  ActivityEventType,
 } from "@/types/activityLog";
 import { SOURCE_TYPE_WEIGHTS } from "@/types/activityLog";
+import type { SignalType } from "@/types/database";
 
-// ─── Mock Activity Log Entries ───────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────
 
-function hoursAgo(h: number): string {
-  return new Date(Date.now() - h * 3600_000).toISOString();
+function mapSignalTypeToSourceType(signalType: SignalType | null | undefined): ActivitySourceType {
+  if (signalType == null) return "system";
+  switch (signalType) {
+    case "field_report": return "ngo";
+    case "actor_report": return "institutional";
+    case "official": return "institutional";
+    case "sms": return "twitter";
+    case "social": return "twitter";
+    case "news": return "original_context";
+    case "context": return "original_context";
+    default: return "system";
+  }
 }
 
-const MOCK_ACTIVITY_LOG: CapabilityActivityLogEntry[] = [
-  // Twitter signals
-  {
-    id: "log-1",
-    sector_id: "sec-mock-1",
-    capability_id: "cap-4",
+type SignalRow = {
+  id: string;
+  sector_id: string | null;
+  capacity_type_id: string | null;
+  created_at: string;
+  content: string;
+  source: string;
+  signal_type: SignalType;
+};
+
+function mapSignalToEntry(signal: SignalRow): CapabilityActivityLogEntry {
+  const sourceType = mapSignalTypeToSourceType(signal.signal_type);
+  return {
+    id: signal.id,
+    sector_id: signal.sector_id ?? "",
+    capability_id: signal.capacity_type_id ?? "",
     event_type: "SIGNAL_RECEIVED",
-    timestamp: hoursAgo(2),
-    source_type: "twitter",
-    source_name: "@bombaborealchile",
-    source_weight: SOURCE_TYPE_WEIGHTS.twitter,
-    summary: "Reportan heridos sin atención en sector norte de Chillán",
-    metadata: { batch_processed_at: hoursAgo(1.5) },
-  },
-  {
-    id: "log-2",
-    sector_id: "sec-mock-1",
-    capability_id: "cap-4",
-    event_type: "SIGNAL_RECEIVED",
-    timestamp: hoursAgo(3),
-    source_type: "twitter",
-    source_name: "@redaborealchile",
-    source_weight: SOURCE_TYPE_WEIGHTS.twitter,
-    summary: "Evacuados reportan falta de atención médica en albergue",
-    metadata: { batch_processed_at: hoursAgo(2.5) },
-  },
-  // Institutional signals
-  {
-    id: "log-3",
-    sector_id: "sec-mock-1",
-    capability_id: "cap-4",
-    event_type: "SIGNAL_RECEIVED",
-    timestamp: hoursAgo(1),
-    source_type: "institutional",
-    source_name: "SENAPRED",
-    source_weight: SOURCE_TYPE_WEIGHTS.institutional,
-    summary: "Confirma necesidad urgente de equipos médicos en zona de incendios",
-  },
-  {
-    id: "log-4",
-    sector_id: "sec-mock-1",
-    capability_id: "cap-1",
-    event_type: "COVERAGE_ACTIVITY_EVENT",
-    timestamp: hoursAgo(4),
-    source_type: "institutional",
-    source_name: "ONEMI",
-    source_weight: SOURCE_TYPE_WEIGHTS.institutional,
-    summary: "Despliegue de buses de evacuación confirmado para 200 personas",
-  },
-  // NGO signals
-  {
-    id: "log-5",
-    sector_id: "sec-mock-1",
-    capability_id: "cap-8",
-    event_type: "COVERAGE_ACTIVITY_EVENT",
-    timestamp: hoursAgo(5),
-    source_type: "ngo",
-    source_name: "Cruz Roja Chile",
-    source_weight: SOURCE_TYPE_WEIGHTS.ngo,
-    summary: "Compromiso de distribución de kits de alimentación para 500 familias",
-  },
-  {
-    id: "log-6",
-    sector_id: "sec-mock-2",
-    capability_id: "cap-6",
-    event_type: "SIGNAL_RECEIVED",
-    timestamp: hoursAgo(6),
-    source_type: "ngo",
-    source_name: "Bomberos de Chile",
-    source_weight: SOURCE_TYPE_WEIGHTS.ngo,
-    summary: "Detectan contaminación de fuentes de agua en sector poniente",
-  },
-  // Original Context signals
-  {
-    id: "log-7",
-    sector_id: "sec-mock-1",
-    capability_id: "cap-4",
-    event_type: "SIGNAL_RECEIVED",
-    timestamp: hoursAgo(0.5),
-    source_type: "original_context",
-    source_name: "Analista — J. Pérez",
-    source_weight: SOURCE_TYPE_WEIGHTS.original_context,
-    summary: "Capacidad hospitalaria al límite; priorizar traslado a hospital regional",
-  },
-  {
-    id: "log-8",
-    sector_id: "sec-mock-2",
-    capability_id: "cap-9",
-    event_type: "COVERAGE_ACTIVITY_EVENT",
-    timestamp: hoursAgo(7),
-    source_type: "original_context",
-    source_name: "Sistema",
-    source_weight: SOURCE_TYPE_WEIGHTS.original_context,
-    summary: "Albergue municipal habilitado con capacidad para 300 personas",
-  },
-  {
-    id: "log-9",
-    sector_id: "sec-mock-1",
-    capability_id: "cap-4",
-    event_type: "STATUS_CHANGE",
-    timestamp: hoursAgo(1),
-    source_type: "original_context",
-    source_name: "Sistema",
-    source_weight: SOURCE_TYPE_WEIGHTS.original_context,
-    summary: "Estado cambiado de YELLOW a RED — demanda fuerte sin cobertura activa",
-  },
-  {
-    id: "log-10",
-    sector_id: "sec-mock-2",
-    capability_id: "cap-6",
-    event_type: "SIGNAL_RECEIVED",
-    timestamp: hoursAgo(3.5),
-    source_type: "twitter",
-    source_name: "@inaborealchile",
-    source_weight: SOURCE_TYPE_WEIGHTS.twitter,
-    summary: "Vecinos de San Fabián reportan corte de suministro de agua potable",
-    metadata: { batch_processed_at: hoursAgo(3) },
-  },
-];
+    timestamp: signal.created_at,
+    source_type: sourceType,
+    source_name: signal.source ?? "Señal",
+    source_weight: SOURCE_TYPE_WEIGHTS[sourceType],
+    summary: signal.content ?? "",
+  };
+}
 
 // ─── Service ─────────────────────────────────────────────────────
 
@@ -142,19 +57,28 @@ export const activityLogService = {
     sectorId: string,
     capabilityId: string,
   ): Promise<CapabilityActivityLogEntry[]> {
-    await simulateDelay(80);
-    return MOCK_ACTIVITY_LOG
-      .filter((e) => e.sector_id === sectorId && e.capability_id === capabilityId)
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    const { data, error } = await supabase
+      .from("signals")
+      .select("id, sector_id, capacity_type_id, created_at, content, source, signal_type")
+      .eq("sector_id", sectorId)
+      .eq("capacity_type_id", capabilityId)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (error) console.error("activityLogService.getLogForNeed:", error);
+    return (data ?? []).map((s) => mapSignalToEntry(s as SignalRow));
   },
 
   /**
    * Get all activity log entries for a sector (across all capabilities).
    */
   async getLogForSector(sectorId: string): Promise<CapabilityActivityLogEntry[]> {
-    await simulateDelay(80);
-    return MOCK_ACTIVITY_LOG
-      .filter((e) => e.sector_id === sectorId)
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    const { data, error } = await supabase
+      .from("signals")
+      .select("id, sector_id, capacity_type_id, created_at, content, source, signal_type")
+      .eq("sector_id", sectorId)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (error) console.error("activityLogService.getLogForSector:", error);
+    return (data ?? []).map((s) => mapSignalToEntry(s as SignalRow));
   },
 };

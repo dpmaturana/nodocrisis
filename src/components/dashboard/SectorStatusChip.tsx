@@ -2,85 +2,24 @@ import { useEffect, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import {
-  AtSign,
-  Building2,
-  HeartHandshake,
-  FileText,
   Radio,
-  ChevronRight,
-  ChevronDown,
   Users,
-  Sparkles,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { NEED_STATUS_ORDER, NEED_STATUS_PRESENTATION, type NeedStatus } from "@/lib/needStatus";
 import type { GapWithDetails } from "@/services/gapService";
-import type { CapabilityActivityLogEntry, ActivitySourceType } from "@/types/activityLog";
-import { activityLogService } from "@/services/activityLogService";
+import type { Signal } from "@/types/database";
+import { supabase } from "@/integrations/supabase/client";
 import { ActivityLogModal } from "./ActivityLogModal";
-
-const SOURCE_ICON: Record<ActivitySourceType, typeof AtSign> = {
-  twitter: AtSign,
-  institutional: Building2,
-  ngo: HeartHandshake,
-  original_context: FileText,
-  system: Radio,
-};
-
-const statusRank: Record<NeedStatus, number> = {
-  WHITE: 0,
-  GREEN: 1,
-  YELLOW: 2,
-  ORANGE: 3,
-  RED: 4,
-};
-
-function deriveTrend(logEntries: CapabilityActivityLogEntry[]): "improving" | "worsening" | "stable" {
-  const statusChanges = logEntries
-    .filter((e) => e.event_type === "STATUS_CHANGE")
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    .slice(0, 2);
-
-  if (statusChanges.length < 2) return "stable";
-
-  const parseStatus = (entry: CapabilityActivityLogEntry): NeedStatus | null => {
-    const match = /\ba\s+(WHITE|GREEN|YELLOW|ORANGE|RED)\b/i.exec(entry.summary);
-    return match ? (match[1].toUpperCase() as NeedStatus) : null;
-  };
-
-  const latest = parseStatus(statusChanges[0]);
-  const previous = parseStatus(statusChanges[1]);
-
-  if (!latest || !previous) return "stable";
-
-  const diff = statusRank[latest] - statusRank[previous];
-  if (diff < 0) return "improving";
-  if (diff > 0) return "worsening";
-  return "stable";
-}
-
-const TREND_LABEL: Record<"improving" | "worsening" | "stable", string> = {
-  improving: "↑ Mejorando",
-  worsening: "↓ Empeorando",
-  stable: "→ Estable",
-};
-
-const TREND_CLASS: Record<"improving" | "worsening" | "stable", string> = {
-  improving: "text-coverage",
-  worsening: "text-gap-critical",
-  stable: "text-muted-foreground",
-};
 
 interface DriverRowProps {
   gap: GapWithDetails;
-  driverText?: string;
   onOpenLog: (gap: GapWithDetails) => void;
 }
 
-function DriverRow({ gap, driverText, onOpenLog }: DriverRowProps) {
-  const [expanded, setExpanded] = useState(false);
+function DriverRow({ gap, onOpenLog }: DriverRowProps) {
   const needStatus = gap.need_status ?? "WHITE";
   const config = NEED_STATUS_PRESENTATION[needStatus];
   const Icon = config.icon;
@@ -89,16 +28,6 @@ function DriverRow({ gap, driverText, onOpenLog }: DriverRowProps) {
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-1.5 text-xs">
-        <button
-          onClick={() => driverText && setExpanded(v => !v)}
-          className={cn(
-            "shrink-0 transition-opacity",
-            driverText ? "opacity-50 hover:opacity-100 cursor-pointer" : "opacity-0 pointer-events-none"
-          )}
-          aria-label={expanded ? "Colapsar" : "Expandir"}
-        >
-          {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-        </button>
         <Icon className={cn("w-3 h-3 shrink-0", config.text)} />
         <button
           className={cn("truncate font-medium hover:underline cursor-pointer", config.text)}
@@ -114,7 +43,7 @@ function DriverRow({ gap, driverText, onOpenLog }: DriverRowProps) {
         )}
       </div>
       {requirements.length > 0 && (
-        <div className="flex flex-wrap gap-1 px-2 pb-1.5 ml-6">
+        <div className="flex flex-wrap gap-1 px-2 pb-1.5 ml-4">
           {requirements.map((req, i) => (
             <span
               key={i}
@@ -123,12 +52,6 @@ function DriverRow({ gap, driverText, onOpenLog }: DriverRowProps) {
               {req}
             </span>
           ))}
-        </div>
-      )}
-      {expanded && driverText && (
-        <div className="flex items-start gap-1.5 px-3 pb-2 pt-1 border-t border-border/40 text-[11px] text-muted-foreground">
-          <Sparkles className="w-3 h-3 mt-0.5 shrink-0 text-primary/60" />
-          <p>{driverText}</p>
         </div>
       )}
     </div>
@@ -140,7 +63,6 @@ interface SectorStatusChipProps {
   sectorId: string;
   sectorNeedStatus: NeedStatus;
   gaps: GapWithDetails[];
-  logEntries: CapabilityActivityLogEntry[];
   onViewDetails: () => void;
   isHighlighted?: boolean;
   onMouseEnter?: () => void;
@@ -152,22 +74,29 @@ export function SectorStatusChip({
   sectorId,
   sectorNeedStatus,
   gaps,
-  logEntries: initialLogEntries,
   onViewDetails,
   isHighlighted,
   onMouseEnter,
   onMouseLeave,
 }: SectorStatusChipProps) {
-  const [logEntries, setLogEntries] = useState<CapabilityActivityLogEntry[]>(initialLogEntries);
+  const [recentSignals, setRecentSignals] = useState<Signal[]>([]);
   const [activityLogGap, setActivityLogGap] = useState<GapWithDetails | null>(null);
   const [showActivityLog, setShowActivityLog] = useState(false);
 
   useEffect(() => {
-    activityLogService.getLogForSector(sectorId).then(setLogEntries);
+    supabase
+      .from("signals")
+      .select("*")
+      .eq("sector_id", sectorId)
+      .order("created_at", { ascending: false })
+      .limit(3)
+      .then(({ data, error }) => {
+        if (error) console.error("SectorStatusChip signals fetch:", error);
+        setRecentSignals((data ?? []) as Signal[]);
+      });
   }, [sectorId]);
 
   const sectorStatus = NEED_STATUS_PRESENTATION[sectorNeedStatus];
-  const trend = deriveTrend(logEntries);
 
   // Sort gaps by need status severity
   const sortedGaps = [...gaps].sort(
@@ -176,24 +105,10 @@ export function SectorStatusChip({
       NEED_STATUS_ORDER.indexOf(b.need_status ?? "WHITE"),
   );
 
-  // Build driver text map: capability_id → most recent STATUS_CHANGE reasoning
-  const driverMap = new Map<string, string>();
-  const statusChanges = logEntries.filter((e) => e.event_type === "STATUS_CHANGE");
-  for (const entry of statusChanges) {
-    if (!driverMap.has(entry.capability_id)) {
-      driverMap.set(entry.capability_id, entry.reasoning_summary ?? entry.summary);
-    }
-  }
-
-  // Recent signals (last 3 SIGNAL_RECEIVED entries)
-  const recentSignals = logEntries
-    .filter((e) => e.event_type === "SIGNAL_RECEIVED")
-    .slice(0, 3);
-
-  // Last updated
-  const lastEntry = logEntries[0];
-  const lastUpdated = lastEntry
-    ? formatDistanceToNow(new Date(lastEntry.timestamp), { addSuffix: true, locale: es })
+  // Last updated from most recent signal
+  const lastSignal = recentSignals[0];
+  const lastUpdated = lastSignal
+    ? formatDistanceToNow(new Date(lastSignal.created_at), { addSuffix: true, locale: es })
     : null;
 
   const handleOpenLog = (gap: GapWithDetails) => {
@@ -229,9 +144,6 @@ export function SectorStatusChip({
             >
               {sectorStatus.shortLabel}
             </span>
-            <span className={cn("text-xs shrink-0", TREND_CLASS[trend])}>
-              {TREND_LABEL[trend]}
-            </span>
           </div>
 
           {/* Needs */}
@@ -244,7 +156,6 @@ export function SectorStatusChip({
                 <DriverRow
                   key={gap.id}
                   gap={gap}
-                  driverText={driverMap.get(gap.capacity_type_id)}
                   onOpenLog={handleOpenLog}
                 />
               ))}
@@ -257,16 +168,15 @@ export function SectorStatusChip({
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Señales recientes
               </p>
-              {recentSignals.map((entry) => {
-                const Icon = SOURCE_ICON[entry.source_type];
-                const timeAgo = formatDistanceToNow(new Date(entry.timestamp), {
+              {recentSignals.map((signal) => {
+                const timeAgo = formatDistanceToNow(new Date(signal.created_at), {
                   addSuffix: true,
                   locale: es,
                 });
                 return (
-                  <div key={entry.id} className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                    <Icon className="w-3 h-3 shrink-0 mt-0.5" />
-                    <span className="truncate flex-1">{entry.source_name}: {entry.summary}</span>
+                  <div key={signal.id} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                    <Radio className="w-3 h-3 shrink-0 mt-0.5" />
+                    <span className="truncate flex-1">{signal.source}: {signal.content}</span>
                     <span className="shrink-0 text-[10px]">{timeAgo}</span>
                   </div>
                 );
