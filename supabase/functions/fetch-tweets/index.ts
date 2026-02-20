@@ -323,10 +323,10 @@ Deno.serve(async (req) => {
     }
 
     // 1. Call xAI Responses API with x_search tool
-    const xaiApiKey = Deno.env.get("XAI_API_KEY");
+    const xaiApiKey = Deno.env.get("GROK_API_KEY");
     if (!xaiApiKey) {
       return new Response(
-        JSON.stringify({ error: "XAI_API_KEY secret is not configured" }),
+        JSON.stringify({ error: "GROK_API_KEY secret is not configured" }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
