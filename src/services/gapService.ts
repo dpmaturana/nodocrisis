@@ -17,6 +17,7 @@ export interface GapWithDetails extends Gap {
   actor_count?: number;
   operational_requirements?: string[];
   reasoning_summary?: string;
+  trend?: "improving" | "worsening" | "stable" | null;
 }
 
 export interface GapCounts {
@@ -42,6 +43,23 @@ export interface SectorWithGaps {
 
 function inferNeedCriticality(gap: GapWithDetails): NeedCriticalityLevel {
   return gap.capacity_type?.criticality_level ?? "medium";
+}
+
+type Trend = "improving" | "worsening" | "stable";
+
+const STATUS_RANK: Record<string, number> = {
+  WHITE: 0, GREEN: 1, YELLOW: 2, ORANGE: 3, RED: 4,
+};
+
+function deriveTrend(auditRows: Array<{ previous_status: string; final_status: string }>): Trend | null {
+  const latest = auditRows[0];
+  if (!latest) return null;
+  if (latest.previous_status === latest.final_status) return "stable";
+  const prevRank = STATUS_RANK[latest.previous_status] ?? 0;
+  const finalRank = STATUS_RANK[latest.final_status] ?? 0;
+  if (finalRank < prevRank) return "improving";
+  if (finalRank > prevRank) return "worsening";
+  return "stable";
 }
 
 export interface OperatingActor {
@@ -111,17 +129,26 @@ export const gapService = {
     const sectorIds = dbSectors.map((s) => s.id);
     const { data: auditRows } = await supabase
       .from("need_audits")
-      .select("sector_id, capability_id, reasoning_summary, timestamp")
+      .select("sector_id, capability_id, reasoning_summary, previous_status, final_status, timestamp")
       .in("sector_id", sectorIds)
       .order("timestamp", { ascending: false });
 
     // Build a map of "sector_id:capability_id" → latest reasoning_summary
+    // and group rows by key for trend computation
     const auditMap = new Map<string, string>();
+    const auditsByKey = new Map<string, typeof auditRows[0][]>();
     (auditRows ?? []).forEach((row) => {
       const key = `${row.sector_id}:${row.capability_id}`;
       if (!auditMap.has(key) && row.reasoning_summary) {
         auditMap.set(key, row.reasoning_summary);
       }
+      if (!auditsByKey.has(key)) auditsByKey.set(key, []);
+      auditsByKey.get(key)!.push(row);
+    });
+    const trendMap = new Map<string, Trend>();
+    auditsByKey.forEach((rows, key) => {
+      const trend = deriveTrend(rows);
+      if (trend !== null) trendMap.set(key, trend);
     });
 
     // Fetch deployment counts grouped by sector_id + capacity_type_id
@@ -181,6 +208,7 @@ export const gapService = {
             try { return JSON.parse(need.notes ?? "[]"); } catch { return []; }
           })(),
           reasoning_summary: auditMap.get(`${need.sector_id}:${need.capacity_type_id}`),
+          trend: trendMap.get(`${need.sector_id}:${need.capacity_type_id}`) ?? null,
         };
       });
 
