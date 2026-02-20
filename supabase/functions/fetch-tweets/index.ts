@@ -341,6 +341,23 @@ function mapApiTweetsToInput(
   }));
 }
 
+// ── Sector query builder ─────────────────────────────────────────────
+
+/**
+ * Builds a Twitter search query scoped to a specific sector.
+ * Combines the event base query with the sector's canonical name and aliases.
+ *
+ * Example output:
+ *   ("terremoto valparaíso") ("zona norte" OR "sector norte" OR "norte") -is:retweet lang:es
+ */
+function buildSectorQuery(baseQuery: string, canonicalName: string, aliases: string[] | null): string {
+  const sectorTerms = [canonicalName, ...(aliases ?? [])]
+    .map(t => `"${t.replace(/"/g, "")}"`)
+    .join(" OR ");
+
+  return `(${baseQuery}) (${sectorTerms}) -is:retweet lang:es`;
+}
+
 // ── Edge function handler ────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -374,13 +391,49 @@ Deno.serve(async (req) => {
       );
     }
 
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    let effectiveQuery = query;
+
+    if (sector_id) {
+      const { data: sector } = await supabase
+        .from("sectors")
+        .select("canonical_name, aliases")
+        .eq("id", sector_id)
+        .maybeSingle();
+
+      if (!sector) {
+        return new Response(
+          JSON.stringify({ error: `Sector ${sector_id} not found` }),
+          {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      const built = buildSectorQuery(query, sector.canonical_name, sector.aliases);
+      if (built.length > 512) {
+        return new Response(
+          JSON.stringify({ error: "Sector query exceeds Twitter's 512-character limit" }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      effectiveQuery = built;
+    }
+
     console.log(
-      `Fetching tweets for event ${event_id}, query: "${query}", sector: ${sector_id ?? "none"
-      }`,
+      `Fetching tweets for event ${event_id}, effective query: "${effectiveQuery}", sector: ${sector_id ?? "none"}`,
     );
 
     // 1. Fetch real tweets from Twitter API v2
-    const apiResponse = await fetchRecentTweets(query, bearerToken);
+    const apiResponse = await fetchRecentTweets(effectiveQuery, bearerToken);
     console.log("Twitter API response received, result_count:", (apiResponse.meta as any)?.result_count ?? 0);
 
     // 2. Map to TweetInput[]
@@ -404,10 +457,6 @@ Deno.serve(async (req) => {
     const aggregated = aggregateTweetSignals(tweets, event_id);
 
     // 4. Store signals in DB
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
     for (const classification of aggregated.classifications) {
       const topQuote = classification.supporting_quotes[0];
       const { error: signalError } = await supabase.from("signals").insert({
