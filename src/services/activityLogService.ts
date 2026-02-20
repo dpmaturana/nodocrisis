@@ -1,139 +1,51 @@
-import { simulateDelay } from "./mock/delay";
+import { supabase } from "@/integrations/supabase/client";
 import type {
   CapabilityActivityLogEntry,
   ActivitySourceType,
-  ActivityEventType,
 } from "@/types/activityLog";
 import { SOURCE_TYPE_WEIGHTS } from "@/types/activityLog";
-import { supabase } from "@/integrations/supabase/client";
-
-// ─── Mock Activity Log Entries ───────────────────────────────────
-
-function hoursAgo(h: number): string {
-  return new Date(Date.now() - h * 3600_000).toISOString();
-}
-
-const MOCK_ACTIVITY_LOG: CapabilityActivityLogEntry[] = [
-  // Twitter signals
-  {
-    id: "log-1",
-    sector_id: "sec-mock-1",
-    capability_id: "cap-4",
-    event_type: "SIGNAL_RECEIVED",
-    timestamp: hoursAgo(2),
-    source_type: "twitter",
-    source_name: "@bombaborealchile",
-    source_weight: SOURCE_TYPE_WEIGHTS.twitter,
-    summary: "Reportan heridos sin atención en sector norte de Chillán",
-    metadata: { batch_processed_at: hoursAgo(1.5) },
-  },
-  {
-    id: "log-2",
-    sector_id: "sec-mock-1",
-    capability_id: "cap-4",
-    event_type: "SIGNAL_RECEIVED",
-    timestamp: hoursAgo(3),
-    source_type: "twitter",
-    source_name: "@redaborealchile",
-    source_weight: SOURCE_TYPE_WEIGHTS.twitter,
-    summary: "Evacuados reportan falta de atención médica en albergue",
-    metadata: { batch_processed_at: hoursAgo(2.5) },
-  },
-  // Institutional signals
-  {
-    id: "log-3",
-    sector_id: "sec-mock-1",
-    capability_id: "cap-4",
-    event_type: "SIGNAL_RECEIVED",
-    timestamp: hoursAgo(1),
-    source_type: "institutional",
-    source_name: "SENAPRED",
-    source_weight: SOURCE_TYPE_WEIGHTS.institutional,
-    summary: "Confirma necesidad urgente de equipos médicos en zona de incendios",
-  },
-  {
-    id: "log-4",
-    sector_id: "sec-mock-1",
-    capability_id: "cap-1",
-    event_type: "COVERAGE_ACTIVITY_EVENT",
-    timestamp: hoursAgo(4),
-    source_type: "institutional",
-    source_name: "ONEMI",
-    source_weight: SOURCE_TYPE_WEIGHTS.institutional,
-    summary: "Despliegue de buses de evacuación confirmado para 200 personas",
-  },
-  // NGO signals
-  {
-    id: "log-5",
-    sector_id: "sec-mock-1",
-    capability_id: "cap-8",
-    event_type: "COVERAGE_ACTIVITY_EVENT",
-    timestamp: hoursAgo(5),
-    source_type: "ngo",
-    source_name: "Cruz Roja Chile",
-    source_weight: SOURCE_TYPE_WEIGHTS.ngo,
-    summary: "Compromiso de distribución de kits de alimentación para 500 familias",
-  },
-  {
-    id: "log-6",
-    sector_id: "sec-mock-2",
-    capability_id: "cap-6",
-    event_type: "SIGNAL_RECEIVED",
-    timestamp: hoursAgo(6),
-    source_type: "ngo",
-    source_name: "Bomberos de Chile",
-    source_weight: SOURCE_TYPE_WEIGHTS.ngo,
-    summary: "Detectan contaminación de fuentes de agua en sector poniente",
-  },
-  // Original Context signals
-  {
-    id: "log-7",
-    sector_id: "sec-mock-1",
-    capability_id: "cap-4",
-    event_type: "SIGNAL_RECEIVED",
-    timestamp: hoursAgo(0.5),
-    source_type: "original_context",
-    source_name: "Analista — J. Pérez",
-    source_weight: SOURCE_TYPE_WEIGHTS.original_context,
-    summary: "Capacidad hospitalaria al límite; priorizar traslado a hospital regional",
-  },
-  {
-    id: "log-8",
-    sector_id: "sec-mock-2",
-    capability_id: "cap-9",
-    event_type: "COVERAGE_ACTIVITY_EVENT",
-    timestamp: hoursAgo(7),
-    source_type: "original_context",
-    source_name: "Sistema",
-    source_weight: SOURCE_TYPE_WEIGHTS.original_context,
-    summary: "Albergue municipal habilitado con capacidad para 300 personas",
-  },
-  {
-    id: "log-9",
-    sector_id: "sec-mock-1",
-    capability_id: "cap-4",
-    event_type: "STATUS_CHANGE",
-    timestamp: hoursAgo(1),
-    source_type: "original_context",
-    source_name: "Sistema",
-    source_weight: SOURCE_TYPE_WEIGHTS.original_context,
-    summary: "Estado cambiado de YELLOW a RED — demanda fuerte sin cobertura activa",
-  },
-  {
-    id: "log-10",
-    sector_id: "sec-mock-2",
-    capability_id: "cap-6",
-    event_type: "SIGNAL_RECEIVED",
-    timestamp: hoursAgo(3.5),
-    source_type: "twitter",
-    source_name: "@inaborealchile",
-    source_weight: SOURCE_TYPE_WEIGHTS.twitter,
-    summary: "Vecinos de San Fabián reportan corte de suministro de agua potable",
-    metadata: { batch_processed_at: hoursAgo(3) },
-  },
-];
+import type { SignalType } from "@/types/database";
 
 // ─── Helpers ─────────────────────────────────────────────────────
+
+function mapSignalTypeToSourceType(signalType: SignalType | null | undefined): ActivitySourceType {
+  if (signalType == null) return "system";
+  switch (signalType) {
+    case "field_report": return "ngo";
+    case "actor_report": return "institutional";
+    case "official": return "institutional";
+    case "sms": return "twitter";
+    case "social": return "twitter";
+    case "news": return "original_context";
+    case "context": return "original_context";
+    default: return "system";
+  }
+}
+
+type SignalRow = {
+  id: string;
+  sector_id: string | null;
+  capacity_type_id: string | null;
+  created_at: string;
+  content: string;
+  source: string;
+  signal_type: SignalType;
+};
+
+function mapSignalToEntry(signal: SignalRow): CapabilityActivityLogEntry {
+  const sourceType = mapSignalTypeToSourceType(signal.signal_type);
+  return {
+    id: signal.id,
+    sector_id: signal.sector_id ?? "",
+    capability_id: signal.capacity_type_id ?? "",
+    event_type: "SIGNAL_RECEIVED",
+    timestamp: signal.created_at,
+    source_type: sourceType,
+    source_name: signal.source ?? "Señal",
+    source_weight: SOURCE_TYPE_WEIGHTS[sourceType],
+    summary: signal.content ?? "",
+  };
+}
 
 function mapAuditRowToLogEntry(row: {
   id: string;
@@ -165,59 +77,66 @@ function mapAuditRowToLogEntry(row: {
 export const activityLogService = {
   /**
    * Get activity log entries for a specific sector + capability pair.
-   * Merges STATUS_CHANGE entries from need_audits with mock SIGNAL_RECEIVED entries.
+   * Merges SIGNAL_RECEIVED entries from signals table with STATUS_CHANGE entries from need_audits.
    */
   async getLogForNeed(
     sectorId: string,
     capabilityId: string,
   ): Promise<CapabilityActivityLogEntry[]> {
-    await simulateDelay(80);
+    const [signalsResult, auditsResult] = await Promise.all([
+      supabase
+        .from("signals")
+        .select("id, sector_id, capacity_type_id, created_at, content, source, signal_type")
+        .eq("sector_id", sectorId)
+        .eq("capacity_type_id", capabilityId)
+        .order("created_at", { ascending: false })
+        .limit(20),
+      supabase
+        .from("need_audits")
+        .select("id, sector_id, capability_id, timestamp, previous_status, final_status, reasoning_summary, guardrails_applied")
+        .eq("sector_id", sectorId)
+        .eq("capability_id", capabilityId)
+        .order("timestamp", { ascending: false })
+        .limit(50),
+    ]);
 
-    const mockEntries = MOCK_ACTIVITY_LOG
-      .filter((e) => e.sector_id === sectorId && e.capability_id === capabilityId);
+    if (signalsResult.error) console.error("activityLogService.getLogForNeed (signals):", signalsResult.error);
+    if (auditsResult.error) console.error("activityLogService.getLogForNeed (need_audits):", auditsResult.error);
 
-    const { data: auditRows, error: auditError } = await supabase
-      .from("need_audits")
-      .select("id, sector_id, capability_id, timestamp, previous_status, final_status, reasoning_summary, guardrails_applied")
-      .eq("sector_id", sectorId)
-      .eq("capability_id", capabilityId)
-      .order("timestamp", { ascending: false })
-      .limit(50);
+    const signalEntries = (signalsResult.data ?? []).map((s) => mapSignalToEntry(s as SignalRow));
+    const statusChangeEntries = (auditsResult.data ?? []).map(mapAuditRowToLogEntry);
 
-    if (auditError) {
-      console.error("[activityLogService] Failed to query need_audits:", auditError);
-    }
-
-    const statusChangeEntries: CapabilityActivityLogEntry[] = (auditRows ?? []).map(mapAuditRowToLogEntry);
-
-    return [...mockEntries, ...statusChangeEntries]
+    return [...signalEntries, ...statusChangeEntries]
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   },
 
   /**
    * Get all activity log entries for a sector (across all capabilities).
-   * Merges STATUS_CHANGE entries from need_audits with mock SIGNAL_RECEIVED entries.
+   * Merges SIGNAL_RECEIVED entries from signals table with STATUS_CHANGE entries from need_audits.
    */
   async getLogForSector(sectorId: string): Promise<CapabilityActivityLogEntry[]> {
-    await simulateDelay(80);
+    const [signalsResult, auditsResult] = await Promise.all([
+      supabase
+        .from("signals")
+        .select("id, sector_id, capacity_type_id, created_at, content, source, signal_type")
+        .eq("sector_id", sectorId)
+        .order("created_at", { ascending: false })
+        .limit(20),
+      supabase
+        .from("need_audits")
+        .select("id, sector_id, capability_id, timestamp, previous_status, final_status, reasoning_summary, guardrails_applied")
+        .eq("sector_id", sectorId)
+        .order("timestamp", { ascending: false })
+        .limit(50),
+    ]);
 
-    const mockEntries = MOCK_ACTIVITY_LOG
-      .filter((e) => e.sector_id === sectorId);
+    if (signalsResult.error) console.error("activityLogService.getLogForSector (signals):", signalsResult.error);
+    if (auditsResult.error) console.error("activityLogService.getLogForSector (need_audits):", auditsResult.error);
 
-    const { data: auditRows, error: auditError } = await supabase
-      .from("need_audits")
-      .select("id, sector_id, capability_id, timestamp, previous_status, final_status, reasoning_summary, guardrails_applied")
-      .eq("sector_id", sectorId)
-      .order("timestamp", { ascending: false })
-      .limit(50);
+    const signalEntries = (signalsResult.data ?? []).map((s) => mapSignalToEntry(s as SignalRow));
+    const statusChangeEntries = (auditsResult.data ?? []).map(mapAuditRowToLogEntry);
 
-    if (auditError) {
-      console.error("[activityLogService] Failed to query need_audits:", auditError);
-    }
-
-    const statusChangeEntries: CapabilityActivityLogEntry[] = (auditRows ?? []).map(mapAuditRowToLogEntry);
-
-    return [...mockEntries, ...statusChangeEntries]
+    return [...signalEntries, ...statusChangeEntries]
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   },
 };
