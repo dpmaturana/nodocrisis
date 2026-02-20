@@ -65,21 +65,6 @@ export interface DashboardMeta {
   operatingCount: number;
 }
 
-/** Map a DB need_level to a GapState for the frontend */
-function mapNeedLevelToGapState(level: string): GapState {
-  switch (level) {
-    case "critical":
-    case "high":
-      return "critical";
-    case "medium":
-      return "partial";
-    case "low":
-      return "active";
-    default:
-      return "evaluating";
-  }
-}
-
 /**
  * Map a DB need level directly to a display state and NeedStatus.
  * The engine's output in sector_needs_context.level is the single source of truth.
