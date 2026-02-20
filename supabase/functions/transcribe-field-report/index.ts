@@ -11,7 +11,7 @@ const EXTRACTION_PROMPT = `Eres un asistente de emergencias que analiza reportes
 Extrae la siguiente información estructurada combinando TODAS las fuentes de información:
 
 1. sector_mentioned: Nombre del sector o ubicación mencionada (string o null)
-2. capability_types: Array de tipos de capacidad detectados. Valores válidos: "agua", "alimentos", "albergue", "salud", "transporte", "comunicaciones", "rescate", "logística"
+2. capability_types: Array de tipos de capacidad detectados. Usa EXACTAMENTE estos nombres del sistema: {{CAPABILITY_LIST}}
 3. items: Array de objetos con:
    - name: nombre del item/recurso
    - quantity: cantidad mencionada (number o null)
@@ -23,7 +23,7 @@ Extrae la siguiente información estructurada combinando TODAS las fuentes de in
 6. evidence_quotes: Array de citas textuales relevantes
 7. confidence: Nivel de confianza en la extracción (0.0 a 1.0)
 
-IMPORTANTE: Analiza TANTO la nota escrita como la transcripción de audio. Extrae capability_types de AMBAS fuentes.
+IMPORTANTE: Analiza TANTO la nota escrita como la transcripción de audio. Extrae capability_types de AMBAS fuentes. Usa SOLO los nombres exactos de la lista proporcionada.
 
 Responde SOLO con JSON válido, sin markdown ni explicaciones.`;
 
@@ -183,6 +183,17 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
+    // Fetch standardized capability names from DB
+    const { data: capTypes } = await supabase
+      .from('capacity_types')
+      .select('id, name');
+    const capList = capTypes && capTypes.length > 0
+      ? capTypes.map((c: { id: string; name: string }) => `"${c.name}"`).join(', ')
+      : '"agua","alimentos","albergue","salud","comunicaciones","rescate","logistica","energia"';
+
+    // Inject dynamic capability list into prompt
+    const finalExtractionPrompt = EXTRACTION_PROMPT.replace('{{CAPABILITY_LIST}}', capList);
+
     // Combine text_note and transcript for LLM analysis
     const textNote = report.text_note || '';
     const combinedInput = [
@@ -203,7 +214,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: [
-          { role: 'system', content: EXTRACTION_PROMPT },
+          { role: 'system', content: finalExtractionPrompt },
           { role: 'user', content: `Reporte de campo:\n\n${combinedInput}` }
         ],
         temperature: 0.2,
@@ -256,24 +267,55 @@ serve(async (req) => {
       })
       .eq('id', report_id);
 
-    // Create signal if we have extracted data with content
+    // Create signal(s) if we have extracted data with content
     if (extractedData && transcript) {
       const signalContent = extractedData.observations || transcript.substring(0, 500);
-      
-      await supabase
-        .from('signals')
-        .insert({
-          event_id: report.event_id,
-          sector_id: report.sector_id,
-          signal_type: 'field_report',
-          level: 'sector',
-          content: signalContent,
-          source: 'audio_transcription',
-          confidence: extractedData.confidence || 0.7,
-          field_report_id: report_id,
-        });
-      
-      console.log('Signal created for report:', report_id);
+
+      // Build a map of capacity type name (lowercase) → id for fast lookup
+      const capTypeMap = new Map(
+        (capTypes ?? []).map((c: { id: string; name: string }) => [c.name.toLowerCase(), c.id])
+      );
+
+      // Map extracted capability_types to capacity_type_ids
+      const linkedCapabilities = (extractedData.capability_types ?? [])
+        .map((name: string) => capTypeMap.get(name.toLowerCase()))
+        .filter((id): id is string => id != null);
+
+      if (linkedCapabilities.length > 0) {
+        // Create one signal per detected capacity type so the gap engine can
+        // attribute evidence to the correct capability.
+        await supabase
+          .from('signals')
+          .insert(
+            linkedCapabilities.map((capTypeId: string) => ({
+              event_id: report.event_id,
+              sector_id: report.sector_id,
+              signal_type: 'field_report',
+              level: 'sector',
+              content: signalContent,
+              source: 'audio_transcription',
+              confidence: extractedData.confidence || 0.7,
+              field_report_id: report_id,
+              capacity_type_id: capTypeId,
+            }))
+          );
+        console.log(`${linkedCapabilities.length} signal(s) created for report:`, report_id);
+      } else {
+        // Fallback: create a generic signal without capacity_type_id
+        await supabase
+          .from('signals')
+          .insert({
+            event_id: report.event_id,
+            sector_id: report.sector_id,
+            signal_type: 'field_report',
+            level: 'sector',
+            content: signalContent,
+            source: 'audio_transcription',
+            confidence: extractedData.confidence || 0.7,
+            field_report_id: report_id,
+          });
+        console.log('Generic signal created for report (no capability types detected):', report_id);
+      }
     }
 
     return new Response(

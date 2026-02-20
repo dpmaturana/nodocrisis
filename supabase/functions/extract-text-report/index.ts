@@ -12,7 +12,7 @@ Extrae la siguiente información y devuelve SOLO un objeto JSON válido:
 
 {
   "sector_mentioned": string | null,  // Nombre del sector/zona mencionado
-  "capability_types": string[],        // Tipos de capacidad: "agua", "alimento", "salud", "albergue", "transporte", "comunicaciones", "seguridad"
+  "capability_types": string[],        // Tipos de capacidad detectados. Usa EXACTAMENTE estos nombres del sistema: {{CAPABILITY_LIST}}
   "items": [
     {
       "name": string,                  // Nombre del item/recurso
@@ -32,7 +32,8 @@ IMPORTANTE:
 - Si no se menciona algo, usa null o array vacío
 - "observations" debe ser un resumen útil para otros actores en terreno
 - Sé conservador con urgency: solo "crítica" si hay peligro de vida inmediato
-- Identifica capacity_types incluso si no se mencionan items específicos`;
+- Identifica capacity_types incluso si no se mencionan items específicos
+- Usa SOLO los nombres exactos de la lista proporcionada para capability_types`;
 
 interface ExtractedData {
   sector_mentioned: string | null;
@@ -74,17 +75,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Initialize Supabase client (only needed if not dry_run)
+    // Initialize Supabase client (always needed to fetch capacity types)
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = dry_run ? null : createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     console.log(`Processing text report (dry_run: ${!!dry_run}) for event: ${event_id}, sector: ${sector_id}`);
 
     let report: { id: string } | null = null;
 
     // 1. Create field report with status 'extracting' (skip in dry_run mode)
-    if (!dry_run && supabase) {
+    if (!dry_run) {
       const { data: insertedReport, error: insertError } = await supabase
         .from("field_reports")
         .insert({
@@ -112,11 +113,21 @@ Deno.serve(async (req) => {
       console.log("Dry run mode: skipping DB insert, proceeding with LLM extraction...");
     }
 
-    // 2. Call LLM to extract structured data from text note
+    // 2. Fetch standardized capability names from DB and call LLM
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
     if (!lovableApiKey) {
       throw new Error("LOVABLE_API_KEY not configured");
     }
+
+    const { data: capTypes } = await supabase
+      .from("capacity_types")
+      .select("id, name");
+    const capList = capTypes && capTypes.length > 0
+      ? capTypes.map((c: { id: string; name: string }) => `"${c.name}"`).join(", ")
+      : '"agua","alimentos","albergue","salud","comunicaciones","rescate","logistica","energia"';
+
+    // Inject dynamic capability list into prompt
+    const finalExtractionPrompt = EXTRACTION_PROMPT.replace("{{CAPABILITY_LIST}}", capList);
 
     const extractResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -127,7 +138,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: EXTRACTION_PROMPT },
+          { role: "system", content: finalExtractionPrompt },
           { role: "user", content: `Nota escrita del operador:\n\n"${text_note}"` },
         ],
         temperature: 0.2,
@@ -140,7 +151,7 @@ Deno.serve(async (req) => {
       console.error("LLM error:", errorText);
       
       // Update report with error (only if not dry_run)
-      if (!dry_run && supabase && report) {
+      if (!dry_run && report) {
         await supabase
           .from("field_reports")
           .update({
@@ -187,7 +198,7 @@ Deno.serve(async (req) => {
 
     // 3. Update field report with extracted data (skip in dry_run mode)
     let updatedReport = null;
-    if (!dry_run && supabase && report) {
+    if (!dry_run && report) {
       const { data, error: updateError } = await supabase
         .from("field_reports")
         .update({
@@ -203,23 +214,57 @@ Deno.serve(async (req) => {
       }
       updatedReport = data;
 
-      // 4. Create a signal if there are observations (only if not dry_run)
+      // 4. Create signal(s) linked to specific capacity types (only if not dry_run)
       if (extractedData.observations) {
-        const { error: signalError } = await supabase.from("signals").insert({
-          event_id,
-          sector_id,
-          signal_type: "field_report",
-          source: "actor_text_report",
-          content: extractedData.observations,
-          confidence: extractedData.confidence,
-          level: "sector",
-          field_report_id: report.id,
-        });
+        // Build a map of capacity type name (lowercase) → id for fast lookup
+        const capTypeMap = new Map(
+          (capTypes ?? []).map((c: { id: string; name: string }) => [c.name.toLowerCase(), c.id])
+        );
 
-        if (signalError) {
-          console.error("Signal creation error:", signalError);
+        // Map extracted capability_types to capacity_type_ids
+        const linkedCapabilities = (extractedData.capability_types ?? [])
+          .map((name: string) => capTypeMap.get(name.toLowerCase()))
+          .filter((id): id is string => id != null);
+
+        if (linkedCapabilities.length > 0) {
+          // Create one signal per detected capacity type
+          const { error: signalError } = await supabase.from("signals").insert(
+            linkedCapabilities.map((capTypeId: string) => ({
+              event_id,
+              sector_id,
+              signal_type: "field_report",
+              source: "actor_text_report",
+              content: extractedData.observations,
+              confidence: extractedData.confidence,
+              level: "sector",
+              field_report_id: report.id,
+              capacity_type_id: capTypeId,
+            }))
+          );
+
+          if (signalError) {
+            console.error("Signal creation error:", signalError);
+          } else {
+            console.log(`${linkedCapabilities.length} signal(s) created from text report`);
+          }
         } else {
-          console.log("Signal created from text report");
+          // Fallback: create a generic signal without capacity_type_id
+          const { error: signalError } = await supabase.from("signals").insert({
+            event_id,
+            sector_id,
+            signal_type: "field_report",
+            source: "actor_text_report",
+            content: extractedData.observations,
+            confidence: extractedData.confidence,
+            level: "sector",
+            field_report_id: report.id,
+          });
+
+          if (signalError) {
+            console.error("Signal creation error:", signalError);
+          } else {
+            console.log("Generic signal created from text report (no capability types detected)");
+          }
         }
       }
     } else {
