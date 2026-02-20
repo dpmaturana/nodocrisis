@@ -29,6 +29,12 @@ type NeedLevel = "low" | "medium" | "high" | "critical";
 // Source weight for field-report signals (NGO tier, same as needLevelEngine config)
 const SOURCE_WEIGHT = 1.0;
 
+// Confidence assigned to a synthetic "needed" signal when no items matched an
+// explicitly-named capability. Using 0.5 (medium confidence) as a safe
+// escalation fallback — strong enough to flag a potential need without
+// over-committing when the observation text is ambiguous.
+const SYNTHETIC_NEEDED_CONFIDENCE = 0.5;
+
 // Thresholds (mirror defaultNeedEngineConfig in needLevelEngine.ts)
 const THRESHOLDS = {
   demandEscalation: 1,
@@ -116,6 +122,28 @@ function classifyItemState(state: string): SignalClassification {
 }
 
 /**
+ * Classify observation text into a synthetic signal state.
+ * Used when a capability was explicitly named but no items matched it.
+ */
+function classifyObservation(text: string): "available" | "needed" {
+  const stabPatterns = /\b(stable|sufficient|resolved|available|okay|ok|covered|no.*(emergency|need|shortage))\b/i;
+  return stabPatterns.test(text) ? "available" : "needed";
+}
+
+interface EvaluationResult {
+  status: NeedStatus;
+  scores: { demand: number; insuff: number; stab: number; frag: number; coverage: number };
+  booleans: {
+    demandStrong: boolean;
+    insuffStrong: boolean;
+    stabilizationStrong: boolean;
+    fragilityAlert: boolean;
+    coverageActive: boolean;
+  };
+  guardrailsApplied: string[];
+}
+
+/**
  * Aggregate signals, evaluate booleans, and apply the RuleBasedNeedEvaluator
  * guardrails (all faithfully reproduced from NeedLevelEngine + evaluator in
  * src/lib/needLevelEngine.ts and src/services/needSignalService.ts).
@@ -124,9 +152,10 @@ function classifyItemState(state: string): SignalClassification {
  * and classifyItemState() maps them to signal classifications without any
  * Spanish string round-trip.
  *
- * Returns the proposed NeedStatus for the capability.
+ * Returns the proposed NeedStatus, intermediate scores, booleans, and which
+ * guardrails fired, for use in need_audits persistence.
  */
-function evaluateNeedStatus(signals: Array<{ state: string; confidence: number }>): NeedStatus {
+function evaluateNeedStatus(signals: Array<{ state: string; confidence: number }>): EvaluationResult {
   let demand = 0, insuff = 0, stab = 0, frag = 0, coverage = 0;
 
   for (const sig of signals) {
@@ -140,11 +169,16 @@ function evaluateNeedStatus(signals: Array<{ state: string; confidence: number }
     }
   }
 
-  const demandStrong       = demand   >= THRESHOLDS.demandEscalation;
-  const insuffStrong       = insuff   >= THRESHOLDS.insufficiencyEscalation;
-  const stabilizationStrong = stab   >= THRESHOLDS.stabilizationDowngrade;
-  const fragilityAlert     = frag    >= THRESHOLDS.fragilityReactivation;
-  const coverageActive     = coverage >= THRESHOLDS.coverageActivation;
+  const scores = { demand, insuff, stab, frag, coverage };
+
+  const demandStrong        = demand   >= THRESHOLDS.demandEscalation;
+  const insuffStrong        = insuff   >= THRESHOLDS.insufficiencyEscalation;
+  const stabilizationStrong = stab    >= THRESHOLDS.stabilizationDowngrade;
+  const fragilityAlert      = frag    >= THRESHOLDS.fragilityReactivation;
+  const coverageActive      = coverage >= THRESHOLDS.coverageActivation;
+
+  const booleans = { demandStrong, insuffStrong, stabilizationStrong, fragilityAlert, coverageActive };
+  const guardrailsApplied: string[] = [];
 
   // RuleBasedNeedEvaluator (from needSignalService.ts)
   let proposed: NeedStatus = "WHITE";
@@ -161,20 +195,23 @@ function evaluateNeedStatus(signals: Array<{ state: string; confidence: number }
   // Guardrail A: RED floor when demand strong and no coverage
   if (demandStrong && !coverageActive) {
     proposed = "RED";
+    guardrailsApplied.push("Guardrail A");
   }
 
   // Guardrail B: insufficiency without coverage → RED
   if (insuffStrong && !coverageActive && proposed !== "RED") {
     proposed = "RED";
+    guardrailsApplied.push("Guardrail B");
   }
 
   // Guardrail G: worsening escalation — when demand is strong, ensure at
   // least ORANGE so that NGO worsening signals are reflected.
   if (proposed !== "RED" && proposed !== "ORANGE" && demandStrong) {
     proposed = "ORANGE";
+    guardrailsApplied.push("Guardrail G");
   }
 
-  return proposed;
+  return { status: proposed, scores, booleans, guardrailsApplied };
 }
 
 /** Mirror of mapNeedStatusToNeedLevel in needSignalService.ts */
@@ -264,6 +301,14 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Build set of capability IDs that were explicitly named in extracted_data.capability_types
+    // (used to determine whether to generate a synthetic signal for item-less capabilities)
+    const explicitCapIds = new Set<string>();
+    for (const capName of capabilityNames) {
+      const capId = capacity_type_map[capName];
+      if (capId) explicitCapIds.add(capId);
+    }
+
     const results: Array<{ capabilityId: string; status: NeedStatus; needLevel: NeedLevel }> = [];
 
     for (const [capId, capItems] of itemsByCapId) {
@@ -279,10 +324,20 @@ Deno.serve(async (req) => {
           `${item.name}${item.urgency !== "low" ? ` (${item.urgency})` : ""}`
         );
 
-      // Skip capabilities with no signals (no items matched)
-      if (signals.length === 0) continue;
+      // Fix 3: When no items matched but the capability was explicitly named,
+      // generate a single synthetic signal from the observation text so the
+      // engine can still evaluate (e.g. "people are okay" should downgrade need level).
+      if (signals.length === 0) {
+        if (!explicitCapIds.has(capId)) continue;
+        const obs = extracted_data.observations;
+        const syntheticState = classifyObservation(obs ?? "");
+        signals.push({
+          state: syntheticState,
+          confidence: syntheticState === "available" ? extracted_data.confidence : SYNTHETIC_NEEDED_CONFIDENCE,
+        });
+      }
 
-      const status    = evaluateNeedStatus(signals);
+      const { status, scores, booleans, guardrailsApplied } = evaluateNeedStatus(signals);
       const needLevel = mapStatusToNeedLevel(status);
 
       console.log(
@@ -290,9 +345,6 @@ Deno.serve(async (req) => {
       );
 
       // Upsert sector_needs_context based on engine decision — NOT deriveNeedLevel
-      // TODO: Audit persistence (need_audits table inserts) is handled client-side
-      // via needSignalService.appendAudit(). This edge function does not use the
-      // NeedLevelEngine directly, so need_audits are not written from this path.
       const { error: upsertError } = await supabase
         .from("sector_needs_context")
         .upsert(
@@ -304,7 +356,7 @@ Deno.serve(async (req) => {
             source: "field_report",
             notes: operationalRequirements.length > 0
               ? JSON.stringify(operationalRequirements)
-              : (extracted_data.observations ?? null),
+              : null,
             created_by: null,
             expires_at: null,
           },
@@ -319,6 +371,34 @@ Deno.serve(async (req) => {
       } else {
         console.log(
           `[NeedLevelEngine] sector_needs_context updated: capability=${capId} level=${needLevel}`,
+        );
+      }
+
+      // Persist engine reasoning to need_audits — non-blocking on error
+      const { error: auditError } = await supabase.from("need_audits").insert({
+        sector_id,
+        capability_id: capId,
+        event_id,
+        timestamp: new Date().toISOString(),
+        previous_status: "WHITE",
+        proposed_status: status,
+        final_status: status,
+        llm_confidence: 0,
+        reasoning_summary: `insuff=${scores.insuff.toFixed(2)} stab=${scores.stab.toFixed(2)} demand=${scores.demand.toFixed(2)} cov=${scores.coverage.toFixed(2)} frag=${scores.frag.toFixed(2)} → ${status} → ${needLevel}`,
+        contradiction_detected: false,
+        key_evidence: [],
+        legal_transition: true,
+        guardrails_applied: guardrailsApplied,
+        scores_snapshot: scores,
+        booleans_snapshot: booleans,
+        model: "rule-based-engine",
+        prompt_version: "v1",
+      });
+
+      if (auditError) {
+        console.error(
+          `[NeedLevelEngine] need_audits insert error for capability=${capId}:`,
+          auditError,
         );
       }
 
