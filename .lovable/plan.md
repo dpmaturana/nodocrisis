@@ -1,54 +1,48 @@
 
 
-## Group related signals and status changes in the Activity Log
+## Show trend badges only on the 2 most recently updated needs across the entire dashboard
 
 ### Problem
-Signals and the status changes they trigger appear as separate, disconnected cards in the activity log, even though they happen at the same moment and are causally related.
-
-### Solution
-Group entries that occur within a short time window (60 seconds) into a single visual block, with the STATUS_CHANGE as the "parent" and its triggering signals nested underneath.
+Currently, every gap that has a trend shows its trend badge. You want only the 2 most recently updated needs (across ALL sectors on the dashboard) to display their trend tag.
 
 ### How it works
 
-**File: `src/components/dashboard/ActivityLogModal.tsx`**
+**1. `src/components/dashboard/SectorGapList.tsx`**
 
-1. After fetching and sorting entries, run a grouping pass:
-   - Walk the sorted entries list
-   - When a `STATUS_CHANGE` entry is found, look at the entries immediately after it (next in chronological order = older)
-   - If a `SIGNAL_RECEIVED` or `COVERAGE_ACTIVITY_EVENT` entry has a timestamp within 60 seconds of the status change, attach it as a "child"
-   - Continue until the time gap exceeds 60s or another STATUS_CHANGE is found
-   - Entries that don't belong to any group render standalone as before
+After fetching all sectors with gaps, compute the IDs of the 2 most recently updated gaps dashboard-wide:
+- Flatten all gaps from all sectors
+- Sort by `last_updated_at` descending
+- Take the first 2 gap IDs into a `Set`
+- Pass this set down to each `SectorStatusChip` as a new prop `trendVisibleGapIds`
 
-2. Render grouped entries as a single card:
-   - The STATUS_CHANGE renders at the top (transition dots, reasoning, etc.) -- same as today
-   - Below it, a subtle "Triggered by" label with the related signal(s) rendered inline as compact sub-items (indented, smaller, with their source badge)
-   - A left border or connector line visually ties them together
+**2. `src/components/dashboard/SectorStatusChip.tsx`**
 
-3. Standalone signals (not near a status change) render exactly as they do today -- no change.
-
-### Visual result
-
-```text
-+-----------------------------------------------+
-| Status change         (System badge)           |
-| Decision engine: [red dot] -> [yellow dot]     |
-| [sparkle] Human-readable reasoning...          |
-|                                                |
-|   Triggered by:                                |
-|   | [radio] Signal received  (ONG badge)       |
-|   | ONG: People are reported to be trapped...  |
-|                                                |
-| 16 minutes ago                                 |
-+-----------------------------------------------+
-```
+- Accept a new prop `trendVisibleGapIds: Set<string>`
+- Pass a `showTrend` boolean to each `DriverRow`: `true` only if the gap's ID is in the set
+- `DriverRow` receives `showTrend` prop; only renders the trend badge when `showTrend` is true
+- Translate `TREND_CONFIG` labels to English:
+  - "Mejorando" -> "Improving"
+  - "Empeorando" -> "Worsening"
+  - "Estable" -> "Stable"
+- Translate other Spanish strings: "Necesidades" -> "Needs", "Capacidad" -> "Capability", "Actualizar estado" -> "Update status", "Ver detalles" -> "View details"
 
 ### Technical details
 
-- Grouping logic: iterate sorted entries (newest first). For each STATUS_CHANGE, collect subsequent entries within 60s as children. Mark consumed entries so they don't render again standalone.
-- Type: define a `GroupedLogEntry = { main: CapabilityActivityLogEntry; related: CapabilityActivityLogEntry[] }` local type.
-- The grouping runs purely in the component after data fetch -- no backend or service changes needed.
-- Only the `ActivityLogModal.tsx` file changes.
+```text
+SectorGapList
+  |-- computes: trendVisibleGapIds = Set of 2 gap IDs with latest last_updated_at
+  |
+  +-- SectorStatusChip (receives trendVisibleGapIds)
+        |
+        +-- DriverRow (receives showTrend = trendVisibleGapIds.has(gap.id))
+              |-- renders trend badge only if showTrend === true
+```
+
+- All gaps remain visible in every card -- no truncation
+- Only the trend tag visibility changes
+- The 2 gaps are selected globally across all sectors based on `last_updated_at`
 
 ### Files changed
 
-1. `src/components/dashboard/ActivityLogModal.tsx` -- add grouping logic and nested rendering for related entries
+1. `src/components/dashboard/SectorGapList.tsx` -- compute top-2 recently updated gap IDs, pass as prop
+2. `src/components/dashboard/SectorStatusChip.tsx` -- accept `trendVisibleGapIds` prop, conditionally show trend, translate labels to English
