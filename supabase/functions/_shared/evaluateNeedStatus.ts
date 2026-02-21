@@ -28,6 +28,26 @@ export interface EvaluationResult {
     coverageIntent: boolean;
   };
   guardrailsApplied: string[];
+  legalTransition: boolean;
+}
+
+/**
+ * Legal status transitions — mirrors NEED_STATUS_TRANSITIONS in src/lib/needStatus.ts.
+ * A transition from A → B is legal if B appears in NEED_STATUS_TRANSITIONS[A].
+ * Staying in the same status is always legal.
+ */
+export const NEED_STATUS_TRANSITIONS: Record<NeedStatus, NeedStatus[]> = {
+  WHITE:  ["RED", "YELLOW", "ORANGE"],
+  RED:    ["YELLOW", "ORANGE"],
+  YELLOW: ["ORANGE", "GREEN", "RED", "WHITE"],
+  ORANGE: ["GREEN", "RED", "YELLOW"],
+  GREEN:  ["YELLOW", "ORANGE", "RED"],
+};
+
+/** Check whether a status transition is legal. Same status is always valid. */
+export function isValidNeedTransition(from: NeedStatus, to: NeedStatus): boolean {
+  if (from === to) return true;
+  return NEED_STATUS_TRANSITIONS[from].includes(to);
 }
 
 // Source weight for field-report signals (NGO tier, same as defaultNeedEngineConfig)
@@ -80,6 +100,7 @@ export function classifyItemState(state: string): SignalClassification {
  */
 export function evaluateNeedStatus(
   signals: Array<{ state: string; confidence: number }>,
+  previousStatus?: NeedStatus,
 ): EvaluationResult {
   let demand = 0, insuff = 0, stab = 0, frag = 0, coverage = 0;
 
@@ -143,7 +164,28 @@ export function evaluateNeedStatus(
     guardrailsApplied.push("Guardrail G");
   }
 
-  return { status: proposed, scores, booleans, guardrailsApplied };
+  // Guardrail C: GREEN eligibility gate — all conditions must be met to reach GREEN
+  const meetsGreenEligibility = stabilizationStrong && !fragilityAlert && !demandStrong && !insuffStrong;
+  if (proposed === "GREEN" && !meetsGreenEligibility) {
+    proposed = "YELLOW";
+    guardrailsApplied.push("Guardrail C");
+  }
+
+  // Guardrail D: fragility alert blocks GREEN and ensures minimum YELLOW
+  if (fragilityAlert) {
+    if (proposed === "GREEN" || proposed === "WHITE") {
+      // Fragility signals present: cannot stay at baseline or reach stabilized status
+      proposed = "YELLOW";
+      guardrailsApplied.push("Guardrail D");
+    }
+  }
+
+  // Transition legality validation
+  const legalTransition = previousStatus === undefined || previousStatus === null
+    ? true
+    : isValidNeedTransition(previousStatus, proposed);
+
+  return { status: proposed, scores, booleans, guardrailsApplied, legalTransition };
 }
 
 export function buildHumanReasoning(
@@ -180,6 +222,8 @@ export function buildHumanReasoning(
     "Guardrail A": "demand is strong with no coverage, floor set to Critical",
     "Guardrail B": "insufficiency is strong with no coverage, escalated to Critical",
     "Guardrail G": "demand signals require at least Insufficient coverage status",
+    "Guardrail C": "GREEN eligibility conditions not fully met, demoted to Validating",
+    "Guardrail D": "fragility alert detected, GREEN transition blocked or forced down to Validating",
   };
   for (const g of guardrails) {
     const explanation = GUARDRAIL_EXPLANATIONS[g];

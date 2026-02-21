@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { status, scores, booleans, guardrailsApplied } = evaluateNeedStatus(signals);
+    const { status, scores, booleans, guardrailsApplied, legalTransition } = evaluateNeedStatus(signals, previousStatus ?? undefined);
     const needLevel = mapNeedStatusToNeedLevel(status);
     const reasoning = buildHumanReasoning(scores, booleans, status, guardrailsApplied);
 
@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
       reasoning_summary: reasoning,
       contradiction_detected: false,
       key_evidence: [],
-      legal_transition: true,
+      legal_transition: legalTransition,
       guardrails_applied: guardrailsApplied,
       scores_snapshot: scores,
       booleans_snapshot: booleans,
