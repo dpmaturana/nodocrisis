@@ -1,63 +1,44 @@
 
 
-## Combined: Persist engine audits + English UI with colored status dots
+## Remove reasoning from expandable card, keep only in Activity Log + make it human-readable
 
-### Part 1: Persist engine audits so reasoning appears
+### Change 1: Remove reasoning_summary from expandable (SectorStatusChip)
 
-**File: `src/services/needSignalService.ts`** (lines 79-123)
+**File: `src/components/dashboard/SectorStatusChip.tsx`**
 
-Move the `need_audits` DB insert **outside** the `if (audit.final_status !== audit.previous_status)` guard. Every engine evaluation gets persisted for the reasoning trail. The in-memory activity log push stays inside the guard so only actual transitions show in the UI.
+- Remove lines 69-72 (the `reasoning_summary` paragraph in the expanded section)
+- Update line 34: change `hasExpandableContent` to only check `requirements.length > 0` (remove `!!gap.reasoning_summary` from the condition)
+- The expandable chevron will only appear when there are operational requirements to show
 
-**File: `src/services/deploymentService.ts`**
+### Change 2: Make reasoning_summary human-readable (edge function + client)
 
-Replace all 4 fire-and-forget `.catch()` calls (lines 203-209, 233-239, 264-270, 338-344) with `try { await ... } catch (e) { console.warn(...) }` so the engine completes before the function returns. Affects `enroll`, `updateStatus`, `updateStatusWithNote`, `markAsOperating`.
+The reasoning still displays in the Activity Log modal. Replace the debug string with clear sentences.
 
----
+**File: `supabase/functions/process-field-report-signals/index.ts`**
 
-### Part 2: English UI + colored status dots
+Add a `buildHumanReasoning(scores, booleans, finalStatus, guardrails)` helper that produces sentences like:
 
-**File: `src/types/activityLog.ts`**
+- RED: "High insufficiency detected with no active coverage."
+- ORANGE: "Demand or insufficiency signals present but coverage is active."
+- YELLOW: "Coverage activity detected, pending validation."
+- GREEN: "Stabilization signals strong with no alerts."
+- WHITE: "No significant signals detected."
 
-Add two optional fields to `CapabilityActivityLogEntry`:
-- `previous_status?: string`
-- `final_status?: string`
+Guardrails get appended as: "Safety rule: [explanation]."
 
-**File: `src/services/needSignalService.ts`** (line 89-91)
+Replace the current debug template string with a call to this helper.
 
-- Change `source_name` from `"Motor de decision"` to `"Decision engine"`
-- Change summary to English: `` `Status changed from ${audit.previous_status} to ${audit.final_status}` ``
-- Pass `previous_status` and `final_status` as new fields on the activity log entry
+**File: `src/services/needSignalService.ts`**
 
-**File: `src/services/activityLogService.ts`** (mapAuditRowToLogEntry, ~line 96-113)
+Apply the same human-readable pattern to the client-side engine reasoning output.
 
-- Change `source_name` to `"Decision engine"`
-- Change summary to English
-- Pass `previous_status: row.previous_status` and `final_status: row.final_status` on the returned entry
+### Result
 
-**File: `src/components/dashboard/ActivityLogModal.tsx`**
-
-Translate all Spanish strings to English:
-- `EVENT_TYPE_LABEL`: "Signal received", "Coverage activity", "Status change"
-- Dialog title: `"Activity log: {name}"`
-- Dialog description: `"{sector} -- Signal and decision history"`
-- Loading: `"Loading records..."`
-- Empty: `"No activity records for this need"`
-- Remove `locale: es` from `formatDistanceToNow`
-- "Batch processed" instead of "Procesado en lote"
-
-For `STATUS_CHANGE` entries, replace the plain text summary with a visual status transition:
-- Import `NEED_STATUS_PRESENTATION`, `NeedStatus` from `@/lib/needStatus`
-- Import `ArrowRight` from `lucide-react`
-- Map `previous_status` / `final_status` (uppercase) to their presentation config
-- Render: `[colored dot] label [arrow icon] [colored dot] label`
-- Example: a red dot + "Critical" then an arrow then a yellow dot + "Validating"
-- Fall back to the plain text summary if statuses are not available
+- The expandable section on the card only shows operational requirements (the rounded chips)
+- The Activity Log modal continues to show reasoning, but now as readable English sentences instead of raw scores
 
 ### Files changed
 
-1. `src/types/activityLog.ts` -- add `previous_status`, `final_status` fields
-2. `src/services/needSignalService.ts` -- always persist audits, English text, pass status fields
-3. `src/services/deploymentService.ts` -- await engine calls
-4. `src/services/activityLogService.ts` -- English text, pass status fields
-5. `src/components/dashboard/ActivityLogModal.tsx` -- English UI, colored status dot transition
-
+1. `src/components/dashboard/SectorStatusChip.tsx` -- remove reasoning_summary from expandable
+2. `supabase/functions/process-field-report-signals/index.ts` -- add buildHumanReasoning helper
+3. `src/services/needSignalService.ts` -- human-readable client-side reasoning
