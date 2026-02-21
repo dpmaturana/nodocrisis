@@ -106,7 +106,7 @@ export function AdminSignalCaptureModal({
     setIsSubmitting(true);
     try {
       const report = await fieldReportService.createTextOnlyReport(
-        { event_id: eventId, sector_id: sectorId, text_note: noteText },
+        { event_id: eventId, sector_id: sectorId, text_note: noteText, signal_type: "official" },
         user.id,
       );
 

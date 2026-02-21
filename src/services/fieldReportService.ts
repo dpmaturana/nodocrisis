@@ -76,6 +76,7 @@ export const fieldReportService = {
     event_id: string;
     sector_id: string;
     text_note: string;
+    signal_type?: string;
   }, actorId: string): Promise<FieldReport> {
     const { data, error } = await supabase.functions.invoke('extract-text-report', {
       body: { 
