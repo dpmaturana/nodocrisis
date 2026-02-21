@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { gapService } from "@/services";
+import { supabase } from "@/integrations/supabase/client";
 import type { SectorWithGaps } from "@/services/gapService";
 import type { NeedStatus } from "@/lib/needStatus";
 import { SectorStatusChip } from "./SectorStatusChip";
@@ -36,22 +37,50 @@ export function SectorGapList({
   const [sectorsWithGaps, setSectorsWithGaps] = useState<SectorWithGaps[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      try {
-        const data = await gapService.getGapsGroupedBySector(eventId);
-        setSectorsWithGaps(data);
-        onSectorsLoaded?.(data);
-      } catch (error) {
-        console.error("Error fetching gaps grouped by sector:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
+  const fetchData = useCallback(async (showLoading = true) => {
+    if (showLoading) setIsLoading(true);
+    try {
+      const data = await gapService.getGapsGroupedBySector(eventId);
+      setSectorsWithGaps(data);
+      onSectorsLoaded?.(data);
+    } catch (error) {
+      console.error("Error fetching gaps grouped by sector:", error);
+    } finally {
+      if (showLoading) setIsLoading(false);
+    }
   }, [eventId]);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchData(true);
+  }, [fetchData]);
+
+  // Realtime subscription with debounce
+  useEffect(() => {
+    const debounceRef = { timer: null as ReturnType<typeof setTimeout> | null };
+
+    const channel = supabase
+      .channel(`sector-needs-${eventId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "sector_needs_context",
+          filter: `event_id=eq.${eventId}`,
+        },
+        () => {
+          if (debounceRef.timer) clearTimeout(debounceRef.timer);
+          debounceRef.timer = setTimeout(() => fetchData(false), 500);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      if (debounceRef.timer) clearTimeout(debounceRef.timer);
+      supabase.removeChannel(channel);
+    };
+  }, [eventId, fetchData]);
 
   if (isLoading) {
     return (
