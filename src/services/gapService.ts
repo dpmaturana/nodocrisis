@@ -208,19 +208,22 @@ export const gapService = {
             if (!need.notes) return [];
             try {
               const parsed = JSON.parse(need.notes);
-              return Array.isArray(parsed) ? parsed : [];
-            } catch {
+              if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                return Array.isArray(parsed.requirements) ? parsed.requirements : [];
+              }
+              if (Array.isArray(parsed)) return parsed; // legacy
               return [];
-            }
+            } catch { return []; }
           })(),
           reasoning_summary: (() => {
             if (need.notes) {
               try {
-                JSON.parse(need.notes);
-                // It's valid JSON (array) — not a plain description
+                const parsed = JSON.parse(need.notes);
+                if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && typeof parsed.description === "string") {
+                  return parsed.description;
+                }
               } catch {
-                // Plain text — use as description
-                return need.notes;
+                return need.notes; // legacy plain text
               }
             }
             return auditMap.get(`${need.sector_id}:${need.capacity_type_id}`);
