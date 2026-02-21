@@ -180,6 +180,37 @@ class LegacySignalExtractor implements NeedExtractionModel {
   }
 }
 
+function buildHumanReasoning(
+  scores: { demand_score?: number; insufficiency_score?: number; stabilization_score?: number; fragility_score?: number; coverage_score?: number },
+  booleans: { demandStrong: boolean; insuffStrong: boolean; stabilizationStrong: boolean; fragilityAlert: boolean; coverageActive: boolean; coverageIntent?: boolean },
+  status: string,
+  guardrails: string[],
+): string {
+  const STATUS_LABELS: Record<string, string> = {
+    RED: "Critical", ORANGE: "Insufficient coverage", YELLOW: "Validating", GREEN: "Stabilized", WHITE: "Monitoring",
+  };
+  let sentence: string;
+  switch (status) {
+    case "RED":    sentence = "High insufficiency detected with no active coverage."; break;
+    case "ORANGE": sentence = "Demand or insufficiency signals present but coverage is active."; break;
+    case "YELLOW": sentence = "Coverage activity detected, pending validation."; break;
+    case "GREEN":  sentence = "Stabilization signals strong with no alerts."; break;
+    default:       sentence = "No significant signals detected."; break;
+  }
+  sentence += ` Status set to ${STATUS_LABELS[status] ?? status}.`;
+
+  const GUARDRAIL_EXPLANATIONS: Record<string, string> = {
+    "Guardrail A": "demand is strong with no coverage, floor set to Critical",
+    "Guardrail B": "insufficiency is strong with no coverage, escalated to Critical",
+    "Guardrail G": "demand signals require at least Insufficient coverage status",
+  };
+  for (const g of guardrails) {
+    const explanation = GUARDRAIL_EXPLANATIONS[g];
+    if (explanation) sentence += ` Safety rule: ${explanation}.`;
+  }
+  return sentence;
+}
+
 class RuleBasedNeedEvaluator implements NeedEvaluatorModel {
   async evaluate(input: NeedEvaluatorInput): Promise<NeedEvaluatorOutput> {
     const { demandStrong, insuffStrong, stabilizationStrong, fragilityAlert, coverageActive, coverageIntent } = input.booleans;
@@ -211,7 +242,7 @@ class RuleBasedNeedEvaluator implements NeedEvaluatorModel {
     return {
       proposed_status,
       confidence: 0.8,
-      reasoning_summary: "Rule-based evaluator proposal from weighted evidence.",
+      reasoning_summary: buildHumanReasoning(input.scores, input.booleans, proposed_status, []),
       contradiction_detected: demandStrong && stabilizationStrong,
       key_evidence: input.top_evidence.slice(0, 3).map((e) => e.raw_input_id),
       augmentation_commitment_detected: input.top_evidence.some((e) => e.coverage_kind === "augmentation"),

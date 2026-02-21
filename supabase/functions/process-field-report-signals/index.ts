@@ -307,6 +307,37 @@ function evaluateNeedStatus(signals: Array<{ state: string; confidence: number }
   return { status: proposed, scores, booleans, guardrailsApplied };
 }
 
+function buildHumanReasoning(
+  scores: { demand: number; insuff: number; stab: number; frag: number; coverage: number },
+  booleans: { demandStrong: boolean; insuffStrong: boolean; stabilizationStrong: boolean; fragilityAlert: boolean; coverageActive: boolean; coverageIntent: boolean },
+  status: NeedStatus,
+  guardrails: string[],
+): string {
+  const STATUS_LABELS: Record<string, string> = {
+    RED: "Critical", ORANGE: "Insufficient coverage", YELLOW: "Validating", GREEN: "Stabilized", WHITE: "Monitoring",
+  };
+  let sentence: string;
+  switch (status) {
+    case "RED":    sentence = "High insufficiency detected with no active coverage."; break;
+    case "ORANGE": sentence = "Demand or insufficiency signals present but coverage is active."; break;
+    case "YELLOW": sentence = "Coverage activity detected, pending validation."; break;
+    case "GREEN":  sentence = "Stabilization signals strong with no alerts."; break;
+    default:       sentence = "No significant signals detected."; break;
+  }
+  sentence += ` Status set to ${STATUS_LABELS[status] ?? status}.`;
+
+  const GUARDRAIL_EXPLANATIONS: Record<string, string> = {
+    "Guardrail A": "demand is strong with no coverage, floor set to Critical",
+    "Guardrail B": "insufficiency is strong with no coverage, escalated to Critical",
+    "Guardrail G": "demand signals require at least Insufficient coverage status",
+  };
+  for (const g of guardrails) {
+    const explanation = GUARDRAIL_EXPLANATIONS[g];
+    if (explanation) sentence += ` Safety rule: ${explanation}.`;
+  }
+  return sentence;
+}
+
 /** Mirror of mapNeedStatusToNeedLevel in needSignalService.ts */
 function mapStatusToNeedLevel(status: NeedStatus): NeedLevel {
   switch (status) {
@@ -517,7 +548,7 @@ Deno.serve(async (req) => {
         proposed_status: status,
         final_status: status,
         llm_confidence: 0,
-        reasoning_summary: `insuff=${scores.insuff.toFixed(2)} stab=${scores.stab.toFixed(2)} demand=${scores.demand.toFixed(2)} cov=${scores.coverage.toFixed(2)} frag=${scores.frag.toFixed(2)} → ${status} → ${needLevel}`,
+        reasoning_summary: buildHumanReasoning(scores, booleans, status, guardrailsApplied),
         contradiction_detected: false,
         key_evidence: [],
         legal_transition: true,
