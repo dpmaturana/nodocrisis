@@ -145,6 +145,11 @@ export const gapService = {
       if (!auditsByKey.has(key)) auditsByKey.set(key, []);
       auditsByKey.get(key)!.push(row);
     });
+    const latestAuditTimestamp = new Map<string, string>();
+    auditsByKey.forEach((rows, key) => {
+      if (rows[0]?.timestamp) latestAuditTimestamp.set(key, rows[0].timestamp);
+    });
+
     const trendMap = new Map<string, Trend>();
     auditsByKey.forEach((rows, key) => {
       const trend = deriveTrend(rows);
@@ -198,7 +203,7 @@ export const gapService = {
           sector_id: need.sector_id,
           capacity_type_id: need.capacity_type_id,
           state,
-          last_updated_at: need.created_at,
+          last_updated_at: latestAuditTimestamp.get(`${need.sector_id}:${need.capacity_type_id}`) ?? need.created_at,
           signal_count: 0,
           sector,
           capacity_type: need.capacity_types ?? undefined,
