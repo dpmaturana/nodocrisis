@@ -33,6 +33,8 @@ export interface CapabilityActivityLogEntry {
   summary: string;
   reasoning_summary?: string;
   guardrails_applied?: string[];
+  previous_status?: string;
+  final_status?: string;
   metadata?: Record<string, unknown>;
   related_ids?: string[];
 }

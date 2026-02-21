@@ -78,6 +78,37 @@ class InMemoryNeedsRepository implements NeedsRepository {
 
   async appendAudit(audit: NeedAudit): Promise<void> {
     this.audits.push(audit);
+
+    // Always persist to DB for reasoning trail
+    if (this.currentEventId) {
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { error } = await supabase.from("need_audits").insert({
+        sector_id: audit.sector_id,
+        capability_id: audit.capability_id,
+        event_id: this.currentEventId,
+        timestamp: audit.timestamp,
+        previous_status: audit.previous_status,
+        proposed_status: audit.proposed_status,
+        final_status: audit.final_status,
+        llm_confidence: audit.llm_confidence,
+        reasoning_summary: audit.reasoning_summary,
+        contradiction_detected: audit.contradiction_detected,
+        key_evidence: audit.key_evidence,
+        legal_transition: audit.legal_transition,
+        illegal_transition_reason: audit.illegal_transition_reason ?? null,
+        guardrails_applied: audit.guardrails_applied,
+        scores_snapshot: audit.scores_snapshot as any,
+        booleans_snapshot: audit.booleans_snapshot as any,
+        model: audit.model,
+        prompt_version: audit.prompt_version,
+        config_snapshot: audit.config_snapshot as any,
+      });
+      if (error) {
+        console.error("[needSignalService] Failed to persist need_audit:", error);
+      }
+    }
+
+    // Only show in activity log when status actually changes
     if (audit.final_status !== audit.previous_status) {
       this.activityLog.push({
         id: crypto.randomUUID(),
@@ -86,40 +117,14 @@ class InMemoryNeedsRepository implements NeedsRepository {
         event_type: "STATUS_CHANGE",
         timestamp: audit.timestamp,
         source_type: "system",
-        source_name: "Motor de decisión",
+        source_name: "Decision engine",
         source_weight: SOURCE_TYPE_WEIGHTS.system,
-        summary: `Estado cambiado de ${audit.previous_status} a ${audit.final_status}`,
+        summary: `Status changed from ${audit.previous_status} to ${audit.final_status}`,
         reasoning_summary: audit.reasoning_summary,
         guardrails_applied: audit.guardrails_applied,
+        previous_status: audit.previous_status,
+        final_status: audit.final_status,
       });
-
-      if (this.currentEventId) {
-        const { supabase } = await import("@/integrations/supabase/client");
-        const { error } = await supabase.from("need_audits").insert({
-          sector_id: audit.sector_id,
-          capability_id: audit.capability_id,
-          event_id: this.currentEventId,
-          timestamp: audit.timestamp,
-          previous_status: audit.previous_status,
-          proposed_status: audit.proposed_status,
-          final_status: audit.final_status,
-          llm_confidence: audit.llm_confidence,
-          reasoning_summary: audit.reasoning_summary,
-          contradiction_detected: audit.contradiction_detected,
-          key_evidence: audit.key_evidence,
-          legal_transition: audit.legal_transition,
-          illegal_transition_reason: audit.illegal_transition_reason ?? null,
-          guardrails_applied: audit.guardrails_applied,
-          scores_snapshot: audit.scores_snapshot as any,
-          booleans_snapshot: audit.booleans_snapshot as any,
-          model: audit.model,
-          prompt_version: audit.prompt_version,
-          config_snapshot: audit.config_snapshot as any,
-        });
-        if (error) {
-          console.error("[needSignalService] Failed to persist need_audit:", error);
-        }
-      }
     }
   }
 

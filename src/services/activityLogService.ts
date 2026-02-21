@@ -117,11 +117,13 @@ function mapAuditRowToLogEntry(row: {
     event_type: "STATUS_CHANGE",
     timestamp: row.timestamp,
     source_type: "system",
-    source_name: "Motor de decisión",
+    source_name: "Decision engine",
     source_weight: SOURCE_TYPE_WEIGHTS.system,
-    summary: `Estado cambiado de ${row.previous_status} a ${row.final_status}`,
+    summary: `Status changed from ${row.previous_status} to ${row.final_status}`,
     reasoning_summary: row.reasoning_summary,
     guardrails_applied: row.guardrails_applied,
+    previous_status: row.previous_status,
+    final_status: row.final_status,
   };
 }
 

@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { es } from "date-fns/locale";
 import {
   AtSign,
   Building2,
   HeartHandshake,
   FileText,
   ArrowRightLeft,
+  ArrowRight,
   Radio,
   ShieldCheck,
   Sparkles,
@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { activityLogService } from "@/services/activityLogService";
 import type { CapabilityActivityLogEntry, ActivitySourceType, ActivityEventType } from "@/types/activityLog";
 import { SOURCE_TYPE_LABELS, formatLogEntry } from "@/types/activityLog";
+import { NEED_STATUS_PRESENTATION, type NeedStatus } from "@/lib/needStatus";
 import type { GapWithDetails } from "@/services/gapService";
 
 const SOURCE_ICON: Record<ActivitySourceType, typeof AtSign> = {
@@ -48,9 +49,9 @@ const EVENT_TYPE_ICON: Record<ActivityEventType, typeof Radio> = {
 };
 
 const EVENT_TYPE_LABEL: Record<ActivityEventType, string> = {
-  SIGNAL_RECEIVED: "Señal recibida",
-  COVERAGE_ACTIVITY_EVENT: "Actividad de cobertura",
-  STATUS_CHANGE: "Cambio de estado",
+  SIGNAL_RECEIVED: "Signal received",
+  COVERAGE_ACTIVITY_EVENT: "Coverage activity",
+  STATUS_CHANGE: "Status change",
 };
 
 interface ActivityLogModalProps {
@@ -79,10 +80,10 @@ export function ActivityLogModal({ gap, open, onOpenChange }: ActivityLogModalPr
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            Registro de actividad: {gap.capacity_type?.name}
+            Activity log: {gap.capacity_type?.name}
           </DialogTitle>
           <DialogDescription>
-            {gap.sector?.canonical_name} — Historial de señales y decisiones
+            {gap.sector?.canonical_name} — Signal and decision history
           </DialogDescription>
         </DialogHeader>
 
@@ -90,13 +91,13 @@ export function ActivityLogModal({ gap, open, onOpenChange }: ActivityLogModalPr
           <div className="space-y-3 pr-4">
             {isLoading && (
               <p className="text-sm text-muted-foreground text-center py-8">
-                Cargando registros…
+                Loading records…
               </p>
             )}
 
             {!isLoading && entries.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-8">
-                No hay registros de actividad para esta necesidad
+                No activity records for this need
               </p>
             )}
 
@@ -111,6 +112,31 @@ export function ActivityLogModal({ gap, open, onOpenChange }: ActivityLogModalPr
   );
 }
 
+function StatusDot({ status }: { status: string }) {
+  const presentation = NEED_STATUS_PRESENTATION[status as NeedStatus];
+  if (!presentation) return null;
+  return (
+    <span className={`inline-block w-2.5 h-2.5 rounded-full ${presentation.dot}`} />
+  );
+}
+
+function StatusTransition({ previous, final }: { previous: string; final: string }) {
+  const prevPres = NEED_STATUS_PRESENTATION[previous as NeedStatus];
+  const finalPres = NEED_STATUS_PRESENTATION[final as NeedStatus];
+
+  if (!prevPres || !finalPres) return null;
+
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <StatusDot status={previous} />
+      <span className="text-xs font-medium">{prevPres.label}</span>
+      <ArrowRight className="w-3 h-3 text-muted-foreground" />
+      <StatusDot status={final} />
+      <span className="text-xs font-medium">{finalPres.label}</span>
+    </span>
+  );
+}
+
 function ActivityLogItem({ entry }: { entry: CapabilityActivityLogEntry }) {
   const SourceIcon = SOURCE_ICON[entry.source_type];
   const EventIcon = EVENT_TYPE_ICON[entry.event_type];
@@ -119,8 +145,12 @@ function ActivityLogItem({ entry }: { entry: CapabilityActivityLogEntry }) {
 
   const timeAgo = formatDistanceToNow(new Date(entry.timestamp), {
     addSuffix: true,
-    locale: es,
   });
+
+  const showStatusTransition =
+    entry.event_type === "STATUS_CHANGE" &&
+    entry.previous_status &&
+    entry.final_status;
 
   return (
     <div className="bg-muted/30 rounded-md p-3 space-y-2">
@@ -136,11 +166,21 @@ function ActivityLogItem({ entry }: { entry: CapabilityActivityLogEntry }) {
         </Badge>
       </div>
 
-      {/* Formatted summary */}
-      <p className="text-sm text-foreground">
-        <span className="font-medium">{sourceLabel}:</span>{" "}
-        {entry.summary}
-      </p>
+      {/* Summary: colored status transition or plain text */}
+      {showStatusTransition ? (
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">{entry.source_name}:</span>
+          <StatusTransition
+            previous={entry.previous_status!}
+            final={entry.final_status!}
+          />
+        </div>
+      ) : (
+        <p className="text-sm text-foreground">
+          <span className="font-medium">{sourceLabel}:</span>{" "}
+          {entry.summary}
+        </p>
+      )}
 
       {/* Reasoning summary for STATUS_CHANGE entries */}
       {entry.event_type === "STATUS_CHANGE" && entry.reasoning_summary && (
@@ -163,7 +203,7 @@ function ActivityLogItem({ entry }: { entry: CapabilityActivityLogEntry }) {
         {entry.metadata?.batch_processed_at && (
           <>
             <span>·</span>
-            <span>Procesado en lote</span>
+            <span>Batch processed</span>
           </>
         )}
       </div>

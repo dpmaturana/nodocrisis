@@ -200,13 +200,17 @@ export const deploymentService = {
       .eq("capacity_type_id", capacityTypeId)
       .maybeSingle();
 
-    needSignalService.onDeploymentStatusChange({
-      eventId,
-      sectorId,
-      capabilityId: capacityTypeId,
-      deploymentStatus: "interested",
-      previousStatus: needRow ? mapNeedLevelToNeedStatus(needRow.level) : undefined,
-    }).catch((e) => { console.warn("Need re-evaluation failed on enroll", e); });
+    try {
+      await needSignalService.onDeploymentStatusChange({
+        eventId,
+        sectorId,
+        capabilityId: capacityTypeId,
+        deploymentStatus: "interested",
+        previousStatus: needRow ? mapNeedLevelToNeedStatus(needRow.level) : undefined,
+      });
+    } catch (e) {
+      console.warn("Need re-evaluation failed on enroll", e);
+    }
 
     return data;
   },
@@ -230,13 +234,17 @@ export const deploymentService = {
         .eq("sector_id", deployment.sector_id)
         .eq("capacity_type_id", deployment.capacity_type_id)
         .maybeSingle();
-      needSignalService.onDeploymentStatusChange({
-        eventId: deployment.event_id,
-        sectorId: deployment.sector_id,
-        capabilityId: deployment.capacity_type_id,
-        deploymentStatus: status,
-        previousStatus: needRow ? mapNeedLevelToNeedStatus(needRow.level) : undefined,
-      }).catch((e) => { console.warn('Need re-evaluation failed for deployment', id, e); });
+      try {
+        await needSignalService.onDeploymentStatusChange({
+          eventId: deployment.event_id,
+          sectorId: deployment.sector_id,
+          capabilityId: deployment.capacity_type_id,
+          deploymentStatus: status,
+          previousStatus: needRow ? mapNeedLevelToNeedStatus(needRow.level) : undefined,
+        });
+      } catch (e) {
+        console.warn('Need re-evaluation failed for deployment', id, e);
+      }
     }
   },
 
@@ -261,13 +269,17 @@ export const deploymentService = {
         .eq("sector_id", deployment.sector_id)
         .eq("capacity_type_id", deployment.capacity_type_id)
         .maybeSingle();
-      needSignalService.onDeploymentStatusChange({
-        eventId: deployment.event_id,
-        sectorId: deployment.sector_id,
-        capabilityId: deployment.capacity_type_id,
-        deploymentStatus: status,
-        previousStatus: needRow ? mapNeedLevelToNeedStatus(needRow.level) : undefined,
-      }).catch((e) => { console.warn('Need re-evaluation failed for deployment', id, e); });
+      try {
+        await needSignalService.onDeploymentStatusChange({
+          eventId: deployment.event_id,
+          sectorId: deployment.sector_id,
+          capabilityId: deployment.capacity_type_id,
+          deploymentStatus: status,
+          previousStatus: needRow ? mapNeedLevelToNeedStatus(needRow.level) : undefined,
+        });
+      } catch (e) {
+        console.warn('Need re-evaluation failed for deployment', id, e);
+      }
     }
   },
 
@@ -335,13 +347,17 @@ export const deploymentService = {
         .eq("sector_id", deployment.sector_id)
         .eq("capacity_type_id", deployment.capacity_type_id)
         .maybeSingle();
-      needSignalService.onDeploymentStatusChange({
-        eventId: deployment.event_id,
-        sectorId: deployment.sector_id,
-        capabilityId: deployment.capacity_type_id,
-        deploymentStatus: status,
-        previousStatus: needRow ? mapNeedLevelToNeedStatus(needRow.level) : undefined,
-      }).catch((e) => { console.warn('Need re-evaluation failed for deployment', id, e); });
+      try {
+        await needSignalService.onDeploymentStatusChange({
+          eventId: deployment.event_id,
+          sectorId: deployment.sector_id,
+          capabilityId: deployment.capacity_type_id,
+          deploymentStatus: status,
+          previousStatus: needRow ? mapNeedLevelToNeedStatus(needRow.level) : undefined,
+        });
+      } catch (e) {
+        console.warn('Need re-evaluation failed for deployment', id, e);
+      }
     }
   },
 };
