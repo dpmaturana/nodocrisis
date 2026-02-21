@@ -21,6 +21,7 @@ interface SectorCardAdminProps {
   onViewSignals: (gap: GapWithDetails) => void;
   onActivateActors: (gap: GapWithDetails) => void;
   onViewActivityLog?: (gap: GapWithDetails) => void;
+  onViewGapActors?: (gap: GapWithDetails) => void;
   isHighlighted?: boolean;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
@@ -39,6 +40,7 @@ export function SectorCardAdmin({
   onViewSignals,
   onActivateActors,
   onViewActivityLog,
+  onViewGapActors,
   isHighlighted,
   onMouseEnter,
   onMouseLeave,
@@ -141,7 +143,7 @@ export function SectorCardAdmin({
                           <Eye className="w-3 h-3" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>Ver señales</TooltipContent>
+                      <TooltipContent>View signals</TooltipContent>
                     </Tooltip>
                     {onViewActivityLog && (
                       <Tooltip>
@@ -155,21 +157,22 @@ export function SectorCardAdmin({
                             <ScrollText className="w-3 h-3" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Registro de actividad</TooltipContent>
+                        <TooltipContent>Activity log</TooltipContent>
                       </Tooltip>
                     )}
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
                           variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => onActivateActors(gap)}
+                          size="sm"
+                          className="h-6 px-1.5 text-xs gap-1"
+                          onClick={() => onViewGapActors?.(gap)}
                         >
                           <Users className="w-3 h-3" />
+                          <span>{gap.actor_count ?? 0}</span>
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>Activar organizaciones</TooltipContent>
+                      <TooltipContent>View deployed actors</TooltipContent>
                     </Tooltip>
                   </div>
                 </div>

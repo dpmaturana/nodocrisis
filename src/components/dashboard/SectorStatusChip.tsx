@@ -11,6 +11,7 @@ import { NEED_STATUS_ORDER, NEED_STATUS_PRESENTATION, type NeedStatus } from "@/
 import type { GapWithDetails } from "@/services/gapService";
 import { ActivityLogModal } from "./ActivityLogModal";
 import { AdminSignalCaptureModal } from "./AdminSignalCaptureModal";
+import { GapActorsModal } from "./GapActorsModal";
 
 const TREND_CONFIG = {
   improving: { label: "↗ Mejorando", className: "text-coverage bg-coverage/10 border-coverage/30" },
@@ -21,9 +22,10 @@ const TREND_CONFIG = {
 interface DriverRowProps {
   gap: GapWithDetails;
   onOpenLog: (gap: GapWithDetails) => void;
+  onOpenActors: (gap: GapWithDetails) => void;
 }
 
-function DriverRow({ gap, onOpenLog }: DriverRowProps) {
+function DriverRow({ gap, onOpenLog, onOpenActors }: DriverRowProps) {
   const [expanded, setExpanded] = useState(false);
   const needStatus = gap.need_status ?? "WHITE";
   const config = NEED_STATUS_PRESENTATION[needStatus];
@@ -46,11 +48,14 @@ function DriverRow({ gap, onOpenLog }: DriverRowProps) {
             {TREND_CONFIG[gap.trend].label}
           </span>
         )}
-        {typeof gap.actor_count === "number" && gap.actor_count > 0 && (
-          <span className="ml-auto flex items-center gap-0.5 text-muted-foreground shrink-0">
+        {typeof gap.actor_count === "number" && (
+          <button
+            onClick={() => onOpenActors(gap)}
+            className="ml-auto flex items-center gap-0.5 text-muted-foreground hover:text-foreground shrink-0 hover:underline cursor-pointer"
+          >
             <Users className="w-3 h-3" />
             {gap.actor_count}
-          </span>
+          </button>
         )}
         {hasExpandableContent && (
           <button
@@ -112,6 +117,8 @@ export function SectorStatusChip({
   const [activityLogGap, setActivityLogGap] = useState<GapWithDetails | null>(null);
   const [showActivityLog, setShowActivityLog] = useState(false);
   const [showSignalCapture, setShowSignalCapture] = useState(false);
+  const [actorsGap, setActorsGap] = useState<GapWithDetails | null>(null);
+  const [showActorsModal, setShowActorsModal] = useState(false);
 
   const sectorStatus = NEED_STATUS_PRESENTATION[sectorNeedStatus];
 
@@ -125,6 +132,11 @@ export function SectorStatusChip({
   const handleOpenLog = (gap: GapWithDetails) => {
     setActivityLogGap(gap);
     setShowActivityLog(true);
+  };
+
+  const handleOpenActors = (gap: GapWithDetails) => {
+    setActorsGap(gap);
+    setShowActorsModal(true);
   };
 
   return (
@@ -168,6 +180,7 @@ export function SectorStatusChip({
                   key={gap.id}
                   gap={gap}
                   onOpenLog={handleOpenLog}
+                  onOpenActors={handleOpenActors}
                 />
               ))}
             </div>
@@ -212,6 +225,12 @@ export function SectorStatusChip({
         eventLocation={eventLocation}
         gaps={gaps}
         sectorNeedStatus={sectorNeedStatus}
+      />
+
+      <GapActorsModal
+        gap={actorsGap}
+        open={showActorsModal}
+        onOpenChange={setShowActorsModal}
       />
     </>
   );
