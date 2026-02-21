@@ -22,9 +22,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { activityLogService } from "@/services/activityLogService";
 import type { CapabilityActivityLogEntry, ActivitySourceType, ActivityEventType } from "@/types/activityLog";
-import { SOURCE_TYPE_LABELS, formatLogEntry } from "@/types/activityLog";
+import { SOURCE_TYPE_LABELS } from "@/types/activityLog";
 import { NEED_STATUS_PRESENTATION, type NeedStatus } from "@/lib/needStatus";
 import type { GapWithDetails } from "@/services/gapService";
+
+// ─── Constants ───────────────────────────────────────────────────
 
 const SOURCE_ICON: Record<ActivitySourceType, typeof AtSign> = {
   twitter: AtSign,
@@ -54,6 +56,192 @@ const EVENT_TYPE_LABEL: Record<ActivityEventType, string> = {
   STATUS_CHANGE: "Status change",
 };
 
+const GROUPING_WINDOW_MS = 60_000;
+
+// ─── Grouping logic ─────────────────────────────────────────────
+
+type GroupedLogEntry = {
+  main: CapabilityActivityLogEntry;
+  related: CapabilityActivityLogEntry[];
+};
+
+function groupEntries(entries: CapabilityActivityLogEntry[]): GroupedLogEntry[] {
+  const consumed = new Set<string>();
+  const groups: GroupedLogEntry[] = [];
+
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    if (consumed.has(entry.id)) continue;
+
+    if (entry.event_type === "STATUS_CHANGE") {
+      const mainTs = new Date(entry.timestamp).getTime();
+      const related: CapabilityActivityLogEntry[] = [];
+
+      for (let j = i + 1; j < entries.length; j++) {
+        const candidate = entries[j];
+        if (consumed.has(candidate.id)) continue;
+        if (candidate.event_type === "STATUS_CHANGE") break;
+
+        const delta = Math.abs(mainTs - new Date(candidate.timestamp).getTime());
+        if (delta > GROUPING_WINDOW_MS) break;
+
+        related.push(candidate);
+        consumed.add(candidate.id);
+      }
+
+      consumed.add(entry.id);
+      groups.push({ main: entry, related });
+    } else {
+      consumed.add(entry.id);
+      groups.push({ main: entry, related: [] });
+    }
+  }
+
+  return groups;
+}
+
+// ─── Small presentational pieces ────────────────────────────────
+
+function StatusDot({ status }: { status: string }) {
+  const presentation = NEED_STATUS_PRESENTATION[status as NeedStatus];
+  if (!presentation) return null;
+  return (
+    <span className={`inline-block w-2.5 h-2.5 rounded-full ${presentation.dot}`} />
+  );
+}
+
+function StatusTransition({ previous, final }: { previous: string; final: string }) {
+  const prevPres = NEED_STATUS_PRESENTATION[previous as NeedStatus];
+  const finalPres = NEED_STATUS_PRESENTATION[final as NeedStatus];
+  if (!prevPres || !finalPres) return null;
+
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <StatusDot status={previous} />
+      <span className="text-xs font-medium">{prevPres.label}</span>
+      <ArrowRight className="w-3 h-3 text-muted-foreground" />
+      <StatusDot status={final} />
+      <span className="text-xs font-medium">{finalPres.label}</span>
+    </span>
+  );
+}
+
+function SourceBadge({ sourceType }: { sourceType: ActivitySourceType }) {
+  const SourceIcon = SOURCE_ICON[sourceType];
+  const badgeStyle = SOURCE_BADGE_STYLE[sourceType];
+  const label = SOURCE_TYPE_LABELS[sourceType];
+  return (
+    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${badgeStyle}`}>
+      <SourceIcon className="w-3 h-3 mr-1" />
+      {label}
+    </Badge>
+  );
+}
+
+// ─── Entry renderers ────────────────────────────────────────────
+
+function RelatedSignalItem({ entry }: { entry: CapabilityActivityLogEntry }) {
+  const EventIcon = EVENT_TYPE_ICON[entry.event_type];
+  const sourceLabel = SOURCE_TYPE_LABELS[entry.source_type];
+
+  return (
+    <div className="flex items-start gap-2 text-xs">
+      <EventIcon className="w-3 h-3 mt-0.5 text-muted-foreground shrink-0" />
+      <div className="flex-1 min-w-0 space-y-0.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-muted-foreground">{EVENT_TYPE_LABEL[entry.event_type]}</span>
+          <SourceBadge sourceType={entry.source_type} />
+        </div>
+        <p className="text-foreground/80 line-clamp-2">
+          <span className="font-medium">{sourceLabel}:</span> {entry.summary}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ActivityLogItem({ entry }: { entry: CapabilityActivityLogEntry }) {
+  const EventIcon = EVENT_TYPE_ICON[entry.event_type];
+  const sourceLabel = SOURCE_TYPE_LABELS[entry.source_type];
+
+  const timeAgo = formatDistanceToNow(new Date(entry.timestamp), { addSuffix: true });
+
+  const showStatusTransition =
+    entry.event_type === "STATUS_CHANGE" &&
+    entry.previous_status &&
+    entry.final_status;
+
+  return (
+    <>
+      {/* Header */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <EventIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+        <span className="text-xs text-muted-foreground">{EVENT_TYPE_LABEL[entry.event_type]}</span>
+        <SourceBadge sourceType={entry.source_type} />
+      </div>
+
+      {/* Body */}
+      {showStatusTransition ? (
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">{sourceLabel}:</span>
+          <StatusTransition previous={entry.previous_status!} final={entry.final_status!} />
+        </div>
+      ) : (
+        <p className="text-sm text-foreground">
+          <span className="font-medium">{sourceLabel}:</span> {entry.summary}
+        </p>
+      )}
+
+      {/* Reasoning */}
+      {entry.event_type === "STATUS_CHANGE" && entry.reasoning_summary && (
+        <div className="flex items-start gap-1.5 text-xs bg-muted/50 rounded px-2 py-1.5 text-muted-foreground mt-1">
+          <Sparkles className="w-3.5 h-3.5 mt-0.5 shrink-0 text-primary/60" />
+          <div className="space-y-1">
+            <p>{entry.reasoning_summary}</p>
+            {entry.guardrails_applied && entry.guardrails_applied.length > 0 && (
+              <p className="text-[10px] opacity-60">
+                Guardrails: {entry.guardrails_applied.join(", ")}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Timestamp */}
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <time dateTime={entry.timestamp}>{timeAgo}</time>
+        {entry.metadata?.batch_processed_at && (
+          <>
+            <span>·</span>
+            <span>Batch processed</span>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+function GroupedCard({ group }: { group: GroupedLogEntry }) {
+  return (
+    <div className="bg-muted/30 rounded-md p-3 space-y-2">
+      <ActivityLogItem entry={group.main} />
+
+      {group.related.length > 0 && (
+        <div className="mt-2 ml-1 border-l-2 border-primary/20 pl-3 space-y-2">
+          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            Triggered by
+          </span>
+          {group.related.map((r) => (
+            <RelatedSignalItem key={r.id} entry={r} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Modal ──────────────────────────────────────────────────────
+
 interface ActivityLogModalProps {
   gap: GapWithDetails | null;
   open: boolean;
@@ -75,13 +263,13 @@ export function ActivityLogModal({ gap, open, onOpenChange }: ActivityLogModalPr
 
   if (!gap) return null;
 
+  const grouped = groupEntries(entries);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>
-            Activity log: {gap.capacity_type?.name}
-          </DialogTitle>
+          <DialogTitle>Activity log: {gap.capacity_type?.name}</DialogTitle>
           <DialogDescription>
             {gap.sector?.canonical_name} — Signal and decision history
           </DialogDescription>
@@ -90,123 +278,19 @@ export function ActivityLogModal({ gap, open, onOpenChange }: ActivityLogModalPr
         <ScrollArea className="max-h-[60vh]">
           <div className="space-y-3 pr-4">
             {isLoading && (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                Loading records…
-              </p>
+              <p className="text-sm text-muted-foreground text-center py-8">Loading records…</p>
             )}
-
-            {!isLoading && entries.length === 0 && (
+            {!isLoading && grouped.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-8">
                 No activity records for this need
               </p>
             )}
-
-            {!isLoading &&
-              entries.map((entry) => (
-                <ActivityLogItem key={entry.id} entry={entry} />
-              ))}
+            {!isLoading && grouped.map((g) => (
+              <GroupedCard key={g.main.id} group={g} />
+            ))}
           </div>
         </ScrollArea>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function StatusDot({ status }: { status: string }) {
-  const presentation = NEED_STATUS_PRESENTATION[status as NeedStatus];
-  if (!presentation) return null;
-  return (
-    <span className={`inline-block w-2.5 h-2.5 rounded-full ${presentation.dot}`} />
-  );
-}
-
-function StatusTransition({ previous, final }: { previous: string; final: string }) {
-  const prevPres = NEED_STATUS_PRESENTATION[previous as NeedStatus];
-  const finalPres = NEED_STATUS_PRESENTATION[final as NeedStatus];
-
-  if (!prevPres || !finalPres) return null;
-
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <StatusDot status={previous} />
-      <span className="text-xs font-medium">{prevPres.label}</span>
-      <ArrowRight className="w-3 h-3 text-muted-foreground" />
-      <StatusDot status={final} />
-      <span className="text-xs font-medium">{finalPres.label}</span>
-    </span>
-  );
-}
-
-function ActivityLogItem({ entry }: { entry: CapabilityActivityLogEntry }) {
-  const SourceIcon = SOURCE_ICON[entry.source_type];
-  const EventIcon = EVENT_TYPE_ICON[entry.event_type];
-  const sourceLabel = SOURCE_TYPE_LABELS[entry.source_type];
-  const badgeStyle = SOURCE_BADGE_STYLE[entry.source_type];
-
-  const timeAgo = formatDistanceToNow(new Date(entry.timestamp), {
-    addSuffix: true,
-  });
-
-  const showStatusTransition =
-    entry.event_type === "STATUS_CHANGE" &&
-    entry.previous_status &&
-    entry.final_status;
-
-  return (
-    <div className="bg-muted/30 rounded-md p-3 space-y-2">
-      {/* Header: event type + source badge */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <EventIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-        <span className="text-xs text-muted-foreground">
-          {EVENT_TYPE_LABEL[entry.event_type]}
-        </span>
-        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${badgeStyle}`}>
-          <SourceIcon className="w-3 h-3 mr-1" />
-          {sourceLabel}
-        </Badge>
-      </div>
-
-      {/* Summary: colored status transition or plain text */}
-      {showStatusTransition ? (
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{sourceLabel}:</span>
-          <StatusTransition
-            previous={entry.previous_status!}
-            final={entry.final_status!}
-          />
-        </div>
-      ) : (
-        <p className="text-sm text-foreground">
-          <span className="font-medium">{sourceLabel}:</span>{" "}
-          {entry.summary}
-        </p>
-      )}
-
-      {/* Reasoning summary for STATUS_CHANGE entries */}
-      {entry.event_type === "STATUS_CHANGE" && entry.reasoning_summary && (
-        <div className="flex items-start gap-1.5 text-xs bg-muted/50 rounded px-2 py-1.5 text-muted-foreground mt-1">
-          <Sparkles className="w-3.5 h-3.5 mt-0.5 shrink-0 text-primary/60" />
-          <div className="space-y-1">
-            <p>{entry.reasoning_summary}</p>
-            {entry.guardrails_applied && entry.guardrails_applied.length > 0 && (
-              <p className="text-[10px] opacity-60">
-                Guardrails: {entry.guardrails_applied.join(", ")}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Footer: timestamp */}
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <time dateTime={entry.timestamp}>{timeAgo}</time>
-        {entry.metadata?.batch_processed_at && (
-          <>
-            <span>·</span>
-            <span>Batch processed</span>
-          </>
-        )}
-      </div>
-    </div>
   );
 }
