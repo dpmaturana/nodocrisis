@@ -2,52 +2,26 @@
  * process-field-report-signals
  *
  * Canonical engine path for updating sector_needs_context from a completed
- * field report. This function runs the NeedLevelEngine logic inline (Deno-
- * compatible, no @/ alias imports) so that ALL need-level decisions come from
- * the same rule-based evaluator and guardrails — never from the old
- * deriveNeedLevel helper.
+ * field report. Evaluation logic is imported from _shared/evaluateNeedStatus.ts
+ * so that all edge functions use the same single source of truth.
  *
  * Called by extract-text-report and transcribe-field-report after they have
  * created signals in the `signals` table.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  evaluateNeedStatus,
+  buildHumanReasoning,
+  mapNeedStatusToNeedLevel as mapStatusToNeedLevel,
+  mapNeedLevelToAuditStatus,
+  type NeedStatus,
+  type NeedLevel,
+} from "../_shared/evaluateNeedStatus.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-// ---------------------------------------------------------------------------
-// Inline NeedLevelEngine core (adapted from src/lib/needLevelEngine.ts and
-// src/services/needSignalService.ts — kept Deno-compatible, no @/ imports)
-// ---------------------------------------------------------------------------
-
-type NeedStatus = "WHITE" | "RED" | "YELLOW" | "ORANGE" | "GREEN";
-type NeedLevel = "low" | "medium" | "high" | "critical";
-
-/** Map a DB need level back to a NeedStatus string for audit records */
-function mapNeedLevelToAuditStatus(level: string): NeedStatus {
-  switch (level) {
-    case "critical": return "RED";
-    case "high":     return "ORANGE";
-    case "medium":   return "YELLOW";
-    case "low":      return "GREEN";
-    default:         return "WHITE";
-  }
-}
-
-// Source weight for field-report signals (NGO tier, same as needLevelEngine config)
-const SOURCE_WEIGHT = 1.0;
-
-// Thresholds (mirror defaultNeedEngineConfig in needLevelEngine.ts)
-const THRESHOLDS = {
-  demandEscalation: 1,
-  insufficiencyEscalation: 0.75,
-  stabilizationDowngrade: 0.7,
-  fragilityReactivation: 0.9,
-  coverageActivation: 0.9,
-  coverageIntent: 0.4,
 };
 
 interface ExtractedItem {
@@ -106,25 +80,6 @@ function itemToConfidence(state: string, urgency: string): number {
     case "high":     return 0.8;
     case "critical": return 1.0;
     default:         return 0.5;
-  }
-}
-
-/**
- * Classify an extracted item state directly into a signal classification.
- * The LLM extraction prompt guarantees English-only output, so only English
- * enum values are handled here. This replaces the fragile string→regex round-trip
- * via itemToSignalContent + classifyContent.
- */
-type SignalClassification = "INSUFFICIENCY" | "STABILIZATION" | "COVERAGE_ACTIVITY" | "FRAGILITY_ALERT" | "DEMAND";
-
-function classifyItemState(state: string): SignalClassification {
-  switch (state) {
-    case "needed":     return "INSUFFICIENCY";
-    case "depleted":   return "INSUFFICIENCY";
-    case "available":  return "STABILIZATION";
-    case "in_transit": return "COVERAGE_ACTIVITY";
-    case "fragility":  return "FRAGILITY_ALERT";
-    default:           return "INSUFFICIENCY"; // safe escalation fallback
   }
 }
 
@@ -229,135 +184,6 @@ Return ONLY valid JSON, no markdown.
   } catch (err) {
     console.warn("[NeedLevelEngine] proposeScoresFromObservation error:", err);
     return null;
-  }
-}
-
-interface EvaluationResult {
-  status: NeedStatus;
-  scores: { demand: number; insuff: number; stab: number; frag: number; coverage: number };
-  booleans: {
-    demandStrong: boolean;
-    insuffStrong: boolean;
-    stabilizationStrong: boolean;
-    fragilityAlert: boolean;
-    coverageActive: boolean;
-    coverageIntent: boolean;
-  };
-  guardrailsApplied: string[];
-}
-
-/**
- * Aggregate signals, evaluate booleans, and apply the RuleBasedNeedEvaluator
- * guardrails (all faithfully reproduced from NeedLevelEngine + evaluator in
- * src/lib/needLevelEngine.ts and src/services/needSignalService.ts).
- *
- * Signals carry the English state enum directly from the LLM extraction prompt,
- * and classifyItemState() maps them to signal classifications without any
- * Spanish string round-trip.
- *
- * Returns the proposed NeedStatus, intermediate scores, booleans, and which
- * guardrails fired, for use in need_audits persistence.
- */
-function evaluateNeedStatus(signals: Array<{ state: string; confidence: number }>): EvaluationResult {
-  let demand = 0, insuff = 0, stab = 0, frag = 0, coverage = 0;
-
-  for (const sig of signals) {
-    const delta = sig.confidence * SOURCE_WEIGHT;
-    switch (classifyItemState(sig.state)) {
-      case "INSUFFICIENCY":     insuff += delta;   break;
-      case "STABILIZATION":     stab += delta;     break;
-      case "FRAGILITY_ALERT":   frag += delta;     break;
-      case "COVERAGE_ACTIVITY": coverage += delta; break;
-      default:                  demand += delta;   break;
-    }
-  }
-
-  const scores = { demand, insuff, stab, frag, coverage };
-
-  const demandStrong        = demand   >= THRESHOLDS.demandEscalation;
-  const insuffStrong        = insuff   >= THRESHOLDS.insufficiencyEscalation;
-  const stabilizationStrong = stab    >= THRESHOLDS.stabilizationDowngrade;
-  const fragilityAlert      = frag    >= THRESHOLDS.fragilityReactivation;
-  const coverageActive      = coverage >= THRESHOLDS.coverageActivation;
-  const coverageIntent      = coverage >= THRESHOLDS.coverageIntent;
-
-  const booleans = { demandStrong, insuffStrong, stabilizationStrong, fragilityAlert, coverageActive, coverageIntent };
-  const guardrailsApplied: string[] = [];
-
-  // RuleBasedNeedEvaluator (from needSignalService.ts)
-  let proposed: NeedStatus = "WHITE";
-  if (demandStrong && !coverageActive) {
-    proposed = "RED";
-  } else if ((insuffStrong || demandStrong) && coverageActive) {
-    proposed = "ORANGE";
-  } else if (stabilizationStrong && !fragilityAlert && !demandStrong && !insuffStrong) {
-    proposed = "GREEN";
-  } else if ((coverageActive || (coverageIntent && !demandStrong && !insuffStrong))) {
-    proposed = "YELLOW";
-  }
-
-  // Guardrail A: RED floor when demand strong and no coverage
-  if (demandStrong && !coverageActive) {
-    proposed = "RED";
-    guardrailsApplied.push("Guardrail A");
-  }
-
-  // Guardrail B: insufficiency without coverage → RED
-  if (insuffStrong && !coverageActive && proposed !== "RED") {
-    proposed = "RED";
-    guardrailsApplied.push("Guardrail B");
-  }
-
-  // Guardrail G: worsening escalation — when demand is strong, ensure at
-  // least ORANGE so that NGO worsening signals are reflected.
-  if (proposed !== "RED" && proposed !== "ORANGE" && demandStrong) {
-    proposed = "ORANGE";
-    guardrailsApplied.push("Guardrail G");
-  }
-
-  return { status: proposed, scores, booleans, guardrailsApplied };
-}
-
-function buildHumanReasoning(
-  scores: { demand: number; insuff: number; stab: number; frag: number; coverage: number },
-  booleans: { demandStrong: boolean; insuffStrong: boolean; stabilizationStrong: boolean; fragilityAlert: boolean; coverageActive: boolean; coverageIntent: boolean },
-  status: NeedStatus,
-  guardrails: string[],
-): string {
-  const STATUS_LABELS: Record<string, string> = {
-    RED: "Critical", ORANGE: "Insufficient coverage", YELLOW: "Validating", GREEN: "Stabilized", WHITE: "Monitoring",
-  };
-  let sentence: string;
-  switch (status) {
-    case "RED":    sentence = "High insufficiency detected with no active coverage."; break;
-    case "ORANGE": sentence = "Demand or insufficiency signals present but coverage is active."; break;
-    case "YELLOW": sentence = "Coverage activity detected, pending validation."; break;
-    case "GREEN":  sentence = "Stabilization signals strong with no alerts."; break;
-    default:       sentence = "No significant signals detected."; break;
-  }
-  sentence += ` Status set to ${STATUS_LABELS[status] ?? status}.`;
-
-  const GUARDRAIL_EXPLANATIONS: Record<string, string> = {
-    "Guardrail A": "demand is strong with no coverage, floor set to Critical",
-    "Guardrail B": "insufficiency is strong with no coverage, escalated to Critical",
-    "Guardrail G": "demand signals require at least Insufficient coverage status",
-  };
-  for (const g of guardrails) {
-    const explanation = GUARDRAIL_EXPLANATIONS[g];
-    if (explanation) sentence += ` Safety rule: ${explanation}.`;
-  }
-  return sentence;
-}
-
-/** Mirror of mapNeedStatusToNeedLevel in needSignalService.ts */
-function mapStatusToNeedLevel(status: NeedStatus): NeedLevel {
-  switch (status) {
-    case "RED":    return "critical";
-    case "ORANGE": return "high";
-    case "YELLOW": return "medium";
-    case "GREEN":  return "low";
-    case "WHITE":  return "low";
-    default:       return "medium";
   }
 }
 

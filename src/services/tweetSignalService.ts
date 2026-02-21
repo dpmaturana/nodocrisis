@@ -1,11 +1,22 @@
 import { needSignalService } from "@/services/needSignalService";
 import {
   aggregateTweetSignals,
-  toNeedEngineInputs,
   type AggregatedTweetSignal,
   type TweetInput,
+  type ClassificationType,
 } from "@/lib/tweetSignalAggregation";
-import type { Signal } from "@/types/database";
+
+/** Map a tweet ClassificationType to the state string used by evaluate-need */
+function classificationTypeToState(type: ClassificationType): string {
+  switch (type) {
+    case "SIGNAL_DEMAND_INCREASE":  return "demand";
+    case "SIGNAL_INSUFFICIENCY":    return "needed";
+    case "SIGNAL_STABILIZATION":    return "available";
+    case "SIGNAL_FRAGILITY_ALERT":  return "fragility";
+    case "SIGNAL_COVERAGE_ACTIVITY": return "in_transit";
+    default:                        return "needed";
+  }
+}
 
 export const tweetSignalService = {
   /**
@@ -20,10 +31,7 @@ export const tweetSignalService = {
 
   /**
    * Process a batch of tweets and feed the aggregated signals into the
-   * NeedLevelEngine for a specific sector + capability pair.
-   *
-   * This bridges the tweet aggregation output with the existing need
-   * evaluation pipeline.
+   * evaluate-need backend endpoint for a specific sector + capability pair.
    */
   async evaluateFromTweets(params: {
     tweets: TweetInput[];
@@ -38,18 +46,10 @@ export const tweetSignalService = {
       return { aggregated, needState: null };
     }
 
-    // Convert aggregated classifications into Signal objects for the engine
-    const signals: Signal[] = toNeedEngineInputs(aggregated).map((input, idx) => ({
-      id: `tweet-signal-${idx}`,
-      event_id: params.eventId,
-      sector_id: params.sectorId,
-      capacity_type_id: params.capabilityId,
-      signal_type: "social" as const,
-      level: "sector" as const,
-      content: input.text,
-      source: input.source_name,
-      confidence: aggregated.classifications[idx]?.deterministic_agg_confidence ?? 0,
-      created_at: input.timestamp,
+    // Convert aggregated classifications into { state, confidence } pairs
+    const signals = aggregated.classifications.map((c) => ({
+      state: classificationTypeToState(c.type),
+      confidence: c.deterministic_agg_confidence,
     }));
 
     const needState = await needSignalService.evaluateGapNeed({

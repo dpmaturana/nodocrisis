@@ -1,4 +1,11 @@
-import type { ClassificationType } from "@/lib/needLevelEngine";
+// Signal classification type — defined here to avoid dependency on needLevelEngine
+type ClassificationType =
+  | "SIGNAL_DEMAND_INCREASE"
+  | "SIGNAL_INSUFFICIENCY"
+  | "SIGNAL_STABILIZATION"
+  | "SIGNAL_FRAGILITY_ALERT"
+  | "SIGNAL_COVERAGE_ACTIVITY"
+  | "SIGNAL_BOTTLENECK";
 
 // ── Input types ──────────────────────────────────────────────────────────────
 
