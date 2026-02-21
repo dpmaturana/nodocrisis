@@ -7,7 +7,6 @@ import { Mic, Square, Play, X, CheckCircle, AlertTriangle, Pause, Loader2, Send,
 import { CompletedReportView } from "./CompletedReportView";
 import { cn } from "@/lib/utils";
 import { fieldReportService } from "@/services/fieldReportService";
-import { deploymentService } from "@/services/deploymentService";
 import { supabase } from "@/integrations/supabase/client";
 import type { SectorDeploymentGroup } from "@/services/deploymentService";
 import type { FieldReport, ExtractedData } from "@/types/fieldReport";
@@ -157,10 +156,19 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
   };
 
   const handleSubmit = async () => {
-    if (!statusOption) return;
-    
     setProcessingState("sending");
     
+    // Build full note from statusOption + textNote
+    const statusLabels: Record<NonNullable<StatusOption>, string> = {
+      working: "Funciona por ahora",
+      insufficient: "No alcanza",
+      suspended: "Tuvimos que suspender",
+    };
+    let fullNote = textNote;
+    if (statusOption) {
+      const statusText = statusLabels[statusOption];
+      fullNote = statusText + (textNote ? "\n\n" + textNote : "");
+    }
     // Helper to check if string is valid UUID
     const isValidUUID = (str: string) => 
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
@@ -179,7 +187,7 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
             event_id: eventId,
             sector_id: sectorId,
             audio_file: audioBlob,
-            text_note: textNote || undefined,
+            text_note: fullNote || undefined,
           }, actorId);
         
           setProcessingState("transcribing");
@@ -194,7 +202,7 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
               setProcessingStatus(updatedReport.status);
             }
           );
-        } else if (textNote.trim()) {
+        } else if (fullNote.trim()) {
           // Text-only flow: extract directly from text
           setProcessingState("transcribing");
           setProcessingStatus("extracting");
@@ -202,10 +210,10 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
           reportWithResults = await fieldReportService.createTextOnlyReport({
             event_id: eventId,
             sector_id: sectorId,
-            text_note: textNote,
+            text_note: fullNote,
           }, actorId);
         }
-      } else if (textNote.trim()) {
+      } else if (fullNote.trim()) {
         // Mock IDs but has text - use dry_run mode to still process with AI
         console.warn("Using dry-run mode for AI extraction", { eventId, sectorId });
         
@@ -219,7 +227,7 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
               event_id: eventId,
               sector_id: sectorId,
               actor_id: actorId,
-              text_note: textNote,
+              text_note: fullNote,
               dry_run: true,
             },
           });
@@ -237,7 +245,7 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
               actor_id: actorId,
               audio_url: 'text-only',
               transcript: null,
-              text_note: textNote,
+              text_note: fullNote,
               status: 'completed',
               extracted_data: data.extracted_data as ExtractedData,
               error_message: null,
@@ -255,14 +263,14 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
             actor_id: actorId,
             audio_url: 'text-only',
             transcript: null,
-            text_note: textNote,
+            text_note: fullNote,
             status: 'completed',
             extracted_data: {
               sector_mentioned: null,
               capability_types: [],
               items: [],
               location_detail: null,
-              observations: textNote,
+              observations: fullNote,
               evidence_quotes: [],
               confidence: 0.5,
             },
@@ -286,20 +294,6 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
         });
       }
       
-      // 2. Update deployment statuses based on selected option
-      for (const deployment of group.deployments) {
-        if (deployment.status === "operating" || deployment.status === "confirmed" || deployment.status === "interested") {
-          if (statusOption === "suspended") {
-            const noteToSave = textNote || "Operación suspendida";
-            await deploymentService.updateStatusWithNote(deployment.id, "suspended", noteToSave);
-          } else {
-            const newStatus = deployment.status !== "operating" ? "operating" : "operating";
-            const noteToSave = textNote || (statusOption === "insufficient" ? "Recursos insuficientes" : undefined);
-            await deploymentService.updateStatusWithNote(deployment.id, newStatus, noteToSave);
-          }
-        }
-      }
-
       // Set completed state with results
       setProcessingState("completed");
       setCompletedReport(reportWithResults);
@@ -324,7 +318,7 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
   };
 
   const isProcessing = processingState === "sending" || processingState === "transcribing";
-  const canSubmit = statusOption !== null && !isProcessing;
+  const canSubmit = !isProcessing && (!!audioBlob || textNote.trim() !== "" || statusOption !== null);
 
   return (
     <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
@@ -341,10 +335,10 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
       {/* Solo mostrar controles de edición en estado idle */}
       {processingState === "idle" && (
         <>
-          {/* Status Options - Required */}
+          {/* Status Options - Optional */}
           <div className="space-y-2">
             <label className="text-sm font-medium">
-              ¿Cómo va tu operación? <span className="text-destructive">*</span>
+              ¿Cómo va tu operación? <span className="text-muted-foreground text-xs">(opcional)</span>
             </label>
             <div className="grid grid-cols-3 gap-2">
               <StatusButton
