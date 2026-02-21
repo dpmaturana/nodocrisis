@@ -1,8 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { FieldReport, CreateFieldReportParams, ExtractedData, FieldReportStatus } from "@/types/fieldReport";
-import { needSignalService, mapNeedStatusToNeedLevel, mapNeedLevelToNeedStatus } from "@/services/needSignalService";
-import { eventService } from "@/services/eventService";
-import type { NeedStatus } from "@/lib/needStatus";
 
 // Helper to transform DB response to typed FieldReport
 function toFieldReport(row: any): FieldReport {
@@ -203,61 +200,4 @@ export const fieldReportService = {
     });
   },
 
-  /**
-   * Process a completed field report: convert extracted data into signals,
-   * feed them into the NeedLevelEngine, and update sector_needs_context.
-   */
-  async processCompletedReport(report: FieldReport): Promise<void> {
-    if (report.status !== 'completed' || !report.extracted_data) {
-      console.debug(`Skipping need update for report ${report.id}: status=${report.status}, hasData=${!!report.extracted_data}`);
-      return;
-    }
-
-    // Resolve capability names to capacity_type IDs
-    const { data: capacityTypes } = await supabase
-      .from('capacity_types')
-      .select('id, name');
-
-    if (!capacityTypes || capacityTypes.length === 0) return;
-
-    const capacityTypeMap: Record<string, string> = {};
-    for (const ct of capacityTypes) {
-      capacityTypeMap[ct.name] = ct.id;
-    }
-
-    // Fetch current need levels from DB so the engine starts from the correct state
-    const { data: currentNeeds } = await supabase
-      .from('sector_needs_context')
-      .select('capacity_type_id, level')
-      .eq('event_id', report.event_id)
-      .eq('sector_id', report.sector_id);
-
-    const previousLevels: Record<string, NeedStatus> = {};
-    if (currentNeeds) {
-      for (const row of currentNeeds) {
-        previousLevels[row.capacity_type_id] = mapNeedLevelToNeedStatus(row.level);
-      }
-    }
-
-    // Feed extracted data through the need signal engine
-    const results = await needSignalService.onFieldReportCompleted({
-      eventId: report.event_id,
-      sectorId: report.sector_id,
-      extractedData: report.extracted_data,
-      capacityTypeMap,
-      previousLevels,
-    });
-
-    // Update sector_needs_context for each capability
-    for (const result of results) {
-      await eventService.addContextualDemand({
-        eventId: report.event_id,
-        sectorId: report.sector_id,
-        capacityTypeId: result.capabilityId,
-        level: result.needLevel,
-        source: 'field_report',
-        notes: `Updated from field report ${report.id}`,
-      });
-    }
-  },
 };
