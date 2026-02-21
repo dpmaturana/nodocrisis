@@ -1,4 +1,13 @@
-import type { ClassificationType, SourceReliability } from "@/lib/needLevelEngine";
+// Signal classification types — defined here to avoid dependency on needLevelEngine
+export type ClassificationType =
+  | "SIGNAL_DEMAND_INCREASE"
+  | "SIGNAL_INSUFFICIENCY"
+  | "SIGNAL_STABILIZATION"
+  | "SIGNAL_FRAGILITY_ALERT"
+  | "SIGNAL_COVERAGE_ACTIVITY"
+  | "SIGNAL_BOTTLENECK";
+
+export type SourceReliability = "Twitter" | "Institutional" | "NGO" | "Original Context";
 
 // ── Input types ──────────────────────────────────────────────────────
 

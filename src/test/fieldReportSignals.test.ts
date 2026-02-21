@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import {
   fieldReportItemToSignalContent,
   fieldReportItemToConfidence,
@@ -6,11 +6,52 @@ import {
   mapNeedLevelToNeedStatus,
   needSignalService,
 } from "@/services/needSignalService";
-// deriveNeedLevel is the old naive helper that lived inline in the edge functions;
-// it still exists as a shared utility in src/lib/ but is no longer used for
-// updating sector_needs_context — the NeedLevelEngine is the canonical path.
-import { deriveNeedLevel } from "@/lib/deriveNeedLevel";
 import type { ExtractedItem, ExtractedData } from "@/types/fieldReport";
+
+// ---------------------------------------------------------------------------
+// Mock supabase.functions.invoke so no real backend calls are made in tests
+// ---------------------------------------------------------------------------
+
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    functions: {
+      invoke: vi.fn(),
+    },
+    from: vi.fn().mockReturnValue({
+      upsert: vi.fn().mockResolvedValue({ error: null }),
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null }),
+    }),
+  },
+}));
+
+// Access the mocked module via ES import (vi.mock is hoisted before imports)
+import { supabase } from "@/integrations/supabase/client";
+
+// Helper to set the mock return value for the evaluate-need endpoint.
+// Uses the same mapNeedStatusToNeedLevel mapping as the real service.
+function mockEvaluateNeed(
+  status: string,
+  scores: { demand: number; insuff: number; stab: number; frag: number; coverage: number },
+) {
+  vi.mocked(supabase.functions.invoke).mockResolvedValue({
+    data: {
+      status,
+      needLevel: mapNeedStatusToNeedLevel(status as any),
+      scores,
+      guardrails: [],
+      reasoning: "Test reasoning",
+    },
+    error: null,
+  } as any);
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  // Default mock response
+  mockEvaluateNeed("WHITE", { demand: 0, insuff: 0, stab: 0, frag: 0, coverage: 0 });
+});
 
 describe("fieldReportItemToSignalContent", () => {
   it("maps 'disponible' state to stabilization keywords", () => {
@@ -83,7 +124,12 @@ describe("mapNeedStatusToNeedLevel", () => {
 });
 
 describe("needSignalService.onFieldReportCompleted", () => {
-  it("processes field report items and returns need levels per capability", async () => {
+  beforeEach(() => {
+    // Default mock: stabilization result
+    mockEvaluateNeed("GREEN", { demand: 0, insuff: 0, stab: 0.8, frag: 0, coverage: 0 });
+  });
+
+  it("processes field report items and calls evaluate-need for each capability", async () => {
     const extractedData: ExtractedData = {
       sector_mentioned: "Sector A",
       capability_types: ["Emergency medical care"],
@@ -106,13 +152,14 @@ describe("needSignalService.onFieldReportCompleted", () => {
 
     expect(results.length).toBeGreaterThan(0);
     expect(results[0].capabilityId).toBe("cap-type-1");
-    // With a single stabilization signal (disponible + baja), the engine should
-    // process it and return a need state
     expect(results[0].needState).not.toBeNull();
     expect(results[0].needLevel).toBeDefined();
   });
 
   it("processes multiple items for different capabilities", async () => {
+    // Override mock to return critical for this test
+    mockEvaluateNeed("RED", { demand: 0, insuff: 1.0, stab: 0, frag: 0, coverage: 0 });
+
     const extractedData: ExtractedData = {
       sector_mentioned: null,
       capability_types: ["Water supply", "Food distribution"],
@@ -170,91 +217,11 @@ describe("needSignalService.onFieldReportCompleted", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Engine path vs. deriveNeedLevel: assert the engine is the canonical path
+// Mapping utilities
 // ---------------------------------------------------------------------------
 
-describe("engine path replaces deriveNeedLevel for sector_needs_context", () => {
-  it("engine and deriveNeedLevel can disagree: engine considers signal type, not just urgency", async () => {
-    // Items that are all 'disponible' (available) with low urgency —
-    // deriveNeedLevel would return 'low' (the max urgency rank),
-    // but the engine also produces a NeedState with a meaningful status.
-    const extractedData: ExtractedData = {
-      sector_mentioned: "Sector Engine Test",
-      capability_types: ["Water supply"],
-      items: [
-        { name: "water", quantity: 200, unit: "liters", state: "disponible", urgency: "baja" },
-        { name: "water", quantity: 100, unit: "liters", state: "disponible", urgency: "baja" },
-      ],
-      location_detail: null,
-      observations: "Sufficient water available",
-      evidence_quotes: [],
-      confidence: 0.9,
-    };
-
-    // Old naive path
-    const naiveLevel = deriveNeedLevel(extractedData.items.map(i => ({ urgency: i.urgency })));
-
-    // New engine path
-    const results = await needSignalService.onFieldReportCompleted({
-      eventId: "event-engine-test",
-      sectorId: "sector-engine-test",
-      extractedData,
-      capacityTypeMap: { "Water supply": "cap-water-engine-test" },
-      nowIso: "2026-02-16T15:00:00.000Z",
-    });
-
-    expect(results.length).toBe(1);
-    const engineLevel = results[0].needLevel;
-
-    // Both produce a valid NeedLevel; the important thing is the engine path
-    // is used and returns a structured result with a NeedState.
-    expect(engineLevel).toBeDefined();
-    expect(results[0].needState).not.toBeNull();
-
-    // The naive path ignores state semantics; the engine honours them:
-    // 'disponible' items produce STABILIZATION signals, not demand/insufficiency.
-    // With two stabilization signals (score ≥ threshold), the engine may reach
-    // GREEN or remain WHITE; either way it uses signal-type semantics, unlike
-    // deriveNeedLevel which only looks at urgency rank.
-    expect(["low", "medium", "high", "critical"]).toContain(engineLevel);
-    expect(["low", "medium", "high", "critical"]).toContain(naiveLevel);
-  });
-
-  it("engine returns 'critical' level when strong insufficiency signals are present (no coverage)", async () => {
-    // Multiple 'needed' items with 'crítica' urgency produce strong insufficiency
-    // signals. Without coverage, the engine should propose RED → 'critical'.
-    const extractedData: ExtractedData = {
-      sector_mentioned: "Crisis Sector",
-      capability_types: ["Food distribution"],
-      items: [
-        { name: "food", quantity: null, unit: "kg", state: "necesario", urgency: "crítica" },
-        { name: "food", quantity: null, unit: "kg", state: "necesario", urgency: "crítica" },
-      ],
-      location_detail: null,
-      observations: "Severe food shortage",
-      evidence_quotes: [],
-      confidence: 0.95,
-    };
-
-    const results = await needSignalService.onFieldReportCompleted({
-      eventId: "event-crisis",
-      sectorId: "sector-crisis",
-      extractedData,
-      capacityTypeMap: { "Food distribution": "cap-food-crisis" },
-      nowIso: "2026-02-16T16:00:00.000Z",
-    });
-
-    expect(results.length).toBe(1);
-    expect(results[0].needState).not.toBeNull();
-    // Two high-confidence insufficiency signals (1.0 each, NGO weight 1.0)
-    // sum to 2.0, exceeding insufficiencyEscalation threshold of 0.75,
-    // and no coverage signals → engine proposes RED → 'critical'.
-    expect(results[0].needLevel).toBe("critical");
-  });
-
-  it("mapNeedStatusToNeedLevel is the only mapping used — not deriveNeedLevel", () => {
-    // Confirm the mapping from engine statuses to DB need levels is explicit
-    // and deterministic. These are the values that will reach sector_needs_context.
+describe("mapNeedStatusToNeedLevel is the only mapping used — not deriveNeedLevel", () => {
+  it("confirms the mapping from engine statuses to DB need levels is explicit", () => {
     expect(mapNeedStatusToNeedLevel("RED")).toBe("critical");
     expect(mapNeedStatusToNeedLevel("ORANGE")).toBe("high");
     expect(mapNeedStatusToNeedLevel("YELLOW")).toBe("medium");
@@ -289,10 +256,18 @@ describe("mapNeedLevelToNeedStatus", () => {
 });
 
 describe("needSignalService.onFieldReportCompleted with previousLevels seeding", () => {
-  it("seeds engine from previousLevels so evaluation starts from correct status", async () => {
-    // Without seeding, a single stabilization signal from WHITE would stay WHITE.
-    // With previousLevels seeding from RED, the engine starts from RED and the
-    // stabilization signal can propose a legal transition (e.g. ORANGE or YELLOW).
+  it("passes previousStatus to evaluate-need endpoint", async () => {
+    vi.mocked(supabase.functions.invoke).mockResolvedValue({
+      data: {
+        status: "YELLOW",
+        needLevel: "medium",
+        scores: { demand: 0, insuff: 0, stab: 0.5, frag: 0, coverage: 0 },
+        guardrails: [],
+        reasoning: "Test",
+      },
+      error: null,
+    } as any);
+
     const extractedData: ExtractedData = {
       sector_mentioned: "Sector Seed Test",
       capability_types: ["Water supply"],
@@ -316,14 +291,33 @@ describe("needSignalService.onFieldReportCompleted with previousLevels seeding",
 
     expect(results.length).toBe(1);
     expect(results[0].needState).not.toBeNull();
-    // Engine started from RED (seeded), received a stabilization signal →
-    // the result should be a valid NeedLevel
     expect(["low", "medium", "high", "critical"]).toContain(results[0].needLevel);
+
+    // Verify the endpoint was called with the previousStatus
+    expect(supabase.functions.invoke).toHaveBeenCalledWith(
+      "evaluate-need",
+      expect.objectContaining({
+        body: expect.objectContaining({
+          previousStatus: "RED",
+        }),
+      }),
+    );
   });
 });
 
 describe("needSignalService.onDeploymentStatusChange", () => {
-  it("interested deployment → coverageIntent → YELLOW (not WHITE)", async () => {
+  it("interested deployment → calls evaluate-need with coverage intent signal", async () => {
+    vi.mocked(supabase.functions.invoke).mockResolvedValue({
+      data: {
+        status: "YELLOW",
+        needLevel: "medium",
+        scores: { demand: 0, insuff: 0, stab: 0, frag: 0, coverage: 0.5 },
+        guardrails: [],
+        reasoning: "Coverage intent",
+      },
+      error: null,
+    } as any);
+
     const state = await needSignalService.onDeploymentStatusChange({
       eventId: "event-deploy-interested",
       sectorId: "sector-deploy-1",
@@ -334,30 +328,32 @@ describe("needSignalService.onDeploymentStatusChange", () => {
     });
 
     expect(state).not.toBeNull();
-    // confidence 0.5 → coverage_score 0.5 ≥ coverageIntent(0.4) but < coverageActivation(0.9)
-    expect(state?.coverage_score).toBeGreaterThanOrEqual(0.4);
-    expect(state?.coverage_score).toBeLessThan(0.9);
     expect(state?.current_status).toBe("YELLOW");
+    expect(state?.coverage_score).toBe(0.5);
+
+    // Verify the correct signal was passed: in_transit at confidence 0.5
+    expect(supabase.functions.invoke).toHaveBeenCalledWith(
+      "evaluate-need",
+      expect.objectContaining({
+        body: expect.objectContaining({
+          signals: [{ state: "in_transit", confidence: 0.5 }],
+        }),
+      }),
+    );
   });
 
-  it("confirmed deployment → coverageIntent → YELLOW (not WHITE)", async () => {
-    const state = await needSignalService.onDeploymentStatusChange({
-      eventId: "event-deploy-confirmed",
-      sectorId: "sector-deploy-2",
-      capabilityId: "cap-deploy-2",
-      deploymentStatus: "confirmed",
-      actorName: "Bomberos",
-      nowIso: "2026-02-20T11:00:00.000Z",
-    });
+  it("operating deployment → calls evaluate-need with confidence 0.9", async () => {
+    vi.mocked(supabase.functions.invoke).mockResolvedValue({
+      data: {
+        status: "YELLOW",
+        needLevel: "medium",
+        scores: { demand: 0, insuff: 0, stab: 0, frag: 0, coverage: 0.9 },
+        guardrails: [],
+        reasoning: "Coverage active",
+      },
+      error: null,
+    } as any);
 
-    expect(state).not.toBeNull();
-    // confidence 0.7 → coverage_score 0.7 ≥ coverageIntent(0.4) but < coverageActivation(0.9)
-    expect(state?.coverage_score).toBeGreaterThanOrEqual(0.4);
-    expect(state?.coverage_score).toBeLessThan(0.9);
-    expect(state?.current_status).toBe("YELLOW");
-  });
-
-  it("operating deployment → coverageActive → YELLOW (≥0.9)", async () => {
     const state = await needSignalService.onDeploymentStatusChange({
       eventId: "event-deploy-operating",
       sectorId: "sector-deploy-3",
@@ -367,32 +363,54 @@ describe("needSignalService.onDeploymentStatusChange", () => {
       nowIso: "2026-02-20T12:00:00.000Z",
     });
 
-    expect(state).not.toBeNull();
-    // confidence 0.9 → coverage_score 0.9 ≥ coverageActivation(0.9) → coverageActive = true → YELLOW
-    expect(state?.coverage_score).toBeGreaterThanOrEqual(0.9);
-    expect(state?.current_status).toBe("YELLOW");
+    expect(state?.coverage_score).toBe(0.9);
+    expect(supabase.functions.invoke).toHaveBeenCalledWith(
+      "evaluate-need",
+      expect.objectContaining({
+        body: expect.objectContaining({
+          signals: [{ state: "in_transit", confidence: 0.9 }],
+        }),
+      }),
+    );
   });
 
-  it("interested deployment uses lower confidence than operating (0.5 vs 0.9)", async () => {
-    const interestedState = await needSignalService.onDeploymentStatusChange({
+  it("interested uses lower confidence than operating (0.5 vs 0.9)", async () => {
+    const calls: any[] = [];
+    vi.mocked(supabase.functions.invoke).mockImplementation(
+      async (_name: string, opts: any) => {
+        calls.push(opts.body.signals[0]);
+        return {
+          data: {
+            status: "YELLOW",
+            needLevel: "medium",
+            scores: { demand: 0, insuff: 0, stab: 0, frag: 0, coverage: opts.body.signals[0].confidence },
+            guardrails: [],
+            reasoning: "Test",
+          },
+          error: null,
+        };
+      },
+    );
+
+    await needSignalService.onDeploymentStatusChange({
       eventId: "event-compare-interested",
-      sectorId: "sector-compare-1",
-      capabilityId: "cap-compare-1",
+      sectorId: "sector-1",
+      capabilityId: "cap-1",
       deploymentStatus: "interested",
-      actorName: "Actor A",
       nowIso: "2026-02-20T13:00:00.000Z",
     });
 
-    const operatingState = await needSignalService.onDeploymentStatusChange({
+    await needSignalService.onDeploymentStatusChange({
       eventId: "event-compare-operating",
-      sectorId: "sector-compare-2",
-      capabilityId: "cap-compare-2",
+      sectorId: "sector-2",
+      capabilityId: "cap-2",
       deploymentStatus: "operating",
-      actorName: "Actor B",
       nowIso: "2026-02-20T13:00:00.000Z",
     });
 
-    // interested coverage_score (0.5) < operating coverage_score (0.9)
-    expect(interestedState?.coverage_score).toBeLessThan(operatingState?.coverage_score ?? 0);
+    const interestedSignal = calls[0];
+    const operatingSignal = calls[1];
+    expect(interestedSignal.confidence).toBeLessThan(operatingSignal.confidence);
   });
 });
+
