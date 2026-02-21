@@ -1,101 +1,41 @@
 
 
-## Store plain-language descriptions in the notes field
+## Fix trend tags showing on wrong needs
 
-### Changes
+### Problem
+The "Worsening" / "Improving" trend tags appear on the wrong needs because the system picks which 2 gaps to show trends for based on `last_updated_at`, but that field is set to `sector_needs_context.created_at` (when the need row was first created), NOT when it was last updated via an audit.
 
-Three files need updating to standardize `notes` as a JSON object `{ requirements: [...], description: "..." }`.
+So when you update "Transport", the audit is recorded with a fresh timestamp, but the gap's `last_updated_at` still reflects the original creation time. The "top 2 most recently updated" filter then picks whichever gaps happened to be created most recently (e.g., Drinking water and Food supply), not the ones actually updated.
+
+### Solution
+Use the latest audit timestamp for each gap as `last_updated_at` instead of `need.created_at`.
 
 ### Technical details
 
-**1. Edge function: `supabase/functions/process-field-report-signals/index.ts` (lines 539-545)**
+**File: `src/services/gapService.ts` (~line 148)**
 
-Change the `notes` value from a plain JSON array to a JSON object with both requirements and the reporter's observations:
-
-```typescript
-// Before:
-notes: JSON.stringify(
-  operationalRequirements.length > 0
-    ? operationalRequirements
-    : extracted_data.observations
-      ? [extracted_data.observations]
-      : []
-),
-
-// After:
-notes: JSON.stringify({
-  requirements: operationalRequirements.length > 0
-    ? operationalRequirements
-    : [],
-  description: extracted_data.observations ?? null,
-}),
-```
-
-**2. Service: `src/services/situationReportService.ts` (lines 187-193)**
-
-Add `notes` with description from the report summary when creating needs:
+Build a map of the latest audit timestamp per gap key:
 
 ```typescript
-// Before:
-needsToInsert.push({
-  event_id: newEventId,
-  sector_id: sectorId,
-  capacity_type_id: ct.id,
-  level,
-  source: "situation_report",
-});
-
-// After:
-needsToInsert.push({
-  event_id: newEventId,
-  sector_id: sectorId,
-  capacity_type_id: ct.id,
-  level,
-  source: "situation_report",
-  notes: JSON.stringify({
-    requirements: [],
-    description: report.summary ?? null,
-  }),
+const latestAuditTimestamp = new Map<string, string>();
+auditsByKey.forEach((rows, key) => {
+  // rows are already sorted by timestamp desc
+  if (rows[0]?.timestamp) latestAuditTimestamp.set(key, rows[0].timestamp);
 });
 ```
 
-**3. Service: `src/services/gapService.ts` (lines 207-227)**
+**File: `src/services/gapService.ts` (line 201)**
 
-Update parsing to handle the new JSON object format plus backwards compatibility:
-
+Change `last_updated_at` from:
 ```typescript
-operational_requirements: (() => {
-  if (!need.notes) return [];
-  try {
-    const parsed = JSON.parse(need.notes);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return Array.isArray(parsed.requirements) ? parsed.requirements : [];
-    }
-    if (Array.isArray(parsed)) return parsed; // legacy
-    return [];
-  } catch { return []; }
-})(),
-reasoning_summary: (() => {
-  if (need.notes) {
-    try {
-      const parsed = JSON.parse(need.notes);
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && typeof parsed.description === "string") {
-        return parsed.description;
-      }
-    } catch {
-      return need.notes; // legacy plain text
-    }
-  }
-  return auditMap.get(`${need.sector_id}:${need.capacity_type_id}`);
-})(),
+last_updated_at: need.created_at,
 ```
+to:
+```typescript
+last_updated_at: latestAuditTimestamp.get(`${need.sector_id}:${need.capacity_type_id}`) ?? need.created_at,
+```
+
+This way the latest audit timestamp drives which gaps show the trend tag, so updating "Transport" will correctly show the trend on Transport.
 
 ### Files changed
-
-1. `supabase/functions/process-field-report-signals/index.ts` -- store notes as `{ requirements, description }` JSON object
-2. `src/services/situationReportService.ts` -- include description from report summary when creating needs
-3. `src/services/gapService.ts` -- parse new JSON object format with backwards compatibility
-
-### Migration note
-Existing rows with old formats (plain JSON arrays or plain text) continue to work due to backwards-compatible parsing. New data will use the new format going forward.
-
+1. `src/services/gapService.ts` -- use latest audit timestamp as `last_updated_at`
