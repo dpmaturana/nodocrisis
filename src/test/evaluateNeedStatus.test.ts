@@ -7,6 +7,8 @@ import {
   buildHumanReasoning,
   THRESHOLDS,
   SOURCE_WEIGHT,
+  isValidNeedTransition,
+  NEED_STATUS_TRANSITIONS,
 } from "../../supabase/functions/_shared/evaluateNeedStatus";
 
 // ---------------------------------------------------------------------------
@@ -216,5 +218,153 @@ describe("THRESHOLDS", () => {
     expect(THRESHOLDS.fragilityReactivation).toBe(0.9);
     expect(THRESHOLDS.coverageActivation).toBe(0.9);
     expect(THRESHOLDS.coverageIntent).toBe(0.4);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Guardrail C: GREEN eligibility gate
+// ---------------------------------------------------------------------------
+
+describe("Guardrail C: GREEN eligibility gate", () => {
+  it("does NOT fire when all GREEN conditions are met (valid GREEN)", () => {
+    // stabilizationStrong=true, fragilityAlert=false, demandStrong=false, insuffStrong=false
+    const { status, guardrailsApplied } = evaluateNeedStatus([
+      { state: "available", confidence: 0.8 },
+    ]);
+    expect(status).toBe("GREEN");
+    expect(guardrailsApplied).not.toContain("Guardrail C");
+  });
+
+  it("result is RED (not GREEN) when insufficiency is strong alongside stabilization — Guardrail B fires", () => {
+    // stab strong but insuff also strong → Guardrail B fires, result is RED
+    const { status, guardrailsApplied } = evaluateNeedStatus([
+      { state: "available", confidence: 0.8 },
+      { state: "needed",    confidence: 0.8 },
+    ]);
+    expect(status).toBe("RED");
+    expect(guardrailsApplied).not.toContain("Guardrail C");
+  });
+
+  it("result is RED (not GREEN) when demand is strong alongside stabilization — Guardrail A fires", () => {
+    // stab strong but demand strong → Guardrail A fires, result is RED
+    const { status, guardrailsApplied } = evaluateNeedStatus([
+      { state: "available", confidence: 0.8 },
+      { state: "demand",    confidence: 1.0 },
+    ]);
+    expect(status).toBe("RED");
+    expect(guardrailsApplied).not.toContain("Guardrail C");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Guardrail D: fragility blocks GREEN
+// ---------------------------------------------------------------------------
+
+describe("Guardrail D: fragility blocks GREEN", () => {
+  it("forces YELLOW when fragility is present and signals are otherwise weak (proposed WHITE → YELLOW)", () => {
+    // fragility alone → base rule gives WHITE, but Guardrail D forces YELLOW
+    const { status, guardrailsApplied } = evaluateNeedStatus([
+      { state: "fragility", confidence: 1.0 },
+    ]);
+    expect(status).toBe("YELLOW");
+    expect(guardrailsApplied).toContain("Guardrail D");
+  });
+
+  it("forces YELLOW when fragility and stabilization are both present (stab strong but fragility blocks GREEN)", () => {
+    // stab strong but fragility present → base rule won't give GREEN; Guardrail D forces WHITE→YELLOW
+    const { status, guardrailsApplied } = evaluateNeedStatus([
+      { state: "available",  confidence: 0.8 },
+      { state: "fragility",  confidence: 1.0 },
+    ]);
+    expect(status).toBe("YELLOW");
+    expect(guardrailsApplied).toContain("Guardrail D");
+  });
+
+  it("forces existing GREEN → YELLOW when fragility detected and signals are weak", () => {
+    // Fragility alone (no other strong signals) starting from GREEN → YELLOW
+    const { status, guardrailsApplied } = evaluateNeedStatus(
+      [{ state: "fragility", confidence: 1.0 }],
+      "GREEN",
+    );
+    expect(status).toBe("YELLOW");
+    expect(guardrailsApplied).toContain("Guardrail D");
+  });
+
+  it("does NOT downgrade RED/ORANGE to YELLOW when fragility is present alongside demand/insuff", () => {
+    // Fragility + strong insufficiency → RED (Guardrail D does not override escalation guardrails)
+    const { status } = evaluateNeedStatus([
+      { state: "needed",    confidence: 1.0 },
+      { state: "fragility", confidence: 1.0 },
+    ]);
+    expect(status).toBe("RED");
+  });
+
+  it("does NOT fire when there is no fragility alert", () => {
+    const { guardrailsApplied } = evaluateNeedStatus([
+      { state: "available", confidence: 0.8 },
+    ]);
+    expect(guardrailsApplied).not.toContain("Guardrail D");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Transition legality validation
+// ---------------------------------------------------------------------------
+
+describe("legalTransition", () => {
+  it("returns true when previousStatus is undefined", () => {
+    const { legalTransition } = evaluateNeedStatus([]);
+    expect(legalTransition).toBe(true);
+  });
+
+  it("returns true for same-status (no change)", () => {
+    const { legalTransition } = evaluateNeedStatus(
+      [{ state: "available", confidence: 0.8 }],
+      "GREEN",
+    );
+    expect(legalTransition).toBe(true);
+  });
+
+  it("returns true for a legal downgrade (GREEN → YELLOW)", () => {
+    // Coverage active, not stab strong → YELLOW; from GREEN → YELLOW is legal
+    const { status, legalTransition } = evaluateNeedStatus(
+      [{ state: "in_transit", confidence: 1.0 }],
+      "GREEN",
+    );
+    expect(status).toBe("YELLOW");
+    expect(legalTransition).toBe(true);
+  });
+
+  it("returns false for illegal transition RED → GREEN", () => {
+    // This scenario: previousStatus=RED, signals are stab-strong → GREEN proposed
+    // But Guardrail C/D should not block this particular combination (no fragility, no demand/insuff)
+    // However NEED_STATUS_TRANSITIONS says RED→GREEN is illegal → legalTransition=false
+    const { status, legalTransition } = evaluateNeedStatus(
+      [{ state: "available", confidence: 0.8 }],
+      "RED",
+    );
+    expect(status).toBe("GREEN");
+    expect(legalTransition).toBe(false);
+  });
+
+  it("returns false for illegal transition WHITE → GREEN", () => {
+    const { status, legalTransition } = evaluateNeedStatus(
+      [{ state: "available", confidence: 0.8 }],
+      "WHITE",
+    );
+    expect(status).toBe("GREEN");
+    expect(legalTransition).toBe(false);
+  });
+
+  it("NEED_STATUS_TRANSITIONS exported from shared module matches frontend table", () => {
+    // RED cannot go to GREEN or WHITE
+    expect(isValidNeedTransition("RED", "GREEN")).toBe(false);
+    expect(isValidNeedTransition("RED", "WHITE")).toBe(false);
+    // RED can go to YELLOW or ORANGE
+    expect(isValidNeedTransition("RED", "YELLOW")).toBe(true);
+    expect(isValidNeedTransition("RED", "ORANGE")).toBe(true);
+    // GREEN can go to YELLOW, ORANGE, RED but not WHITE
+    expect(isValidNeedTransition("GREEN", "YELLOW")).toBe(true);
+    expect(isValidNeedTransition("GREEN", "WHITE")).toBe(false);
   });
 });

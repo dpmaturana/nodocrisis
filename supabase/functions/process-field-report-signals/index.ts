@@ -334,14 +334,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      const { status, scores, booleans, guardrailsApplied } = evaluateNeedStatus(signals);
-      const needLevel = mapStatusToNeedLevel(status);
-
-      console.log(
-        `[NeedLevelEngine] capability=${capId} engine_status=${status} need_level=${needLevel}`,
-      );
-
-      // Read existing need level BEFORE upserting, so we can record the real previous_status
+      // Read existing need level BEFORE evaluating, so it can inform guardrails
       const { data: existingNeed } = await supabase
         .from("sector_needs_context")
         .select("level")
@@ -351,6 +344,14 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       const previousNeedLevel = existingNeed?.level ?? "medium";
+      const previousStatus = mapNeedLevelToAuditStatus(previousNeedLevel);
+
+      const { status, scores, booleans, guardrailsApplied, legalTransition } = evaluateNeedStatus(signals, previousStatus);
+      const needLevel = mapStatusToNeedLevel(status);
+
+      console.log(
+        `[NeedLevelEngine] capability=${capId} engine_status=${status} need_level=${needLevel}`,
+      );
 
       // Upsert sector_needs_context based on engine decision — NOT deriveNeedLevel
       const { error: upsertError } = await supabase
@@ -398,7 +399,7 @@ Deno.serve(async (req) => {
         reasoning_summary: buildHumanReasoning(scores, booleans, status, guardrailsApplied),
         contradiction_detected: false,
         key_evidence: [],
-        legal_transition: true,
+        legal_transition: legalTransition,
         guardrails_applied: guardrailsApplied,
         scores_snapshot: scores,
         booleans_snapshot: booleans,
