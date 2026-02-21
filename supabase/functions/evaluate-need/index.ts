@@ -89,6 +89,7 @@ Deno.serve(async (req) => {
       key_evidence,
       model,
       llm_used,
+      llm_error,
     } = await evaluateNeedStatusWithLLM(signals, previousStatus ?? undefined, {
       lovableApiKey,
       evidenceQuotes,
@@ -142,6 +143,7 @@ Deno.serve(async (req) => {
       booleans_snapshot: booleans,
       model,
       prompt_version: "v1",
+      llm_error: llm_error ?? null,
     });
 
     if (auditError) {
