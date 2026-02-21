@@ -32,7 +32,9 @@ function DriverRow({ gap, showTrend, onOpenLog, onOpenActors }: DriverRowProps) 
   const config = NEED_STATUS_PRESENTATION[needStatus];
   const Icon = config.icon;
   const requirements = gap.operational_requirements ?? [];
-  const hasExpandableContent = requirements.length > 0;
+  const summary = gap.reasoning_summary;
+  const hasExpandableContent = requirements.length > 0 || !!summary;
+  const cleanLabel = (req: string) => req.replace(/\s*\(.*?\)\s*$/, "");
 
   return (
     <div className="space-y-1">
@@ -67,16 +69,20 @@ function DriverRow({ gap, showTrend, onOpenLog, onOpenActors }: DriverRowProps) 
           </button>
         )}
       </div>
-      {expanded && requirements.length > 0 && (
-        <div className="flex flex-wrap gap-1 px-2 pb-1.5 ml-4">
-          {requirements.map((req, i) => (
-            <span
-              key={i}
-              className="text-xs px-1.5 py-0.5 rounded-full border font-medium text-muted-foreground"
-            >
-              {req}
-            </span>
-          ))}
+      {expanded && hasExpandableContent && (
+        <div className="ml-4 space-y-1.5 pb-1.5">
+          {requirements.length > 0 && (
+            <div className="flex flex-wrap gap-1 px-2">
+              {requirements.map((req, i) => (
+                <span key={i} className="text-xs px-1.5 py-0.5 rounded-full border font-medium text-muted-foreground">
+                  {cleanLabel(req)}
+                </span>
+              ))}
+            </div>
+          )}
+          {summary && (
+            <p className="px-2 text-xs text-muted-foreground">{summary}</p>
+          )}
         </div>
       )}
     </div>
