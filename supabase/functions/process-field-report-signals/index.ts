@@ -357,6 +357,7 @@ Deno.serve(async (req) => {
         contradiction_detected,
         key_evidence,
         model,
+        llm_error,
       } = await evaluateNeedStatusWithLLM(signals, previousStatus, {
         lovableApiKey,
         evidenceQuotes: extracted_data.evidence_quotes,
@@ -421,6 +422,7 @@ Deno.serve(async (req) => {
         model,
         prompt_version: "v1",
         observation_score_proposal: scoreProposal ?? null,
+        llm_error: llm_error ?? null,
       });
 
       if (auditError) {

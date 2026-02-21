@@ -47,6 +47,8 @@ export interface LLMEvaluationResult extends EvaluationResult {
   /** "llm-engine" when LLM was consulted; "rule-based-engine" on fallback. */
   model: string;
   llm_used: boolean;
+  /** Reason the LLM was skipped or failed; undefined when LLM succeeded. */
+  llm_error?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -241,8 +243,12 @@ export async function evaluateNeedStatusWithLLM(
   // 3. Call LLM with full context
   let llmResult: LLMEvaluatorOutput | null = null;
   let llmUsed = false;
+  let llmError: string | undefined;
+
+  console.log(`[NeedLevelEngine] lovableApiKey available: ${Boolean(context.lovableApiKey)}`);
 
   if (context.lovableApiKey) {
+    console.log("[NeedLevelEngine] Attempting LLM evaluator call...");
     llmResult = await callLLMEvaluator(
       {
         previous_status: prevStatus,
@@ -254,6 +260,14 @@ export async function evaluateNeedStatusWithLLM(
       },
       context.lovableApiKey,
     );
+    if (llmResult) {
+      console.log(`[NeedLevelEngine] LLM evaluator succeeded: proposed_status=${llmResult.proposed_status} confidence=${llmResult.confidence}`);
+    } else {
+      console.warn("[NeedLevelEngine] LLM evaluator returned null (call failed or returned invalid response)");
+      llmError = "llm_call_failed";
+    }
+  } else {
+    llmError = "no_api_key";
   }
 
   // 4a. Determine initial proposal
@@ -282,6 +296,12 @@ export async function evaluateNeedStatusWithLLM(
     legalTransition = previousStatus === undefined
       ? true
       : isValidNeedTransition(prevStatus, proposal);
+    if (!legalTransition && previousStatus !== undefined) {
+      console.log(`[NeedLevelEngine] Rule-based illegal transition ${prevStatus}->${proposal}, clamping to ${prevStatus}`);
+      proposal = prevStatus;
+      legalTransition = true;
+      guardrailsApplied.push("transition_clamping");
+    }
   }
 
   let finalStatus = proposal;
@@ -379,5 +399,6 @@ export async function evaluateNeedStatusWithLLM(
     key_evidence: llmResult?.key_evidence ?? [],
     model: llmUsed ? "llm-engine" : "rule-based-engine",
     llm_used: llmUsed,
+    llm_error: llmError,
   };
 }
