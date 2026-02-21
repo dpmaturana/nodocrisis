@@ -31,7 +31,7 @@ function DriverRow({ gap, onOpenLog, onOpenActors }: DriverRowProps) {
   const config = NEED_STATUS_PRESENTATION[needStatus];
   const Icon = config.icon;
   const requirements = gap.operational_requirements ?? [];
-  const hasExpandableContent = !!gap.reasoning_summary || requirements.length > 0;
+  const hasExpandableContent = requirements.length > 0;
 
   return (
     <div className="space-y-1">
@@ -66,11 +66,6 @@ function DriverRow({ gap, onOpenLog, onOpenActors }: DriverRowProps) {
           </button>
         )}
       </div>
-      {expanded && gap.reasoning_summary && (
-        <p className="text-xs text-muted-foreground italic ml-4 leading-tight">
-          {gap.reasoning_summary}
-        </p>
-      )}
       {expanded && requirements.length > 0 && (
         <div className="flex flex-wrap gap-1 px-2 pb-1.5 ml-4">
           {requirements.map((req, i) => (
