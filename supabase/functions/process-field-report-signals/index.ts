@@ -33,7 +33,7 @@ const SOURCE_WEIGHT = 1.0;
 const THRESHOLDS = {
   demandEscalation: 1,
   insufficiencyEscalation: 0.75,
-  stabilizationDowngrade: 1.8,
+  stabilizationDowngrade: 0.7,
   fragilityReactivation: 0.9,
   coverageActivation: 0.9,
   coverageIntent: 0.4,
@@ -115,6 +115,24 @@ function classifyItemState(state: string): SignalClassification {
     case "fragility":  return "FRAGILITY_ALERT";
     default:           return "INSUFFICIENCY"; // safe escalation fallback
   }
+}
+
+/**
+ * Quick keyword-based classification of observation text.
+ * Returns a synthetic signal when stabilization or insufficiency keywords are detected.
+ * This avoids an LLM call for obvious cases like "no injuries reported".
+ */
+function classifyObservationText(text: string): { state: string; confidence: number } | null {
+  const stabPatterns = /\b(stable|sufficient|resolved|available|okay|ok|covered|healthy|no\s*(injury|injuries|emergency|need|shortage|damage)|recovering|good|operational|functioning|normal|restored|safe)\b/i;
+  const insuffPatterns = /\b(needed|insufficient|depleted|shortage|lacking|overwhelmed|critical|scarce|exhausted|saturated|collapsed|unavailable|emergency)\b/i;
+
+  if (stabPatterns.test(text)) {
+    return { state: "available", confidence: 0.85 };
+  }
+  if (insuffPatterns.test(text)) {
+    return { state: "needed", confidence: 0.7 };
+  }
+  return null;
 }
 
 interface ObservationScoreProposal {
@@ -408,10 +426,20 @@ Deno.serve(async (req) => {
         const obs = extracted_data.observations;
         if (!obs) continue;
 
-        const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+        // First try quick keyword classification before calling the LLM
+        const quickClass = classifyObservationText(obs);
+        if (quickClass) {
+          signals.push(quickClass);
+          console.log(`[NeedLevelEngine] Quick-classified observation for capability=${capId}: state=${quickClass.state} confidence=${quickClass.confidence}`);
+        }
 
-        if (lovableApiKey) {
-          scoreProposal = await proposeScoresFromObservation(obs, lovableApiKey);
+        // If quick classification didn't produce a signal, try LLM
+        if (signals.length === 0) {
+          const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+
+          if (lovableApiKey) {
+            scoreProposal = await proposeScoresFromObservation(obs, lovableApiKey);
+          }
         }
 
         if (scoreProposal) {
@@ -455,9 +483,13 @@ Deno.serve(async (req) => {
             capacity_type_id: capId,
             level: needLevel,
             source: "field_report",
-            notes: operationalRequirements.length > 0
-              ? JSON.stringify(operationalRequirements)
-              : null,
+            notes: JSON.stringify(
+              operationalRequirements.length > 0
+                ? operationalRequirements
+                : extracted_data.observations
+                  ? [extracted_data.observations]
+                  : []
+            ),
             created_by: null,
             expires_at: null,
           },

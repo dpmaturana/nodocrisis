@@ -385,6 +385,100 @@ export type Database = {
           },
         ]
       }
+      need_audits: {
+        Row: {
+          booleans_snapshot: Json | null
+          capability_id: string
+          config_snapshot: Json | null
+          contradiction_detected: boolean | null
+          event_id: string
+          final_status: string
+          guardrails_applied: string[] | null
+          id: string
+          illegal_transition_reason: string | null
+          key_evidence: string[] | null
+          legal_transition: boolean | null
+          llm_confidence: number | null
+          model: string | null
+          observation_score_proposal: Json | null
+          previous_status: string
+          prompt_version: string | null
+          proposed_status: string
+          reasoning_summary: string | null
+          scores_snapshot: Json | null
+          sector_id: string
+          timestamp: string
+        }
+        Insert: {
+          booleans_snapshot?: Json | null
+          capability_id: string
+          config_snapshot?: Json | null
+          contradiction_detected?: boolean | null
+          event_id: string
+          final_status?: string
+          guardrails_applied?: string[] | null
+          id?: string
+          illegal_transition_reason?: string | null
+          key_evidence?: string[] | null
+          legal_transition?: boolean | null
+          llm_confidence?: number | null
+          model?: string | null
+          observation_score_proposal?: Json | null
+          previous_status?: string
+          prompt_version?: string | null
+          proposed_status?: string
+          reasoning_summary?: string | null
+          scores_snapshot?: Json | null
+          sector_id: string
+          timestamp?: string
+        }
+        Update: {
+          booleans_snapshot?: Json | null
+          capability_id?: string
+          config_snapshot?: Json | null
+          contradiction_detected?: boolean | null
+          event_id?: string
+          final_status?: string
+          guardrails_applied?: string[] | null
+          id?: string
+          illegal_transition_reason?: string | null
+          key_evidence?: string[] | null
+          legal_transition?: boolean | null
+          llm_confidence?: number | null
+          model?: string | null
+          observation_score_proposal?: Json | null
+          previous_status?: string
+          prompt_version?: string | null
+          proposed_status?: string
+          reasoning_summary?: string | null
+          scores_snapshot?: Json | null
+          sector_id?: string
+          timestamp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "need_audits_capability_id_fkey"
+            columns: ["capability_id"]
+            isOneToOne: false
+            referencedRelation: "capacity_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "need_audits_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "need_audits_sector_id_fkey"
+            columns: ["sector_id"]
+            isOneToOne: false
+            referencedRelation: "sectors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string

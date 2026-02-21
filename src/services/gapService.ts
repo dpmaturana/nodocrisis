@@ -205,7 +205,13 @@ export const gapService = {
           need_status: needStatus,
           actor_count: deploymentCounts.get(`${need.sector_id}:${need.capacity_type_id}`) ?? 0,
           operational_requirements: (() => {
-            try { return JSON.parse(need.notes ?? "[]"); } catch { return []; }
+            if (!need.notes) return [];
+            try {
+              const parsed = JSON.parse(need.notes);
+              return Array.isArray(parsed) ? parsed : [need.notes];
+            } catch {
+              return [need.notes];
+            }
           })(),
           reasoning_summary: auditMap.get(`${need.sector_id}:${need.capacity_type_id}`),
           trend: trendMap.get(`${need.sector_id}:${need.capacity_type_id}`) ?? null,
