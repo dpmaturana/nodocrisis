@@ -1,48 +1,63 @@
 
 
-## Show trend badges only on the 2 most recently updated needs across the entire dashboard
+## Fix trend derivation and initial status tracking
 
-### Problem
-Currently, every gap that has a trend shows its trend badge. You want only the 2 most recently updated needs (across ALL sectors on the dashboard) to display their trend tag.
+### Bug 1: "Worsening" shown instead of "Improving"
 
-### How it works
+**Root cause**: In `src/services/gapService.ts`, the `STATUS_RANK` map ranks GREEN(1) higher than WHITE(0). Since higher rank = more severe, a transition from WHITE to GREEN is classified as "worsening". But GREEN (stabilized) is actually the best state -- it should have rank 0.
 
-**1. `src/components/dashboard/SectorGapList.tsx`**
+**Fix** (`src/services/gapService.ts`, line 50-52):
 
-After fetching all sectors with gaps, compute the IDs of the 2 most recently updated gaps dashboard-wide:
-- Flatten all gaps from all sectors
-- Sort by `last_updated_at` descending
-- Take the first 2 gap IDs into a `Set`
-- Pass this set down to each `SectorStatusChip` as a new prop `trendVisibleGapIds`
-
-**2. `src/components/dashboard/SectorStatusChip.tsx`**
-
-- Accept a new prop `trendVisibleGapIds: Set<string>`
-- Pass a `showTrend` boolean to each `DriverRow`: `true` only if the gap's ID is in the set
-- `DriverRow` receives `showTrend` prop; only renders the trend badge when `showTrend` is true
-- Translate `TREND_CONFIG` labels to English:
-  - "Mejorando" -> "Improving"
-  - "Empeorando" -> "Worsening"
-  - "Estable" -> "Stable"
-- Translate other Spanish strings: "Necesidades" -> "Needs", "Capacidad" -> "Capability", "Actualizar estado" -> "Update status", "Ver detalles" -> "View details"
-
-### Technical details
-
-```text
-SectorGapList
-  |-- computes: trendVisibleGapIds = Set of 2 gap IDs with latest last_updated_at
-  |
-  +-- SectorStatusChip (receives trendVisibleGapIds)
-        |
-        +-- DriverRow (receives showTrend = trendVisibleGapIds.has(gap.id))
-              |-- renders trend badge only if showTrend === true
+Change:
+```
+WHITE: 0, GREEN: 1, YELLOW: 2, ORANGE: 3, RED: 4
+```
+To:
+```
+GREEN: 0, WHITE: 1, YELLOW: 2, ORANGE: 3, RED: 4
 ```
 
-- All gaps remain visible in every card -- no truncation
-- Only the trend tag visibility changes
-- The 2 gaps are selected globally across all sectors based on `last_updated_at`
+This makes any transition toward GREEN correctly show as "Improving".
+
+### Bug 2: Previous status hardcoded to WHITE instead of reading actual state
+
+**Root cause**: In `supabase/functions/process-field-report-signals/index.ts`, line 547, the `previous_status` in the audit record is always hardcoded to `"WHITE"`. It should read the current `level` from `sector_needs_context` before upserting, so the audit trail accurately reflects the real transition (e.g., ORANGE to GREEN, not WHITE to GREEN).
+
+**Fix** (`supabase/functions/process-field-report-signals/index.ts`):
+
+Before the upsert (around line 507), query the existing row:
+```typescript
+const { data: existingNeed } = await supabase
+  .from("sector_needs_context")
+  .select("level")
+  .eq("event_id", event_id)
+  .eq("sector_id", sector_id)
+  .eq("capacity_type_id", capId)
+  .maybeSingle();
+
+const previousNeedLevel = existingNeed?.level ?? "medium";
+```
+
+Then use a helper to map that level back to a NeedStatus for the audit:
+```typescript
+function mapNeedLevelToStatus(level: string): string {
+  switch (level) {
+    case "critical": return "RED";
+    case "high":     return "ORANGE";
+    case "medium":   return "YELLOW";
+    case "low":      return "GREEN";
+    default:         return "WHITE";
+  }
+}
+```
+
+And replace line 547:
+```typescript
+previous_status: mapNeedLevelToStatus(previousNeedLevel),
+```
 
 ### Files changed
 
-1. `src/components/dashboard/SectorGapList.tsx` -- compute top-2 recently updated gap IDs, pass as prop
-2. `src/components/dashboard/SectorStatusChip.tsx` -- accept `trendVisibleGapIds` prop, conditionally show trend, translate labels to English
+1. `src/services/gapService.ts` -- fix STATUS_RANK ordering (swap WHITE and GREEN)
+2. `supabase/functions/process-field-report-signals/index.ts` -- read actual previous status from DB before writing audit
+
