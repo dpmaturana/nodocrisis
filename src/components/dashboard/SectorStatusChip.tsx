@@ -14,18 +14,19 @@ import { AdminSignalCaptureModal } from "./AdminSignalCaptureModal";
 import { GapActorsModal } from "./GapActorsModal";
 
 const TREND_CONFIG = {
-  improving: { label: "↗ Mejorando", className: "text-coverage bg-coverage/10 border-coverage/30" },
-  worsening: { label: "↘ Empeorando", className: "text-gap-critical bg-gap-critical/10 border-gap-critical/30" },
-  stable:    { label: "→ Estable",    className: "text-muted-foreground bg-muted/40 border-muted" },
+  improving: { label: "↗ Improving", className: "text-coverage bg-coverage/10 border-coverage/30" },
+  worsening: { label: "↘ Worsening", className: "text-gap-critical bg-gap-critical/10 border-gap-critical/30" },
+  stable:    { label: "→ Stable",    className: "text-muted-foreground bg-muted/40 border-muted" },
 } as const;
 
 interface DriverRowProps {
   gap: GapWithDetails;
+  showTrend: boolean;
   onOpenLog: (gap: GapWithDetails) => void;
   onOpenActors: (gap: GapWithDetails) => void;
 }
 
-function DriverRow({ gap, onOpenLog, onOpenActors }: DriverRowProps) {
+function DriverRow({ gap, showTrend, onOpenLog, onOpenActors }: DriverRowProps) {
   const [expanded, setExpanded] = useState(false);
   const needStatus = gap.need_status ?? "WHITE";
   const config = NEED_STATUS_PRESENTATION[needStatus];
@@ -41,9 +42,9 @@ function DriverRow({ gap, onOpenLog, onOpenActors }: DriverRowProps) {
           className={cn("truncate font-medium hover:underline cursor-pointer", config.text)}
           onClick={() => onOpenLog(gap)}
         >
-          {gap.capacity_type?.name ?? "Capacidad"}
+          {gap.capacity_type?.name ?? "Capability"}
         </button>
-        {gap.trend && (
+        {showTrend && gap.trend && (
           <span className={`text-[10px] px-1.5 py-0.5 rounded border ${TREND_CONFIG[gap.trend].className}`}>
             {TREND_CONFIG[gap.trend].label}
           </span>
@@ -90,6 +91,7 @@ interface SectorStatusChipProps {
   eventLocation: string | null;
   sectorNeedStatus: NeedStatus;
   gaps: GapWithDetails[];
+  trendVisibleGapIds: Set<string>;
   onViewDetails: () => void;
   isHighlighted?: boolean;
   onMouseEnter?: () => void;
@@ -104,6 +106,7 @@ export function SectorStatusChip({
   eventLocation,
   sectorNeedStatus,
   gaps,
+  trendVisibleGapIds,
   onViewDetails,
   isHighlighted,
   onMouseEnter,
@@ -168,12 +171,13 @@ export function SectorStatusChip({
           {sortedGaps.length > 0 && (
             <div className="space-y-1.5">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Necesidades
+                Needs
               </p>
               {sortedGaps.map((gap) => (
                 <DriverRow
                   key={gap.id}
                   gap={gap}
+                  showTrend={trendVisibleGapIds.has(gap.id)}
                   onOpenLog={handleOpenLog}
                   onOpenActors={handleOpenActors}
                 />
@@ -190,7 +194,7 @@ export function SectorStatusChip({
               className="h-6 px-2 text-sm text-muted-foreground hover:text-foreground gap-1"
             >
               <Radio className="w-3 h-3" />
-              Actualizar estado
+              Update status
             </Button>
             <Button
               variant="ghost"
@@ -198,7 +202,7 @@ export function SectorStatusChip({
               onClick={onViewDetails}
               className="h-6 px-2 text-sm text-muted-foreground hover:text-foreground"
             >
-              Ver detalles →
+              View details →
             </Button>
           </div>
         </CardContent>

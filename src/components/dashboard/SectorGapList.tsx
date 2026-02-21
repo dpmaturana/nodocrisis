@@ -64,6 +64,16 @@ export function SectorGapList({
   }
 
   // Filter sectors based on active filters
+  // Compute the 2 most recently updated gap IDs across all sectors
+  const trendVisibleGapIds = new Set(
+    sectorsWithGaps
+      .flatMap((s) => s.gaps)
+      .filter((g) => g.trend && g.last_updated_at)
+      .sort((a, b) => new Date(b.last_updated_at!).getTime() - new Date(a.last_updated_at!).getTime())
+      .slice(0, 2)
+      .map((g) => g.id),
+  );
+
   const filteredSectors = sectorsWithGaps
     .filter((sectorData) => {
       // Filter 1: sector status
@@ -115,6 +125,7 @@ export function SectorGapList({
           eventLocation={eventLocation}
           sectorNeedStatus={sectorData.sector_need_status ?? "WHITE"}
           gaps={sectorData.gaps}
+          trendVisibleGapIds={trendVisibleGapIds}
           onViewDetails={() => onViewSectorDetails(sectorData.sector.id)}
           isHighlighted={highlightedCardId === sectorData.sector.id}
           onMouseEnter={() => onSectorHover?.(sectorData.sector.id)}
