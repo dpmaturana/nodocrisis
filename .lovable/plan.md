@@ -1,53 +1,49 @@
 
 
-## Show requirement pills + reasoning summary in expanded need rows
+## Show the right description under each need row
 
-### Change
+### Problem
+The `notes` field in `sector_needs_context` has two formats:
+- Plain text descriptions like `"Additional human resources are critically needed for search and rescue operations as people are reported trapped."` (Search and rescue)
+- JSON arrays like `["water (high)"]` (Drinking water)
 
-Update the `DriverRow` expanded section in `src/components/dashboard/SectorStatusChip.tsx` to show:
+Currently, the code uses `reasoning_summary` from `need_audits` as the description line, but that always contains status-change explanations (e.g. "High insufficiency detected with no active coverage..."), not the contextual description the user wants.
 
-1. **Line 1**: Operational requirement names as simple pills (just the name, no severity like "critical" or "high")
-2. **Line 2**: The `reasoning_summary` as a descriptive sentence below
+The actual descriptive text lives in the `notes` field when it's a plain string.
+
+### Solution
+Update the data mapping in `gapService.ts` to separate `notes` into two fields properly:
+- `operational_requirements`: only populated when `notes` is a JSON array
+- `reasoning_summary`: populated from the `notes` field when it's a plain string (not JSON), falling back to the audit reasoning only if notes has no plain text
 
 ### Technical details
 
-**File: `src/components/dashboard/SectorStatusChip.tsx`**
+**File: `src/services/gapService.ts` (lines ~207-216)**
 
-In the `DriverRow` component:
+Change the mapping logic when building `GapWithDetails`:
 
-- Keep `requirements` and add `summary`:
-  ```typescript
-  const requirements = gap.operational_requirements ?? [];
-  const summary = gap.reasoning_summary;
-  const hasExpandableContent = requirements.length > 0 || !!summary;
-  ```
+```typescript
+// Parse notes: if JSON array -> requirements, if plain string -> description
+const parsedNotes = (() => {
+  if (!need.notes) return { requirements: [], description: undefined };
+  try {
+    const parsed = JSON.parse(need.notes);
+    if (Array.isArray(parsed)) return { requirements: parsed as string[], description: undefined };
+    return { requirements: [], description: need.notes };
+  } catch {
+    return { requirements: [], description: need.notes };
+  }
+})();
 
-- Strip severity suffixes from requirement labels. Currently they come as e.g. `"water (high)"` -- extract just the name portion before any parenthetical:
-  ```typescript
-  const cleanLabel = (req: string) => req.replace(/\s*\(.*?\)\s*$/, "");
-  ```
+// Then in the object:
+operational_requirements: parsedNotes.requirements,
+reasoning_summary: parsedNotes.description ?? auditMap.get(...),
+```
 
-- Update the expanded content block (lines ~72-83) to render both:
-  ```tsx
-  {expanded && hasExpandableContent && (
-    <div className="ml-4 space-y-1.5 pb-1.5">
-      {requirements.length > 0 && (
-        <div className="flex flex-wrap gap-1 px-2">
-          {requirements.map((req, i) => (
-            <span key={i} className="text-xs px-1.5 py-0.5 rounded-full border font-medium text-muted-foreground">
-              {cleanLabel(req)}
-            </span>
-          ))}
-        </div>
-      )}
-      {summary && (
-        <p className="px-2 text-xs text-muted-foreground">{summary}</p>
-      )}
-    </div>
-  )}
-  ```
+This way:
+- **Search and rescue** (plain text notes): shows the description as the summary, no pills
+- **Drinking water** (JSON array notes): shows `water` as a pill, and falls back to the audit reasoning for the summary line
 
 ### Files changed
 
-1. `src/components/dashboard/SectorStatusChip.tsx` -- update expanded content to show clean requirement pills + reasoning summary
-
+1. `src/services/gapService.ts` -- update notes parsing to distinguish plain-text descriptions from JSON requirement arrays
