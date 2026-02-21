@@ -1,0 +1,1 @@
+ALTER TABLE public.need_audits ADD COLUMN IF NOT EXISTS llm_error TEXT;
