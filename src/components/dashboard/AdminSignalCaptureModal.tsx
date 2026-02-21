@@ -172,40 +172,6 @@ export function AdminSignalCaptureModal({
 
         <Separator />
 
-        {/* ── Capabilities in this sector ──────────────── */}
-        {gaps.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-sm font-semibold">Your capabilities in this sector</p>
-            {gaps.map((gap) => {
-              const gapStatus = NEED_STATUS_PRESENTATION[gap.need_status ?? "WHITE"];
-              const GapIcon = gapStatus.icon;
-              return (
-                <div
-                  key={gap.id}
-                  className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-muted/20"
-                >
-                  <div className="flex items-center gap-3">
-                    <GapIcon className={cn("w-4 h-4 shrink-0", gapStatus.text)} />
-                    <div>
-                      <p className="text-sm font-medium">
-                        {gap.capacity_type?.name ?? "Capacidad"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Enrollment from sector {sectorName}
-                      </p>
-                    </div>
-                  </div>
-                  <Badge variant="outline" className={cn("text-xs shrink-0", gapStatus.text)}>
-                    {gapStatus.shortLabel}
-                  </Badge>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        <Separator />
-
         {/* ── Actualizar estado de terreno ─────────────── */}
         <div className="space-y-4">
           <div className="flex items-start gap-2">
