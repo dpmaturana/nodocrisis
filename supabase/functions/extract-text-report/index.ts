@@ -60,7 +60,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { event_id, sector_id, actor_id, text_note, dry_run } = await req.json();
+    const { event_id, sector_id, actor_id, text_note, dry_run, signal_type: overrideSignalType } = await req.json();
+    const effectiveSignalType = overrideSignalType || "field_report";
+    const effectiveSource = overrideSignalType === "official" ? "admin_report" : "actor_text_report";
 
     // In dry_run mode, we only need the text_note
     if (!dry_run && (!event_id || !sector_id || !actor_id || !text_note)) {
@@ -234,8 +236,8 @@ Deno.serve(async (req) => {
             linkedCapabilities.map((capTypeId: string) => ({
               event_id,
               sector_id,
-              signal_type: "field_report",
-              source: "actor_text_report",
+              signal_type: effectiveSignalType,
+              source: effectiveSource,
               content: extractedData.observations,
               confidence: extractedData.confidence,
               level: "sector",
@@ -285,8 +287,8 @@ Deno.serve(async (req) => {
           const { error: signalError } = await supabase.from("signals").insert({
             event_id,
             sector_id,
-            signal_type: "field_report",
-            source: "actor_text_report",
+            signal_type: effectiveSignalType,
+            source: effectiveSource,
             content: extractedData.observations,
             confidence: extractedData.confidence,
             level: "sector",
