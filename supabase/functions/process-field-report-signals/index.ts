@@ -26,6 +26,17 @@ const corsHeaders = {
 type NeedStatus = "WHITE" | "RED" | "YELLOW" | "ORANGE" | "GREEN";
 type NeedLevel = "low" | "medium" | "high" | "critical";
 
+/** Map a DB need level back to a NeedStatus string for audit records */
+function mapNeedLevelToAuditStatus(level: string): NeedStatus {
+  switch (level) {
+    case "critical": return "RED";
+    case "high":     return "ORANGE";
+    case "medium":   return "YELLOW";
+    case "low":      return "GREEN";
+    default:         return "WHITE";
+  }
+}
+
 // Source weight for field-report signals (NGO tier, same as needLevelEngine config)
 const SOURCE_WEIGHT = 1.0;
 
@@ -504,6 +515,17 @@ Deno.serve(async (req) => {
         `[NeedLevelEngine] capability=${capId} engine_status=${status} need_level=${needLevel}`,
       );
 
+      // Read existing need level BEFORE upserting, so we can record the real previous_status
+      const { data: existingNeed } = await supabase
+        .from("sector_needs_context")
+        .select("level")
+        .eq("event_id", event_id)
+        .eq("sector_id", sector_id)
+        .eq("capacity_type_id", capId)
+        .maybeSingle();
+
+      const previousNeedLevel = existingNeed?.level ?? "medium";
+
       // Upsert sector_needs_context based on engine decision — NOT deriveNeedLevel
       const { error: upsertError } = await supabase
         .from("sector_needs_context")
@@ -544,7 +566,7 @@ Deno.serve(async (req) => {
         capability_id: capId,
         event_id,
         timestamp: new Date().toISOString(),
-        previous_status: "WHITE",
+        previous_status: mapNeedLevelToAuditStatus(previousNeedLevel),
         proposed_status: status,
         final_status: status,
         llm_confidence: 0,
