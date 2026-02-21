@@ -1,9 +1,10 @@
 /**
  * evaluate-need
  *
- * HTTP endpoint that exposes the shared rule-based need evaluation logic to
- * the frontend. The frontend calls this instead of running the evaluation
- * logic locally, ensuring a single source of truth for all status decisions.
+ * HTTP endpoint that exposes the LLM-driven need evaluation logic (with all
+ * guardrails A-G) to the frontend. The frontend calls this instead of running
+ * the evaluation logic locally, ensuring a single source of truth for all
+ * status decisions.
  *
  * POST /functions/v1/evaluate-need
  * Body: {
@@ -12,6 +13,8 @@
  *   capacity_type_id: string,
  *   signals: Array<{ state: string; confidence: number }>,
  *   previousStatus?: NeedStatus,
+ *   evidenceQuotes?: string[],
+ *   observations?: string,
  * }
  * Response: {
  *   status: NeedStatus,
@@ -19,17 +22,20 @@
  *   reasoning: string,
  *   scores: { demand: number; insuff: number; stab: number; frag: number; coverage: number },
  *   guardrails: string[],
+ *   llm_confidence: number,
+ *   model: string,
+ *   llm_used: boolean,
+ *   contradiction_detected: boolean,
+ *   key_evidence: string[],
  * }
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
-  evaluateNeedStatus,
-  buildHumanReasoning,
   mapNeedStatusToNeedLevel,
-  mapNeedLevelToAuditStatus,
   type NeedStatus,
 } from "../_shared/evaluateNeedStatus.ts";
+import { evaluateNeedStatusWithLLM } from "../_shared/evaluateNeedStatusWithLLM.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,12 +54,16 @@ Deno.serve(async (req) => {
       capacity_type_id,
       signals,
       previousStatus,
+      evidenceQuotes,
+      observations,
     }: {
       event_id: string;
       sector_id: string;
       capacity_type_id: string;
       signals: Array<{ state: string; confidence: number }>;
       previousStatus?: NeedStatus;
+      evidenceQuotes?: string[];
+      observations?: string;
     } = await req.json();
 
     if (!event_id || !sector_id || !capacity_type_id || !Array.isArray(signals)) {
@@ -65,9 +75,27 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { status, scores, booleans, guardrailsApplied, legalTransition } = evaluateNeedStatus(signals, previousStatus ?? undefined);
+    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+
+    const {
+      status,
+      scores,
+      booleans,
+      guardrailsApplied,
+      legalTransition,
+      llm_confidence,
+      reasoning_summary,
+      contradiction_detected,
+      key_evidence,
+      model,
+      llm_used,
+    } = await evaluateNeedStatusWithLLM(signals, previousStatus ?? undefined, {
+      lovableApiKey,
+      evidenceQuotes,
+      observations,
+    });
     const needLevel = mapNeedStatusToNeedLevel(status);
-    const reasoning = buildHumanReasoning(scores, booleans, status, guardrailsApplied);
+    const reasoning = reasoning_summary;
 
     // Persist result to sector_needs_context
     const supabase = createClient(
@@ -104,15 +132,15 @@ Deno.serve(async (req) => {
       previous_status: previousNeedStatus,
       proposed_status: status,
       final_status: status,
-      llm_confidence: 0,
+      llm_confidence,
       reasoning_summary: reasoning,
-      contradiction_detected: false,
-      key_evidence: [],
+      contradiction_detected,
+      key_evidence,
       legal_transition: legalTransition,
       guardrails_applied: guardrailsApplied,
       scores_snapshot: scores,
       booleans_snapshot: booleans,
-      model: "rule-based-engine",
+      model,
       prompt_version: "v1",
     });
 
@@ -127,6 +155,11 @@ Deno.serve(async (req) => {
         reasoning,
         scores,
         guardrails: guardrailsApplied,
+        llm_confidence,
+        model,
+        llm_used,
+        contradiction_detected,
+        key_evidence,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
