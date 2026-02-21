@@ -1,41 +1,52 @@
 
 
-## Fix trend tags showing on wrong needs
+## Fix: Deploy the evaluate-need Edge Function + Add Transition Clamping
 
-### Problem
-The "Worsening" / "Improving" trend tags appear on the wrong needs because the system picks which 2 gaps to show trends for based on `last_updated_at`, but that field is set to `sector_needs_context.created_at` (when the need row was first created), NOT when it was last updated via an audit.
+### Root Cause
 
-So when you update "Transport", the audit is recorded with a fresh timestamp, but the gap's `last_updated_at` still reflects the original creation time. The "top 2 most recently updated" filter then picks whichever gaps happened to be created most recently (e.g., Drinking water and Food supply), not the ones actually updated.
+The `evaluate-need` edge function was **never deployed**. It exists in code but:
+- Is missing from `supabase/config.toml`
+- Returns HTTP 404 when called (confirmed by live test)
+- Every frontend call to this function silently fails
 
-### Solution
-Use the latest audit timestamp for each gap as `last_updated_at` instead of `need.created_at`.
+For `process-field-report-signals` (which calls `evaluateNeedStatusWithLLM` directly), the LLM call may also fail silently, but at least that function is deployed.
 
-### Technical details
+### Changes
 
-**File: `src/services/gapService.ts` (~line 148)**
+#### 1. Add `evaluate-need` to `supabase/config.toml`
 
-Build a map of the latest audit timestamp per gap key:
+Add the missing entry so the function gets deployed:
 
-```typescript
-const latestAuditTimestamp = new Map<string, string>();
-auditsByKey.forEach((rows, key) => {
-  // rows are already sorted by timestamp desc
-  if (rows[0]?.timestamp) latestAuditTimestamp.set(key, rows[0].timestamp);
-});
+```toml
+[functions.evaluate-need]
+verify_jwt = false
 ```
 
-**File: `src/services/gapService.ts` (line 201)**
+#### 2. Deploy the `evaluate-need` edge function
 
-Change `last_updated_at` from:
-```typescript
-last_updated_at: need.created_at,
+Trigger deployment so the function becomes available at the expected endpoint.
+
+#### 3. Transition clamping is already implemented
+
+Looking at the current code (lines 296-304 of `evaluateNeedStatusWithLLM.ts`), the rule-based fallback path already has transition clamping:
+
 ```
-to:
-```typescript
-last_updated_at: latestAuditTimestamp.get(`${need.sector_id}:${need.capacity_type_id}`) ?? need.created_at,
+if (!legalTransition && previousStatus !== undefined) {
+  proposal = prevStatus;
+  guardrailsApplied.push("transition_clamping");
+}
 ```
 
-This way the latest audit timestamp drives which gaps show the trend tag, so updating "Transport" will correctly show the trend on Transport.
+And the LLM path (lines 279-283) also blocks illegal transitions. So the RED-to-WHITE bug should already be fixed in the current code -- it just was never deployed.
 
-### Files changed
-1. `src/services/gapService.ts` -- use latest audit timestamp as `last_updated_at`
+#### 4. Test the deployed function
+
+After deployment, send a test request to verify:
+- The function responds (no more 404)
+- The LLM is called successfully (check for `llm_used: true` in response)
+- Transition clamping works (send a stabilization signal with `previousStatus: "RED"` and verify it stays RED)
+
+### Expected Outcome
+
+Once deployed, the `evaluate-need` function will be live, the frontend will get real LLM-based evaluations, and illegal transitions like RED-to-WHITE will be blocked by the existing clamping logic.
+
