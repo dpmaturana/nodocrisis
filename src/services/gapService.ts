@@ -208,12 +208,23 @@ export const gapService = {
             if (!need.notes) return [];
             try {
               const parsed = JSON.parse(need.notes);
-              return Array.isArray(parsed) ? parsed : [need.notes];
+              return Array.isArray(parsed) ? parsed : [];
             } catch {
-              return [need.notes];
+              return [];
             }
           })(),
-          reasoning_summary: auditMap.get(`${need.sector_id}:${need.capacity_type_id}`),
+          reasoning_summary: (() => {
+            if (need.notes) {
+              try {
+                JSON.parse(need.notes);
+                // It's valid JSON (array) — not a plain description
+              } catch {
+                // Plain text — use as description
+                return need.notes;
+              }
+            }
+            return auditMap.get(`${need.sector_id}:${need.capacity_type_id}`);
+          })(),
           trend: trendMap.get(`${need.sector_id}:${need.capacity_type_id}`) ?? null,
         };
       });
