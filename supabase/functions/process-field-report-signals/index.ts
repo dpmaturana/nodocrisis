@@ -433,28 +433,6 @@ Deno.serve(async (req) => {
       if (capId) explicitCapIds.add(capId);
     }
 
-    // Fetch current need levels for this sector so we can track real previous_status
-    const { data: currentNeeds } = await supabase
-      .from("sector_needs_context")
-      .select("capacity_type_id, level")
-      .eq("event_id", event_id)
-      .eq("sector_id", sector_id);
-
-    const currentNeedMap = new Map<string, NeedLevel>();
-    for (const row of currentNeeds ?? []) {
-      currentNeedMap.set(row.capacity_type_id, row.level as NeedLevel);
-    }
-
-    function mapNeedLevelToStatus(level: NeedLevel): NeedStatus {
-      switch (level) {
-        case "critical": return "RED";
-        case "high":     return "ORANGE";
-        case "medium":   return "YELLOW";
-        case "low":      return "GREEN";
-        default:         return "WHITE";
-      }
-    }
-
     const results: Array<{ capabilityId: string; status: NeedStatus; needLevel: NeedLevel }> = [];
 
     for (const [capId, capItems] of itemsByCapId) {
@@ -566,7 +544,7 @@ Deno.serve(async (req) => {
         capability_id: capId,
         event_id,
         timestamp: new Date().toISOString(),
-        previous_status: mapNeedLevelToStatus(currentNeedMap.get(capId) ?? "low"),
+        previous_status: "WHITE",
         proposed_status: status,
         final_status: status,
         llm_confidence: 0,
