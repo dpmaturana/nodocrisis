@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.fetch-tweets]
 verify_jwt = false
+
+[functions.evaluate-need]
+verify_jwt = false
