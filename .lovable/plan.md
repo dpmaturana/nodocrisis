@@ -1,37 +1,53 @@
 
 
-## Real-time dashboard updates when need status changes
+## Show requirement pills + reasoning summary in expanded need rows
 
-### What changes
+### Change
 
-When an admin submits a report or any process updates a need status in `sector_needs_context`, the dashboard will automatically refresh the sector cards without requiring a manual page reload.
+Update the `DriverRow` expanded section in `src/components/dashboard/SectorStatusChip.tsx` to show:
 
-### How it works
+1. **Line 1**: Operational requirement names as simple pills (just the name, no severity like "critical" or "high")
+2. **Line 2**: The `reasoning_summary` as a descriptive sentence below
 
-1. **Enable Realtime on `sector_needs_context`** (database migration)
-   - Run: `ALTER PUBLICATION supabase_realtime ADD TABLE public.sector_needs_context;`
+### Technical details
 
-2. **Add Realtime subscription in `SectorGapList.tsx`**
-   - Subscribe to `postgres_changes` on `sector_needs_context` filtered by `event_id`
-   - On any INSERT/UPDATE/DELETE event, re-fetch the full sector gap data via `gapService.getGapsGroupedBySector(eventId)`
-   - Clean up the subscription on unmount
-   - Add a small debounce (500ms) so rapid batch updates don't cause excessive re-fetches
+**File: `src/components/dashboard/SectorStatusChip.tsx`**
 
-### Technical detail
+In the `DriverRow` component:
 
-```text
-SectorGapList (subscribes to sector_needs_context changes)
-  |-- on postgres_changes event (INSERT/UPDATE/DELETE)
-  |     |-- debounce 500ms
-  |     +-- re-calls gapService.getGapsGroupedBySector(eventId)
-  |           |-- updates sectorsWithGaps state
-  |           +-- calls onSectorsLoaded (propagates to parent for map + filters)
-  |
-  +-- cleanup: unsubscribe on unmount or eventId change
-```
+- Keep `requirements` and add `summary`:
+  ```typescript
+  const requirements = gap.operational_requirements ?? [];
+  const summary = gap.reasoning_summary;
+  const hasExpandableContent = requirements.length > 0 || !!summary;
+  ```
+
+- Strip severity suffixes from requirement labels. Currently they come as e.g. `"water (high)"` -- extract just the name portion before any parenthetical:
+  ```typescript
+  const cleanLabel = (req: string) => req.replace(/\s*\(.*?\)\s*$/, "");
+  ```
+
+- Update the expanded content block (lines ~72-83) to render both:
+  ```tsx
+  {expanded && hasExpandableContent && (
+    <div className="ml-4 space-y-1.5 pb-1.5">
+      {requirements.length > 0 && (
+        <div className="flex flex-wrap gap-1 px-2">
+          {requirements.map((req, i) => (
+            <span key={i} className="text-xs px-1.5 py-0.5 rounded-full border font-medium text-muted-foreground">
+              {cleanLabel(req)}
+            </span>
+          ))}
+        </div>
+      )}
+      {summary && (
+        <p className="px-2 text-xs text-muted-foreground">{summary}</p>
+      )}
+    </div>
+  )}
+  ```
 
 ### Files changed
 
-1. **Database migration** -- enable realtime on `sector_needs_context`
-2. **`src/components/dashboard/SectorGapList.tsx`** -- add Supabase realtime subscription that triggers data re-fetch on changes
+1. `src/components/dashboard/SectorStatusChip.tsx` -- update expanded content to show clean requirement pills + reasoning summary
 
