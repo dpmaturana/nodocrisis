@@ -110,14 +110,6 @@ export function AdminSignalCaptureModal({
         user.id,
       );
 
-      // Feed extracted signals through the need-level engine so gap/sector
-      // colors update immediately (same step as FieldStatusReport does).
-      if (report.status === "completed" && report.extracted_data) {
-        fieldReportService.processCompletedReport(report).catch((e) => {
-          console.warn(`Need level update from admin report ${report.id} failed:`, e);
-        });
-      }
-
       toast({
         title: "Reporte enviado",
         description: "Tu reporte ayudará a ajustar la coordinación en tiempo real.",
