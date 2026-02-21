@@ -48,7 +48,7 @@ function inferNeedCriticality(gap: GapWithDetails): NeedCriticalityLevel {
 type Trend = "improving" | "worsening" | "stable";
 
 const STATUS_RANK: Record<string, number> = {
-  WHITE: 0, GREEN: 1, YELLOW: 2, ORANGE: 3, RED: 4,
+  GREEN: 0, WHITE: 1, YELLOW: 2, ORANGE: 3, RED: 4,
 };
 
 function deriveTrend(auditRows: Array<{ previous_status: string; final_status: string }>): Trend | null {
