@@ -138,7 +138,7 @@ function ActivityLogItem({ entry }: { entry: CapabilityActivityLogEntry }) {
 
       {/* Formatted summary */}
       <p className="text-sm text-foreground">
-        <span className="font-medium">{entry.source_name}:</span>{" "}
+        <span className="font-medium">{sourceLabel}:</span>{" "}
         {entry.summary}
       </p>
 
