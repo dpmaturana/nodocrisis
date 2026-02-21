@@ -1,54 +1,35 @@
 
 
-## Group related signals and status changes in the Activity Log
+## Fix: Status changes always showing "from Monitoring (WHITE)"
 
 ### Problem
-Signals and the status changes they trigger appear as separate, disconnected cards in the activity log, even though they happen at the same moment and are causally related.
+In `supabase/functions/process-field-report-signals/index.ts` line 547, the `previous_status` is **hardcoded to `"WHITE"`**:
 
-### Solution
-Group entries that occur within a short time window (60 seconds) into a single visual block, with the STATUS_CHANGE as the "parent" and its triggering signals nested underneath.
-
-### How it works
-
-**File: `src/components/dashboard/ActivityLogModal.tsx`**
-
-1. After fetching and sorting entries, run a grouping pass:
-   - Walk the sorted entries list
-   - When a `STATUS_CHANGE` entry is found, look at the entries immediately after it (next in chronological order = older)
-   - If a `SIGNAL_RECEIVED` or `COVERAGE_ACTIVITY_EVENT` entry has a timestamp within 60 seconds of the status change, attach it as a "child"
-   - Continue until the time gap exceeds 60s or another STATUS_CHANGE is found
-   - Entries that don't belong to any group render standalone as before
-
-2. Render grouped entries as a single card:
-   - The STATUS_CHANGE renders at the top (transition dots, reasoning, etc.) -- same as today
-   - Below it, a subtle "Triggered by" label with the related signal(s) rendered inline as compact sub-items (indented, smaller, with their source badge)
-   - A left border or connector line visually ties them together
-
-3. Standalone signals (not near a status change) render exactly as they do today -- no change.
-
-### Visual result
-
-```text
-+-----------------------------------------------+
-| Status change         (System badge)           |
-| Decision engine: [red dot] -> [yellow dot]     |
-| [sparkle] Human-readable reasoning...          |
-|                                                |
-|   Triggered by:                                |
-|   | [radio] Signal received  (ONG badge)       |
-|   | ONG: People are reported to be trapped...  |
-|                                                |
-| 16 minutes ago                                 |
-+-----------------------------------------------+
+```typescript
+previous_status: "WHITE",
 ```
 
-### Technical details
+This means every `need_audits` row (and therefore every Activity Log status change entry) shows the transition starting from WHITE/Monitoring, regardless of the gap's actual current status.
 
-- Grouping logic: iterate sorted entries (newest first). For each STATUS_CHANGE, collect subsequent entries within 60s as children. Mark consumed entries so they don't render again standalone.
-- Type: define a `GroupedLogEntry = { main: CapabilityActivityLogEntry; related: CapabilityActivityLogEntry[] }` local type.
-- The grouping runs purely in the component after data fetch -- no backend or service changes needed.
-- Only the `ActivityLogModal.tsx` file changes.
+### Fix
 
-### Files changed
+**File: `supabase/functions/process-field-report-signals/index.ts`**
 
-1. `src/components/dashboard/ActivityLogModal.tsx` -- add grouping logic and nested rendering for related entries
+Before the evaluation loop (where gaps are iterated), fetch the **current `need_status`** from `sector_needs_context` for the given sector + event + capability. Use that as `previous_status` when inserting into `need_audits`.
+
+Steps:
+1. Before the per-capability loop, query `sector_needs_context` for the current sector to get existing need levels
+2. Inside the loop, look up the current status for each capability from that query result
+3. Map the stored `need_level` back to a `NeedStatus` using the existing mapping (critical=RED, high=ORANGE, medium=YELLOW, low=GREEN, default=WHITE)
+4. Use this looked-up status as `previous_status` on line 547 instead of the hardcoded `"WHITE"`
+5. Also pass it as the starting state for the engine evaluation so the transition legality check works correctly
+
+### What changes
+- Only `supabase/functions/process-field-report-signals/index.ts` is modified
+- A single query is added before the capability loop to fetch current statuses
+- Line 547 uses the real previous status
+- Edge function redeployment is automatic
+
+### Result
+The Activity Log will correctly show transitions like "Critical -> Validating" instead of always "Monitoring -> Validating".
+
