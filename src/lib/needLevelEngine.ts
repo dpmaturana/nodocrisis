@@ -85,7 +85,7 @@ export const defaultNeedEngineConfig: NeedEngineConfig = {
   thresholds: {
     demandEscalation: 1,
     insufficiencyEscalation: 0.75,
-    stabilizationDowngrade: 1.8,
+    stabilizationDowngrade: 0.7,
     stabilizationMinConsecutiveWindows: 2,
     fragilityReactivation: 0.9,
     coverageActivation: 0.9,
