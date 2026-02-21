@@ -11,13 +11,12 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
-  evaluateNeedStatus,
-  buildHumanReasoning,
   mapNeedStatusToNeedLevel as mapStatusToNeedLevel,
   mapNeedLevelToAuditStatus,
   type NeedStatus,
   type NeedLevel,
 } from "../_shared/evaluateNeedStatus.ts";
+import { evaluateNeedStatusWithLLM } from "../_shared/evaluateNeedStatusWithLLM.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -346,7 +345,23 @@ Deno.serve(async (req) => {
       const previousNeedLevel = existingNeed?.level ?? "medium";
       const previousStatus = mapNeedLevelToAuditStatus(previousNeedLevel);
 
-      const { status, scores, booleans, guardrailsApplied, legalTransition } = evaluateNeedStatus(signals, previousStatus);
+      const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+      const {
+        status,
+        scores,
+        booleans,
+        guardrailsApplied,
+        legalTransition,
+        llm_confidence,
+        reasoning_summary,
+        contradiction_detected,
+        key_evidence,
+        model,
+      } = await evaluateNeedStatusWithLLM(signals, previousStatus, {
+        lovableApiKey,
+        evidenceQuotes: extracted_data.evidence_quotes,
+        observations: extracted_data.observations,
+      });
       const needLevel = mapStatusToNeedLevel(status);
 
       console.log(
@@ -395,15 +410,15 @@ Deno.serve(async (req) => {
         previous_status: mapNeedLevelToAuditStatus(previousNeedLevel),
         proposed_status: status,
         final_status: status,
-        llm_confidence: 0,
-        reasoning_summary: buildHumanReasoning(scores, booleans, status, guardrailsApplied),
-        contradiction_detected: false,
-        key_evidence: [],
+        llm_confidence,
+        reasoning_summary,
+        contradiction_detected,
+        key_evidence,
         legal_transition: legalTransition,
         guardrails_applied: guardrailsApplied,
         scores_snapshot: scores,
         booleans_snapshot: booleans,
-        model: "rule-based-engine",
+        model,
         prompt_version: "v1",
         observation_score_proposal: scoreProposal ?? null,
       });
