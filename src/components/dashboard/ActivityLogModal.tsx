@@ -169,7 +169,7 @@ function ActivityLogItem({ entry }: { entry: CapabilityActivityLogEntry }) {
       {/* Summary: colored status transition or plain text */}
       {showStatusTransition ? (
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{entry.source_name}:</span>
+          <span className="text-sm font-medium">{sourceLabel}:</span>
           <StatusTransition
             previous={entry.previous_status!}
             final={entry.final_status!}
