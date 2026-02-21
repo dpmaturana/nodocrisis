@@ -171,6 +171,7 @@ export const situationReportService = {
           capacity_type_id: string;
           level: "critical" | "high" | "medium" | "low";
           source: string;
+          notes?: string;
         }[] = [];
 
         for (const sectorId of insertedSectorIds) {
@@ -190,6 +191,10 @@ export const situationReportService = {
                 capacity_type_id: ct.id,
                 level,
                 source: "situation_report",
+                notes: JSON.stringify({
+                  requirements: [],
+                  description: report.summary ?? null,
+                }),
               });
             }
           }

@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
     // 1. Find the situation report linked to this event
     const { data: report, error: reportErr } = await supabase
       .from("initial_situation_reports")
-      .select("suggested_capabilities")
+      .select("suggested_capabilities, summary")
       .eq("linked_event_id", event_id)
       .maybeSingle();
 
@@ -110,6 +110,10 @@ Deno.serve(async (req) => {
           capacity_type_id: cap.capacity_type_id,
           level: cap.level,
           source: "situation_report",
+          notes: JSON.stringify({
+            requirements: [],
+            description: report?.summary ?? null,
+          }),
         });
       }
     }

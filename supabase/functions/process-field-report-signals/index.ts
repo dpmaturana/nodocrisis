@@ -536,13 +536,12 @@ Deno.serve(async (req) => {
             capacity_type_id: capId,
             level: needLevel,
             source: "field_report",
-            notes: JSON.stringify(
-              operationalRequirements.length > 0
+            notes: JSON.stringify({
+              requirements: operationalRequirements.length > 0
                 ? operationalRequirements
-                : extracted_data.observations
-                  ? [extracted_data.observations]
-                  : []
-            ),
+                : [],
+              description: extracted_data.observations ?? null,
+            }),
             created_by: null,
             expires_at: null,
           },
