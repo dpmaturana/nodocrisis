@@ -1,44 +1,54 @@
 
 
-## Remove reasoning from expandable card, keep only in Activity Log + make it human-readable
+## Group related signals and status changes in the Activity Log
 
-### Change 1: Remove reasoning_summary from expandable (SectorStatusChip)
+### Problem
+Signals and the status changes they trigger appear as separate, disconnected cards in the activity log, even though they happen at the same moment and are causally related.
 
-**File: `src/components/dashboard/SectorStatusChip.tsx`**
+### Solution
+Group entries that occur within a short time window (60 seconds) into a single visual block, with the STATUS_CHANGE as the "parent" and its triggering signals nested underneath.
 
-- Remove lines 69-72 (the `reasoning_summary` paragraph in the expanded section)
-- Update line 34: change `hasExpandableContent` to only check `requirements.length > 0` (remove `!!gap.reasoning_summary` from the condition)
-- The expandable chevron will only appear when there are operational requirements to show
+### How it works
 
-### Change 2: Make reasoning_summary human-readable (edge function + client)
+**File: `src/components/dashboard/ActivityLogModal.tsx`**
 
-The reasoning still displays in the Activity Log modal. Replace the debug string with clear sentences.
+1. After fetching and sorting entries, run a grouping pass:
+   - Walk the sorted entries list
+   - When a `STATUS_CHANGE` entry is found, look at the entries immediately after it (next in chronological order = older)
+   - If a `SIGNAL_RECEIVED` or `COVERAGE_ACTIVITY_EVENT` entry has a timestamp within 60 seconds of the status change, attach it as a "child"
+   - Continue until the time gap exceeds 60s or another STATUS_CHANGE is found
+   - Entries that don't belong to any group render standalone as before
 
-**File: `supabase/functions/process-field-report-signals/index.ts`**
+2. Render grouped entries as a single card:
+   - The STATUS_CHANGE renders at the top (transition dots, reasoning, etc.) -- same as today
+   - Below it, a subtle "Triggered by" label with the related signal(s) rendered inline as compact sub-items (indented, smaller, with their source badge)
+   - A left border or connector line visually ties them together
 
-Add a `buildHumanReasoning(scores, booleans, finalStatus, guardrails)` helper that produces sentences like:
+3. Standalone signals (not near a status change) render exactly as they do today -- no change.
 
-- RED: "High insufficiency detected with no active coverage."
-- ORANGE: "Demand or insufficiency signals present but coverage is active."
-- YELLOW: "Coverage activity detected, pending validation."
-- GREEN: "Stabilization signals strong with no alerts."
-- WHITE: "No significant signals detected."
+### Visual result
 
-Guardrails get appended as: "Safety rule: [explanation]."
+```text
++-----------------------------------------------+
+| Status change         (System badge)           |
+| Decision engine: [red dot] -> [yellow dot]     |
+| [sparkle] Human-readable reasoning...          |
+|                                                |
+|   Triggered by:                                |
+|   | [radio] Signal received  (ONG badge)       |
+|   | ONG: People are reported to be trapped...  |
+|                                                |
+| 16 minutes ago                                 |
++-----------------------------------------------+
+```
 
-Replace the current debug template string with a call to this helper.
+### Technical details
 
-**File: `src/services/needSignalService.ts`**
-
-Apply the same human-readable pattern to the client-side engine reasoning output.
-
-### Result
-
-- The expandable section on the card only shows operational requirements (the rounded chips)
-- The Activity Log modal continues to show reasoning, but now as readable English sentences instead of raw scores
+- Grouping logic: iterate sorted entries (newest first). For each STATUS_CHANGE, collect subsequent entries within 60s as children. Mark consumed entries so they don't render again standalone.
+- Type: define a `GroupedLogEntry = { main: CapabilityActivityLogEntry; related: CapabilityActivityLogEntry[] }` local type.
+- The grouping runs purely in the component after data fetch -- no backend or service changes needed.
+- Only the `ActivityLogModal.tsx` file changes.
 
 ### Files changed
 
-1. `src/components/dashboard/SectorStatusChip.tsx` -- remove reasoning_summary from expandable
-2. `supabase/functions/process-field-report-signals/index.ts` -- add buildHumanReasoning helper
-3. `src/services/needSignalService.ts` -- human-readable client-side reasoning
+1. `src/components/dashboard/ActivityLogModal.tsx` -- add grouping logic and nested rendering for related entries
