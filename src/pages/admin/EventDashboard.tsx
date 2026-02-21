@@ -245,6 +245,8 @@ export default function EventDashboard() {
         <main id="sector-cards-container" className="flex-1 overflow-y-auto min-h-0">
           <SectorGapList
             eventId={event.id}
+            eventName={event.name}
+            eventLocation={event.location}
             activeSectorStatusFilters={activeSectorStatusFilters}
             activeCapacityFilters={activeCapacityFilters}
             onViewSectorDetails={handleViewSectorDetails}
