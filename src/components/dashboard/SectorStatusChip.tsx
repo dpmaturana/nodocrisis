@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   Users,
+  Radio,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { NEED_STATUS_ORDER, NEED_STATUS_PRESENTATION, type NeedStatus } from "@/lib/needStatus";
 import type { GapWithDetails } from "@/services/gapService";
 import { ActivityLogModal } from "./ActivityLogModal";
+import { AdminSignalCaptureModal } from "./AdminSignalCaptureModal";
 
 const TREND_CONFIG = {
   improving: { label: "↗ Mejorando", className: "text-coverage bg-coverage/10 border-coverage/30" },
@@ -72,6 +74,9 @@ function DriverRow({ gap, onOpenLog }: DriverRowProps) {
 interface SectorStatusChipProps {
   sectorName: string;
   sectorId: string;
+  eventId: string;
+  eventName: string;
+  eventLocation: string | null;
   sectorNeedStatus: NeedStatus;
   gaps: GapWithDetails[];
   onViewDetails: () => void;
@@ -83,6 +88,9 @@ interface SectorStatusChipProps {
 export function SectorStatusChip({
   sectorName,
   sectorId,
+  eventId,
+  eventName,
+  eventLocation,
   sectorNeedStatus,
   gaps,
   onViewDetails,
@@ -92,6 +100,7 @@ export function SectorStatusChip({
 }: SectorStatusChipProps) {
   const [activityLogGap, setActivityLogGap] = useState<GapWithDetails | null>(null);
   const [showActivityLog, setShowActivityLog] = useState(false);
+  const [showSignalCapture, setShowSignalCapture] = useState(false);
 
   const sectorStatus = NEED_STATUS_PRESENTATION[sectorNeedStatus];
 
@@ -154,7 +163,16 @@ export function SectorStatusChip({
           )}
 
           {/* Footer */}
-          <div className="flex items-center justify-end pt-1 border-t border-border/40">
+          <div className="flex items-center justify-between pt-1 border-t border-border/40">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowSignalCapture(true)}
+              className="h-6 px-2 text-sm text-muted-foreground hover:text-foreground gap-1"
+            >
+              <Radio className="w-3 h-3" />
+              Actualizar estado
+            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -171,6 +189,18 @@ export function SectorStatusChip({
         gap={activityLogGap}
         open={showActivityLog}
         onOpenChange={setShowActivityLog}
+      />
+
+      <AdminSignalCaptureModal
+        open={showSignalCapture}
+        onOpenChange={setShowSignalCapture}
+        sectorId={sectorId}
+        sectorName={sectorName}
+        eventId={eventId}
+        eventName={eventName}
+        eventLocation={eventLocation}
+        gaps={gaps}
+        sectorNeedStatus={sectorNeedStatus}
       />
     </>
   );

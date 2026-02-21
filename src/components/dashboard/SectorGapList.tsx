@@ -8,6 +8,8 @@ import { AlertCircle } from "lucide-react";
 
 interface SectorGapListProps {
   eventId: string;
+  eventName?: string;
+  eventLocation?: string | null;
   activeSectorStatusFilters: NeedStatus[];
   activeCapacityFilters?: string[];
   onViewSectorDetails: (sectorId: string) => void;
@@ -20,6 +22,8 @@ interface SectorGapListProps {
 
 export function SectorGapList({
   eventId,
+  eventName = "",
+  eventLocation = null,
   activeSectorStatusFilters,
   activeCapacityFilters = [],
   onViewSectorDetails,
@@ -106,6 +110,9 @@ export function SectorGapList({
           key={sectorData.sector.id}
           sectorName={sectorData.sector.canonical_name}
           sectorId={sectorData.sector.id}
+          eventId={eventId}
+          eventName={eventName}
+          eventLocation={eventLocation}
           sectorNeedStatus={sectorData.sector_need_status ?? "WHITE"}
           gaps={sectorData.gaps}
           onViewDetails={() => onViewSectorDetails(sectorData.sector.id)}
