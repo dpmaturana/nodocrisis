@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   Users,
   Radio,
+  ChevronRight,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,10 +24,12 @@ interface DriverRowProps {
 }
 
 function DriverRow({ gap, onOpenLog }: DriverRowProps) {
+  const [expanded, setExpanded] = useState(false);
   const needStatus = gap.need_status ?? "WHITE";
   const config = NEED_STATUS_PRESENTATION[needStatus];
   const Icon = config.icon;
   const requirements = gap.operational_requirements ?? [];
+  const hasExpandableContent = !!gap.reasoning_summary || requirements.length > 0;
 
   return (
     <div className="space-y-1">
@@ -49,13 +52,21 @@ function DriverRow({ gap, onOpenLog }: DriverRowProps) {
             {gap.actor_count}
           </span>
         )}
+        {hasExpandableContent && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="p-0.5 rounded hover:bg-muted/50 text-muted-foreground shrink-0"
+          >
+            <ChevronRight className={cn("w-3 h-3 transition-transform", expanded && "rotate-90")} />
+          </button>
+        )}
       </div>
-      {gap.reasoning_summary && (
+      {expanded && gap.reasoning_summary && (
         <p className="text-xs text-muted-foreground italic ml-4 leading-tight">
           {gap.reasoning_summary}
         </p>
       )}
-      {requirements.length > 0 && (
+      {expanded && requirements.length > 0 && (
         <div className="flex flex-wrap gap-1 px-2 pb-1.5 ml-4">
           {requirements.map((req, i) => (
             <span
