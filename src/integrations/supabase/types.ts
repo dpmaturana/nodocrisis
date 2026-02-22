@@ -218,6 +218,7 @@ export type Database = {
       capacity_types: {
         Row: {
           created_at: string
+          criticality_level: string
           description: string | null
           icon: string | null
           id: string
@@ -225,6 +226,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          criticality_level?: string
           description?: string | null
           icon?: string | null
           id?: string
@@ -232,6 +234,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          criticality_level?: string
           description?: string | null
           icon?: string | null
           id?: string
