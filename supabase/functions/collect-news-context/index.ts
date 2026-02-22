@@ -92,7 +92,7 @@ async function fetchFromSerpApi(
 
   // Map country_code to SerpAPI gl param (ISO 3166-1 alpha-2 lowercase)
   const gl = country_code.toLowerCase(); // e.g. "es", "cl", "us"
-  const hl = (lang ?? (gl === "us" ? "en" : "es")).toLowerCase();
+  const hl = (lang ?? gl).toLowerCase();
 
   const params = new URLSearchParams({
     engine: "google_news",
