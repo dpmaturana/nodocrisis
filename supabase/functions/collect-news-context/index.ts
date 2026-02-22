@@ -49,10 +49,10 @@ function scoreItem(title: string, snippet: string, keywords: string[]) {
 }
 
 function extractSnippet(r: any): string {
-  if (r.snippet) return r.snippet;
+  if (r.snippet && r.snippet.trim()) return r.snippet;
   if (Array.isArray(r.stories) && r.stories.length > 0) {
     for (const s of r.stories) {
-      if (s.snippet) return s.snippet;
+      if (s.snippet && s.snippet.trim()) return s.snippet;
     }
   }
   return r.highlight ?? r.description ?? "";
@@ -99,6 +99,7 @@ async function fetchFromSerpApi(
     q: query,
     gl,
     hl,
+    tbs: "qdr:w",
     num: String(Math.min(max_results * 2, 20)),
     api_key: apiKey,
   });
