@@ -376,7 +376,7 @@ ${JSON.stringify(news_snippets.slice(0, 10), null, 2)}
           { role: "user", content: userPrompt },
         ],
         temperature: 0.2,
-        max_tokens: 1100,
+        max_tokens: 2500,
       }),
     });
 
@@ -394,8 +394,8 @@ ${JSON.stringify(news_snippets.slice(0, 10), null, 2)}
     let parsed: SituationReportResponse | null = null;
     try {
       const cleaned = content
-        .replace(/```json\n?/g, "")
-        .replace(/```\n?/g, "")
+        .replace(/^```(?:json)?\s*/i, "")
+        .replace(/\s*```$/i, "")
         .trim();
       parsed = JSON.parse(cleaned);
     } catch {
