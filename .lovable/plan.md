@@ -1,65 +1,73 @@
 
 
-## Add Requirement Pills, Reasoning Summary, and Deployed NGOs to Actor Sector Cards
+## Enhance My Deployments View
 
-### What changes
+### 1. Hide microcopy after sector state tag
 
-The actor-facing sector cards and detail drawer will be enriched to show the same information that admins see:
-1. **Requirement pills** (e.g., "Ambulances", "water") per gap -- the small tags from the `notes` JSON field
-2. **Reasoning summary** per gap -- the description text explaining why that need exists
-3. **Deployed NGOs** per gap -- which organizations are already covering each need and their status
+In `SectorDeploymentCard.tsx`, remove the `<span>` elements that show explanations like "Gap remains active based on available signals", "Insufficient coverage across some capabilities", and "Under monitoring" after the status badges (lines 199, 204).
 
-### Changes
+### 2. Make Field Status Report collapsible and translate to English
 
-**1. `src/services/sectorService.ts` -- Fetch notes, audits, and actor profiles**
+**Translate `FieldStatusReport.tsx` and `CompletedReportView.tsx` entirely to English:**
+- "Actualizar estado de terreno" -> "Update field status"
+- "Tu reporte ayuda a ajustar..." -> "Your report helps adjust coordination in real time."
+- "Como va tu operacion?" -> "How is your operation going?" (optional)
+- Status buttons: "Funciona por ahora" -> "Working", "No alcanza" -> "Insufficient", "Tuvimos que suspender" -> "Had to suspend"
+- "Grabar" -> "Record", "Agregar audio" -> "Add audio", "Agregar nota" -> "Add note"
+- "Enviar reporte" -> "Send report", "Enviando..." -> "Sending..."
+- Processing states: "Transcribiendo audio..." -> "Transcribing audio...", "Extrayendo informacion..." -> "Extracting information..."
+- "Reporte enviado y procesado" -> "Report sent and processed"
+- "Tu nota:" -> "Your note:", "Transcripcion:" -> "Transcription:"
+- "Senales registradas:" -> "Signals registered:"
+- "Lo que veran otros actores:" -> "What other actors will see:"
+- "Enviar otro reporte" -> "Send another report"
+- Toast messages translated too
+- Error messages like "Error de microfono" -> "Microphone error"
 
-In `getEnrichedSectors()`:
-- Fetch the `notes` field from `sector_needs_context` (already queried but not used)
-- Parse `notes` JSON to extract `requirements` array and `description` string (same logic as `gapService.ts` lines 212-235)
-- Fetch `need_audits` for reasoning summaries (latest per sector+capability pair)
-- Fetch `profiles` for deployed actor IDs to resolve names (currently uses raw UUIDs)
-- Add `operational_requirements`, `reasoning_summary`, and `coveringActors` to each `SectorGap`
+**Make the section collapsible:**
+- Wrap `FieldStatusReport` content in a `Collapsible` component
+- The header "Update field status" becomes the `CollapsibleTrigger` with a chevron icon
+- Default state: collapsed (closed)
+- When clicked, expands to show status buttons, audio recorder, text area, and submit button
 
-**2. `src/types/database.ts` -- Add optional fields to `SectorGap`**
+### 3. Enrich each CapabilityRow with need status, summary, and notes
 
-- Add `operational_requirements?: string[]` to `SectorGap` interface
-- Add `reasoning_summary?: string` to `SectorGap` interface
-- (`coveringActors` already exists on the type)
+**Enrich deployment data in `deploymentService.ts`:**
+- In `getMyDeploymentsGrouped()`, fetch `sector_needs_context` rows for each sector to get `level`, `notes` per capability
+- Fetch latest `need_audits` for reasoning summary fallback
+- Add `need_status`, `operational_requirements`, and `reasoning_summary` to `DeploymentWithDetails`
 
-**3. `src/components/sectors/SectorCard.tsx` -- Display pills and summary**
+**Update `DeploymentWithDetails` type:**
+- Add optional fields: `need_status?: string`, `operational_requirements?: string[]`, `reasoning_summary?: string`
 
-For each gap in the "Capabilities you can provide" section:
-- Show requirement pills as small rounded tags (e.g., "Ambulances", "Medical kits") below the gap name
-- Show reasoning summary as a small muted text underneath
-- Show covering actors with status icons inline
-
-**4. `src/components/sectors/SectorDetailDrawer.tsx` -- Display pills and summary in detail view**
-
-For each gap in the "Active Gaps" section:
-- Add requirement pills below each gap's header row
-- Show reasoning summary text
-- Already shows `coveringActors` -- just needs data to be populated
+**Update `CapabilityRow.tsx`:**
+- Below the capability name and status badge, show:
+  - Requirement pills (from `operational_requirements`) as small rounded tags
+  - Reasoning summary as muted italic text
+- Remove the current `deployment.notes` display (the "enrollment from sector..." phrase)
 
 ### Technical Details
 
-**SectorGap type update** (`src/types/database.ts`):
-```text
-export interface SectorGap {
-  // ... existing fields ...
-  coveringActors?: Array<{ name: string; status: string }>;
-  operational_requirements?: string[];   // NEW
-  reasoning_summary?: string;            // NEW
-}
-```
+**`deploymentService.ts` changes in `getMyDeploymentsGrouped()`:**
+- After grouping by sector, fetch `sector_needs_context` rows: `supabase.from("sector_needs_context").select("capacity_type_id, level, notes").eq("sector_id", sectorId)`
+- Fetch `need_audits` for reasoning fallback: `supabase.from("need_audits").select("capability_id, reasoning_summary").eq("sector_id", sectorId).order("created_at", { ascending: false })`
+- For each deployment, match by `capacity_type_id` to get notes JSON and level
+- Parse notes JSON same way as `gapService.ts` (lines 212-235)
+- Map level to need_status using `mapNeedLevelToNeedStatus()`
+- Attach `need_status`, `operational_requirements`, `reasoning_summary` to each `DeploymentWithDetails`
 
-**sectorService.ts enrichment** -- In the `getEnrichedSectors` loop, for each need:
-- Parse `notes` JSON using the same pattern from `gapService.ts` (lines 212-235)
-- Fetch latest `need_audits` row per (sector_id, capability_id) for `reasoning_summary` fallback
-- Resolve actor names via profiles table join on deployments
-- Pass `operational_requirements`, `reasoning_summary`, and `coveringActors` into each `SectorGap`
+**`SectorDeploymentCard.tsx` line changes:**
+- Line 199: Remove `<span className="text-xs text-muted-foreground">{stateConfig.microcopy}</span>`
+- Line 204: Remove `<span className="text-xs text-muted-foreground">Under monitoring</span>`
 
-**SectorCard.tsx** -- Inside each gap card, add:
-- `flex-wrap gap-1` container with requirement pills as `<span>` tags with `rounded-full border text-xs` styling
-- `<p>` with `text-xs text-muted-foreground italic` for reasoning summary
-- This mirrors the expandable `DriverRow` pattern from the admin side but shown inline (since actors have fewer gaps displayed)
+**`FieldStatusReport.tsx` changes:**
+- Import `Collapsible, CollapsibleContent, CollapsibleTrigger`
+- Wrap all form content (status buttons, audio, text, submit) inside `CollapsibleContent`
+- Make header a `CollapsibleTrigger` with chevron
+- Replace all Spanish strings with English equivalents
+- Same for `CompletedReportView.tsx`
 
+**`CapabilityRow.tsx` changes:**
+- Accept enriched deployment data
+- Replace `deployment.notes` display with `operational_requirements` pills and `reasoning_summary`
+- Show need status via a colored dot or badge alongside the deployment status
