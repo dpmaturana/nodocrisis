@@ -1,0 +1,1 @@
+ALTER TABLE need_audits ADD COLUMN llm_error text;

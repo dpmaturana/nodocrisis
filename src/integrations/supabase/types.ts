@@ -399,6 +399,7 @@ export type Database = {
           key_evidence: string[] | null
           legal_transition: boolean | null
           llm_confidence: number | null
+          llm_error: string | null
           model: string | null
           observation_score_proposal: Json | null
           previous_status: string
@@ -422,6 +423,7 @@ export type Database = {
           key_evidence?: string[] | null
           legal_transition?: boolean | null
           llm_confidence?: number | null
+          llm_error?: string | null
           model?: string | null
           observation_score_proposal?: Json | null
           previous_status?: string
@@ -445,6 +447,7 @@ export type Database = {
           key_evidence?: string[] | null
           legal_transition?: boolean | null
           llm_confidence?: number | null
+          llm_error?: string | null
           model?: string | null
           observation_score_proposal?: Json | null
           previous_status?: string
