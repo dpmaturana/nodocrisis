@@ -1,23 +1,11 @@
 // supabase/functions/collect-news-context/index.ts
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { XMLParser } from "https://esm.sh/fast-xml-parser@4.4.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-// Fallback feeds (used if DB table country_news_sources is not present / empty)
-const DEFAULT_ES_FEEDS = [
-  { source_name: "El País", rss_url: "https://elpais.com/rss/elpais/portada.xml" },
-  { source_name: "RTVE", rss_url: "https://www.rtve.es/rss/temas_noticias.xml" },
-  { source_name: "Europa Press", rss_url: "https://www.europapress.es/rss/rss.aspx" },
-  { source_name: "BBC", rss_url: "https://feeds.bbci.co.uk/news/rss.xml?edition=int" },
-  { source_name: "The Guardian", rss_url: "https://www.theguardian.com/world/rss" },
-];
-
-type Feed = { source_name: string; rss_url: string };
 
 type NewsItem = {
   source_name: string;
@@ -39,26 +27,9 @@ function normalizeText(s: string) {
 }
 
 function keywordsFromQuery(q: string): string[] {
-  // Minimal stopwords; you can expand later
   const stop = new Set([
-    "the",
-    "a",
-    "an",
-    "and",
-    "or",
-    "of",
-    "to",
-    "in",
-    "on",
-    "at",
-    "for",
-    "from",
-    "is",
-    "are",
-    "there",
-    "right",
-    "now",
-    "near",
+    "the","a","an","and","or","of","to","in","on","at",
+    "for","from","is","are","there","right","now","near",
   ]);
   const tokens = normalizeText(q)
     .split(" ")
@@ -66,77 +37,62 @@ function keywordsFromQuery(q: string): string[] {
   return Array.from(new Set(tokens)).slice(0, 14);
 }
 
-function scoreItem(title: string, desc: string, keywords: string[]) {
+function scoreItem(title: string, snippet: string, keywords: string[]) {
   const t = normalizeText(title);
-  const d = normalizeText(desc);
+  const s = normalizeText(snippet);
   let score = 0;
   for (const k of keywords) {
-    if (t.includes(k)) score += 4; // title is strong
-    if (d.includes(k)) score += 1;
+    if (t.includes(k)) score += 4;
+    if (s.includes(k)) score += 1;
   }
   return score;
 }
 
-function stripHtml(input: string) {
-  return (input || "")
-    .replace(/<[^>]*>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+// ---- NEW: fetch from SerpAPI Google News ----
+async function fetchFromSerpApi(
+  query: string,
+  country_code: string,
+  max_results: number,
+): Promise<NewsItem[]> {
+  const apiKey = Deno.env.get("SERPAPI_KEY");
+  if (!apiKey) throw new Error("SERPAPI_KEY env var is not set");
 
-async function fetchRssItems(feedUrl: string) {
-  const res = await fetch(feedUrl, {
-    headers: {
-      "User-Agent": "NodoCrisis/1.0 (collect-news-context)",
-      Accept: "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
-    },
+  const keywords = keywordsFromQuery(query);
+
+  // Map country_code to SerpAPI gl param (ISO 3166-1 alpha-2 lowercase)
+  const gl = country_code.toLowerCase(); // e.g. "es", "cl", "us"
+
+  const params = new URLSearchParams({
+    engine: "google_news",
+    q: query,
+    gl,
+    hl: gl === "us" ? "en" : "es",
+    num: String(Math.min(max_results * 2, 20)),
+    api_key: apiKey,
   });
-  if (!res.ok) throw new Error(`RSS fetch failed (${res.status}) for ${feedUrl}`);
-  const xml = await res.text();
 
-  const parser = new XMLParser({
-    ignoreAttributes: false,
-    attributeNamePrefix: "",
-    trimValues: true,
+  const res = await fetch(`https://serpapi.com/search?${params.toString()}`);
+  if (!res.ok) throw new Error(`SerpAPI request failed: ${res.status}`);
+
+  const json = await res.json();
+  const rawResults: any[] = json?.news_results ?? [];
+
+  const items: NewsItem[] = rawResults.map((r: any) => {
+    const title = r.title ?? "";
+    const snippet = r.snippet ?? "";
+    return {
+      source_name: r.source?.name ?? "Google News",
+      title,
+      url: r.link ?? null,
+      published_at: r.date ?? null,
+      snippet: snippet.slice(0, 320),
+      score: scoreItem(title, snippet, keywords),
+    };
   });
 
-  const parsed = parser.parse(xml);
-
-  // RSS 2.0: parsed.rss.channel.item
-  const channel = parsed?.rss?.channel;
-  const itemsRaw = channel?.item;
-
-  const items = Array.isArray(itemsRaw) ? itemsRaw : itemsRaw ? [itemsRaw] : [];
-
-  return items.map((it: any) => ({
-    title: it.title ?? "",
-    link: typeof it.link === "string" ? it.link : (it.link?.["#text"] ?? ""),
-    pubDate: it.pubDate ?? it.updated ?? it["dc:date"] ?? null,
-    description: it.description ?? it["content:encoded"] ?? it.summary ?? "",
-  }));
-}
-
-async function loadFeedsFromDb(country_code: string, limit = 5): Promise<Feed[] | null> {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-  // If not configured, we can't read DB here—fallback.
-  if (!supabaseUrl || !supabaseServiceKey) return null;
-
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-  // Table might not exist yet; catch and fallback.
-  const { data, error } = await supabase
-    .from("country_news_sources")
-    .select("source_name,rss_url,enabled,country_code")
-    .eq("country_code", country_code)
-    .eq("enabled", true)
-    .limit(limit);
-
-  if (error) return null;
-  if (!data || data.length === 0) return [];
-
-  return data.map((r: any) => ({ source_name: r.source_name, rss_url: r.rss_url }));
+  // Sort by relevance score
+  items.sort((a, b) => b.score - a.score);
+  return items.slice(0, max_results);
 }
 
 async function storeIngestedItems(country_code: string, items: NewsItem[]) {
@@ -145,8 +101,6 @@ async function storeIngestedItems(country_code: string, items: NewsItem[]) {
   if (!supabaseUrl || !supabaseServiceKey) return;
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-  // Table might not exist; ignore if it fails.
   try {
     await supabase.from("ingested_news_items").insert(
       items.map((it) => ({
@@ -156,11 +110,11 @@ async function storeIngestedItems(country_code: string, items: NewsItem[]) {
         url: it.url,
         published_at: it.published_at,
         snippet: it.snippet,
-        raw: it, // keep what we used
+        raw: it,
       })),
     );
   } catch {
-    // no-op
+    // no-op: table may not exist yet
   }
 }
 
@@ -189,11 +143,11 @@ Return ONLY valid JSON.
 
 Output schema:
 {
-  "summary": string,            // 1-3 sentences
-  "key_points": string[],       // 3-7 bullets max
-  "confidence": number,         // 0-1 (based on evidence match)
-  "used": [{ "id": string, "why": string }],  // references to provided snippet ids
-  "location_match": boolean,    // true only if location matches admin input
+  "summary": string,
+  "key_points": string[],
+  "confidence": number,
+  "used": [{ "id": string, "why": string }],
+  "location_match": boolean,
   "mismatch_reason": string | null
 }
 
@@ -202,17 +156,11 @@ Rules:
 - Do NOT invent facts not supported by the snippets.
 - confidence must be LOW (<0.5) if location_match is false.`;
 
-  const user = `Query: "${query}"
-
-News snippets:
-${JSON.stringify(top, null, 2)}`;
+  const user = `Query: "${query}"\n\nNews snippets:\n${JSON.stringify(top, null, 2)}`;
 
   const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${key}`,
-    },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
     body: JSON.stringify({
       model: "google/gemini-2.5-flash",
       messages: [
@@ -229,10 +177,7 @@ ${JSON.stringify(top, null, 2)}`;
   const json = await resp.json();
   const content = json?.choices?.[0]?.message?.content ?? "";
   try {
-    const cleaned = content
-      .replace(/```json\n?/g, "")
-      .replace(/```\n?/g, "")
-      .trim();
+    const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
     return JSON.parse(cleaned);
   } catch {
     return null;
@@ -245,37 +190,26 @@ serve(async (req) => {
   try {
     const body = await req.json();
 
-    // Accept both naming styles:
-    // - query / max_results
-    // - query_text / max_items
     const query =
-      typeof body.query === "string"
-        ? body.query
-        : typeof body.query_text === "string"
-          ? body.query_text
-          : typeof body.input_text === "string"
-            ? body.input_text // extra friendly
-            : "";
+      typeof body.query === "string" ? body.query
+      : typeof body.query_text === "string" ? body.query_text
+      : typeof body.input_text === "string" ? body.input_text
+      : "";
 
     const maxRaw =
-      typeof body.max_results === "number"
-        ? body.max_results
-        : typeof body.max_items === "number"
-          ? body.max_items
-          : typeof body.maxResults === "number"
-            ? body.maxResults
-            : undefined;
+      typeof body.max_results === "number" ? body.max_results
+      : typeof body.max_items === "number" ? body.max_items
+      : typeof body.maxResults === "number" ? body.maxResults
+      : undefined;
 
     const max_results = typeof maxRaw === "number" ? Math.max(1, Math.min(20, maxRaw)) : 8;
 
     const country_code =
-      typeof body.country_code === "string"
-        ? body.country_code.toUpperCase()
-        : typeof body.country === "string"
-          ? body.country.toUpperCase()
-          : "ES";
+      typeof body.country_code === "string" ? body.country_code.toUpperCase()
+      : typeof body.country === "string" ? body.country.toUpperCase()
+      : "ES";
 
-    const summarize = body.summarize === true; // optional
+    const summarize = body.summarize === true;
 
     if (!query.trim()) {
       return new Response(JSON.stringify({ error: "Missing query (or query_text)" }), {
@@ -284,62 +218,21 @@ serve(async (req) => {
       });
     }
 
-    // Load feeds from DB if possible; fallback to defaults
-    let feeds = await loadFeedsFromDb(country_code, 5);
-    if (!feeds || feeds.length === 0) {
-      feeds = country_code === "ES" ? DEFAULT_ES_FEEDS : DEFAULT_ES_FEEDS;
-    }
+    // ---- Single SerpAPI call replaces multi-feed RSS fetching ----
+    const top = await fetchFromSerpApi(query, country_code, max_results);
 
-    const keywords = keywordsFromQuery(query);
-
-    const results = await Promise.allSettled(
-      feeds.map(async (f) => {
-        const items = await fetchRssItems(f.rss_url);
-        return { feed: f, items };
-      }),
-    );
-
-    const scored: NewsItem[] = [];
-
-    for (const r of results) {
-      if (r.status !== "fulfilled") continue;
-      const { feed, items } = r.value;
-
-      for (const it of items.slice(0, 30)) {
-        const title = (it.title || "").toString();
-        const desc = stripHtml((it.description || "").toString());
-        const score = scoreItem(title, desc, keywords);
-
-        if (score > 0) {
-          scored.push({
-            source_name: feed.source_name,
-            title,
-            url: it.link ? it.link.toString() : null,
-            published_at: it.pubDate ? it.pubDate.toString() : null,
-            snippet: desc.slice(0, 320),
-            score,
-          });
-        }
-      }
-    }
-
-    scored.sort((a, b) => b.score - a.score);
-    const top = scored.slice(0, max_results);
-
-    // Optional: store ingested items (if table exists)
     await storeIngestedItems(country_code, top);
 
-    // Optional: summarize via Lovable (if summarize:true and key exists)
     const summary = summarize ? await summarizeWithLovable(query, top) : null;
 
     return new Response(
       JSON.stringify({
         country_code,
         query,
-        keywords,
-        feeds_used: feeds.map((f) => ({ source_name: f.source_name, rss_url: f.rss_url })),
+        keywords: keywordsFromQuery(query),
+        source: "serpapi_google_news",
         news_snippets: top,
-        summary, // null unless summarize=true and LOVABLE_API_KEY set
+        summary,
         note: {
           accepted_params: ["query|max_results", "query_text|max_items", "country_code", "summarize"],
         },
