@@ -1,6 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Deployment, DeploymentStatus, Event, Sector, CapacityType } from "@/types/database";
 import { needSignalService, mapNeedLevelToNeedStatus } from "@/services/needSignalService";
+import { computeSectorSeverity } from "@/lib/sectorNeedAggregation";
+import type { NeedCriticalityLevel } from "@/lib/sectorNeedAggregation";
+import type { NeedLevel } from "@/types/database";
 
 export interface DeploymentWithDetails extends Deployment {
   event?: Event;
@@ -39,17 +42,26 @@ export interface SectorDeploymentGroup {
 }
 
 async function determineSectorState(sectorId: string): Promise<SectorState> {
+  type NeedWithCriticality = { level: string; capacity_types: { criticality_level: string | null } | null };
   const { data: needs } = await supabase
     .from("sector_needs_context")
-    .select("level")
+    .select("level, capacity_types(criticality_level)")
     .eq("sector_id", sectorId);
 
   if (!needs || needs.length === 0) return "partial";
 
-  const levels = needs.map((n) => n.level);
-  if (levels.includes("critical")) return "critical";
-  if (levels.every((v) => v === "low")) return "contained";
-  return "partial";
+  const sectorAgg = computeSectorSeverity(
+    (needs as NeedWithCriticality[]).map((n, i) => ({
+      need_id: `${sectorId}:${i}`,
+      need_status: mapNeedLevelToNeedStatus(n.level as NeedLevel),
+      criticality_level: (n.capacity_types?.criticality_level as NeedCriticalityLevel) ?? "medium",
+      population_weight: 1,
+    }))
+  );
+
+  if (sectorAgg.status === "RED") return "critical";
+  if (sectorAgg.status === "ORANGE" || sectorAgg.status === "YELLOW") return "partial";
+  return "contained";
 }
 
 function determineOperatingPhase(

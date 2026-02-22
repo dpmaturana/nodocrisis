@@ -1,6 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { SectorContext, ActorInSector } from "./deploymentService";
 import type { Sector, Event, CapacityType, SectorGap, NeedLevel, Signal } from "@/types/database";
+import { computeSectorSeverity } from "@/lib/sectorNeedAggregation";
+import type { NeedCriticalityLevel } from "@/lib/sectorNeedAggregation";
+import type { NeedStatus } from "@/lib/needStatus";
+import { mapNeedLevelToNeedStatus } from "@/services/needSignalService";
 
 export interface RecommendedSector {
   sector: Sector;
@@ -21,6 +25,12 @@ export interface EnrichedSector {
   actorsInSector: ActorInSector[];
   recentSignals: Signal[];
   resolvedGaps?: SectorGap[];
+}
+
+function needStatusToSectorState(status: NeedStatus): EnrichedSector["state"] {
+  if (status === "RED") return "critical";
+  if (status === "ORANGE" || status === "YELLOW") return "partial";
+  return "contained";
 }
 
 /** Sort enriched sectors by severity → capability match → impact opportunity */
@@ -285,8 +295,16 @@ export const sectorService = {
         myCapabilityTypeIds.includes(g.capacityType.id)
       );
 
-      const hasCritical = gaps.some(g => g.isCritical);
-      const state: EnrichedSector["state"] = hasCritical ? "critical" : "partial";
+      // Compute sector severity using all needs (not just those with gaps)
+      const sectorAgg = computeSectorSeverity(
+        sectorNeeds.map(need => ({
+          need_id: need.id,
+          need_status: mapNeedLevelToNeedStatus(need.level as NeedLevel),
+          criticality_level: (need.capacity_types?.criticality_level as NeedCriticalityLevel) ?? "medium",
+          population_weight: 1,
+        }))
+      );
+      const state = needStatusToSectorState(sectorAgg.status);
 
       const sectorSignals = signals
         .filter(s => s.sector_id === sector.id)
