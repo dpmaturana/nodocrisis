@@ -1,73 +1,41 @@
 
 
-## Enhance My Deployments View
+## Enhance My Deployments Layout
 
-### 1. Hide microcopy after sector state tag
+### Changes
 
-In `SectorDeploymentCard.tsx`, remove the `<span>` elements that show explanations like "Gap remains active based on available signals", "Insufficient coverage across some capabilities", and "Under monitoring" after the status badges (lines 199, 204).
+**1. Group cards by event with event name header (`MyDeployments.tsx`)**
+- Group `activeGroups` by `event.id` into a map
+- Render an `<h2>` with the event name before each group of sector cards
+- Same for `historyGroups`
 
-### 2. Make Field Status Report collapsible and translate to English
+**2. Hide event name from each card (`SectorDeploymentCard.tsx`)**
+- Remove lines 181-190 (the `Activity` icon + event name + location row) since event name is now in the group header
 
-**Translate `FieldStatusReport.tsx` and `CompletedReportView.tsx` entirely to English:**
-- "Actualizar estado de terreno" -> "Update field status"
-- "Tu reporte ayuda a ajustar..." -> "Your report helps adjust coordination in real time."
-- "Como va tu operacion?" -> "How is your operation going?" (optional)
-- Status buttons: "Funciona por ahora" -> "Working", "No alcanza" -> "Insufficient", "Tuvimos que suspender" -> "Had to suspend"
-- "Grabar" -> "Record", "Agregar audio" -> "Add audio", "Agregar nota" -> "Add note"
-- "Enviar reporte" -> "Send report", "Enviando..." -> "Sending..."
-- Processing states: "Transcribiendo audio..." -> "Transcribing audio...", "Extrayendo informacion..." -> "Extracting information..."
-- "Reporte enviado y procesado" -> "Report sent and processed"
-- "Tu nota:" -> "Your note:", "Transcripcion:" -> "Transcription:"
-- "Senales registradas:" -> "Signals registered:"
-- "Lo que veran otros actores:" -> "What other actors will see:"
-- "Enviar otro reporte" -> "Send another report"
-- Toast messages translated too
-- Error messages like "Error de microfono" -> "Microphone error"
+**3. Move sector state badge next to sector name (`SectorDeploymentCard.tsx`)**
+- Move the `StatusBadge` from the separate "Phase/State indicator" div (lines 195-203) to be inline with the sector name on line 179
+- Remove the now-empty separate div
 
-**Make the section collapsible:**
-- Wrap `FieldStatusReport` content in a `Collapsible` component
-- The header "Update field status" becomes the `CollapsibleTrigger` with a chevron icon
-- Default state: collapsed (closed)
-- When clicked, expands to show status buttons, audio recorder, text area, and submit button
+**4. Show need status on each CapabilityRow (`CapabilityRow.tsx`)**
+- Import `NEED_STATUS_PRESENTATION` and `NeedStatus` from `@/lib/needStatus`
+- If `deployment.need_status` exists, render a small colored dot + label next to the deployment status badge
 
-### 3. Enrich each CapabilityRow with need status, summary, and notes
-
-**Enrich deployment data in `deploymentService.ts`:**
-- In `getMyDeploymentsGrouped()`, fetch `sector_needs_context` rows for each sector to get `level`, `notes` per capability
-- Fetch latest `need_audits` for reasoning summary fallback
-- Add `need_status`, `operational_requirements`, and `reasoning_summary` to `DeploymentWithDetails`
-
-**Update `DeploymentWithDetails` type:**
-- Add optional fields: `need_status?: string`, `operational_requirements?: string[]`, `reasoning_summary?: string`
-
-**Update `CapabilityRow.tsx`:**
-- Below the capability name and status badge, show:
-  - Requirement pills (from `operational_requirements`) as small rounded tags
-  - Reasoning summary as muted italic text
-- Remove the current `deployment.notes` display (the "enrollment from sector..." phrase)
+**5. Hide `(high)` etc. from requirement pills (`CapabilityRow.tsx`)**
+- Strip parenthesized level text like `(high)`, `(critical)`, `(medium)`, `(low)` from each requirement string using regex before display
 
 ### Technical Details
 
-**`deploymentService.ts` changes in `getMyDeploymentsGrouped()`:**
-- After grouping by sector, fetch `sector_needs_context` rows: `supabase.from("sector_needs_context").select("capacity_type_id, level, notes").eq("sector_id", sectorId)`
-- Fetch `need_audits` for reasoning fallback: `supabase.from("need_audits").select("capability_id, reasoning_summary").eq("sector_id", sectorId).order("created_at", { ascending: false })`
-- For each deployment, match by `capacity_type_id` to get notes JSON and level
-- Parse notes JSON same way as `gapService.ts` (lines 212-235)
-- Map level to need_status using `mapNeedLevelToNeedStatus()`
-- Attach `need_status`, `operational_requirements`, `reasoning_summary` to each `DeploymentWithDetails`
+**`MyDeployments.tsx`**: Group active/history groups by `event.id`:
+```text
+const groupedByEvent = Map<string, { eventName: string; groups: SectorDeploymentGroup[] }>
+```
+Render `<h2 className="text-xl font-semibold">{eventName}</h2>` before each event's cards.
 
-**`SectorDeploymentCard.tsx` line changes:**
-- Line 199: Remove `<span className="text-xs text-muted-foreground">{stateConfig.microcopy}</span>`
-- Line 204: Remove `<span className="text-xs text-muted-foreground">Under monitoring</span>`
+**`SectorDeploymentCard.tsx`**: Header becomes:
+```text
+[MapPin] [Sector Name] [StatusBadge]
+```
+No more event name row, no more separate phase/state div.
 
-**`FieldStatusReport.tsx` changes:**
-- Import `Collapsible, CollapsibleContent, CollapsibleTrigger`
-- Wrap all form content (status buttons, audio, text, submit) inside `CollapsibleContent`
-- Make header a `CollapsibleTrigger` with chevron
-- Replace all Spanish strings with English equivalents
-- Same for `CompletedReportView.tsx`
+**`CapabilityRow.tsx`**: Between capability name and deployment badge, show need status dot. Strip `(high)` etc. with `req.replace(/\s*\((?:high|critical|medium|low)\)\s*$/i, "").trim()`.
 
-**`CapabilityRow.tsx` changes:**
-- Accept enriched deployment data
-- Replace `deployment.notes` display with `operational_requirements` pills and `reasoning_summary`
-- Show need status via a colored dot or badge alongside the deployment status
