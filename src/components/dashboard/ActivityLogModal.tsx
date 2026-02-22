@@ -198,11 +198,6 @@ function ActivityLogItem({ entry }: { entry: CapabilityActivityLogEntry }) {
           <Sparkles className="w-3.5 h-3.5 mt-0.5 shrink-0 text-primary/60" />
           <div className="space-y-1">
             <p>{entry.reasoning_summary}</p>
-            {entry.guardrails_applied && entry.guardrails_applied.length > 0 && (
-              <p className="text-[10px] opacity-60">
-                Guardrails: {entry.guardrails_applied.join(", ")}
-              </p>
-            )}
           </div>
         </div>
       )}
