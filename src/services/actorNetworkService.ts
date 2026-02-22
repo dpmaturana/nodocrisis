@@ -20,7 +20,7 @@ const db = supabase as any;
 
 async function buildActorWithDetails(actor: Actor): Promise<ActorWithDetails> {
   const [{ data: caps }, { data: zoneRows }, { data: contactRows }] = await Promise.all([
-    db.from("actor_capabilities_declared").select("*").eq("actor_id", actor.id),
+    db.from("actor_capabilities").select("*").eq("actor_id", actor.id),
     db.from("actor_habitual_zones").select("*").eq("actor_id", actor.id),
     db.from("actor_contacts").select("*").eq("actor_id", actor.id),
   ]);
@@ -113,7 +113,7 @@ export const actorNetworkService = {
 
   async filterByCapacity(capacityTypeId: string): Promise<ActorWithDetails[]> {
     const { data: capRows, error: capErr } = await db
-      .from("actor_capabilities_declared")
+      .from("actor_capabilities")
       .select("actor_id")
       .eq("capacity_type_id", capacityTypeId);
     if (capErr) throw capErr;
@@ -187,7 +187,7 @@ export const actorNetworkService = {
     // Filter by capacity type if specified
     if (filters.capacityTypeId) {
       const { data: capRows } = await db
-        .from("actor_capabilities_declared")
+        .from("actor_capabilities")
         .select("actor_id")
         .eq("capacity_type_id", filters.capacityTypeId);
       const capActorIds = new Set((capRows || []).map((r: any) => r.actor_id));
@@ -267,7 +267,7 @@ export const actorNetworkService = {
   // ============== CAPABILITIES ==============
   async addCapability(actorId: string, input: CreateCapabilityInput): Promise<ActorCapabilityDeclared> {
     const { data, error } = await db
-      .from("actor_capabilities_declared")
+      .from("actor_capabilities")
       .insert({
         actor_id: actorId,
         capacity_type_id: input.capacity_type_id,
@@ -283,7 +283,7 @@ export const actorNetworkService = {
 
   async updateCapability(capabilityId: string, data: Partial<CreateCapabilityInput>): Promise<void> {
     const { error } = await db
-      .from("actor_capabilities_declared")
+      .from("actor_capabilities")
       .update({ ...data, updated_at: new Date().toISOString() })
       .eq("id", capabilityId);
     if (error) throw error;
@@ -291,7 +291,7 @@ export const actorNetworkService = {
 
   async removeCapability(capabilityId: string): Promise<void> {
     const { error } = await db
-      .from("actor_capabilities_declared")
+      .from("actor_capabilities")
       .delete()
       .eq("id", capabilityId);
     if (error) throw error;
