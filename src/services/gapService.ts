@@ -394,6 +394,15 @@ export const gapService = {
     const profileMap = new Map<string, ProfileRow>();
     (profiles ?? []).forEach((p) => profileMap.set(p.user_id, p as ProfileRow));
 
+    // Fetch sectors to resolve UUIDs to names
+    const sectorIds = [...new Set(deps.map((d) => d.sector_id))];
+    const { data: sectorRows } = await supabase
+      .from("sectors")
+      .select("id, canonical_name")
+      .in("id", sectorIds);
+    const sectorMap = new Map<string, string>();
+    (sectorRows ?? []).forEach((s) => sectorMap.set(s.id, s.canonical_name));
+
     // Group deployments by actor
     const byActor = new Map<string, typeof deps>();
     deps.forEach((d) => {
@@ -413,7 +422,7 @@ export const gapService = {
         id: actorId,
         name: profile?.organization_name ?? profile?.full_name ?? actorId,
         type: (profile?.organization_type as OperatingActor["type"]) ?? "ong",
-        sectors: [...new Set(actorDeps.map((d) => d.sector_id))],
+        sectors: [...new Set(actorDeps.map((d) => sectorMap.get(d.sector_id) ?? d.sector_id))],
         capacity: capName,
         lastConfirmation: lastDep.updated_at ?? null,
         contact: profile?.phone ? { name: profile.full_name ?? "", phone: profile.phone } : undefined,
