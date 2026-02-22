@@ -67,13 +67,13 @@ export function AppSidebar() {
               <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                 Management
               </p>
-              <SidebarLink to="/admin/actors" icon={Users} label="Red de Actores" />
-              <SidebarLink to="/admin/past-events" icon={Archive} label="Eventos Pasados" />
+              <SidebarLink to="/admin/actors" icon={Users} label="Actor Network" />
+              <SidebarLink to="/admin/past-events" icon={Archive} label="Past Events" />
             </div>
 
             <div className="mb-4">
               <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">System</p>
-              <SidebarLink to="/admin/settings" icon={Settings} label="Configuración" />
+              <SidebarLink to="/admin/settings" icon={Settings} label="Settings" />
             </div>
           </>
         ) : (
@@ -82,16 +82,16 @@ export function AppSidebar() {
             <div className="mb-4">
               <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">General</p>
               <SidebarLink to="/dashboard" icon={BarChart3} label="Dashboard" />
-              <SidebarLink to="/events" icon={Activity} label="Eventos" />
-              <SidebarLink to="/sectors" icon={MapPin} label="Sectores" />
+              <SidebarLink to="/events" icon={Activity} label="Events" />
+              <SidebarLink to="/sectors" icon={MapPin} label="Sectors" />
             </div>
 
             <div className="mb-4">
               <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                 My Organization
               </p>
-              <SidebarLink to="/my-capabilities" icon={Building2} label="Mis Capacidades" />
-              <SidebarLink to="/my-deployments" icon={MapPin} label="Mis Despliegues" />
+              <SidebarLink to="/my-capabilities" icon={Building2} label="My Capabilities" />
+              <SidebarLink to="/my-deployments" icon={MapPin} label="My Deployments" />
             </div>
           </>
         )}
@@ -106,8 +106,8 @@ export function AppSidebar() {
             </span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{profile?.organization_name || profile?.email || "Usuario"}</p>
-            <p className="text-xs text-muted-foreground truncate">{isAdmin ? "Administrador" : "Actor"}</p>
+            <p className="text-sm font-medium truncate">{profile?.organization_name || profile?.email || "User"}</p>
+            <p className="text-xs text-muted-foreground truncate">{isAdmin ? "Admin" : "Actor"}</p>
           </div>
         </div>
         <Button

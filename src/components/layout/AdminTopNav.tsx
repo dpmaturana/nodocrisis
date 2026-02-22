@@ -67,13 +67,13 @@ export function AdminTopNav() {
             <TopNavLink to="/admin/actors">
               <span className="flex items-center gap-1.5">
                 <Users className="w-4 h-4" />
-                Red de Actores
+                Actor Network
               </span>
             </TopNavLink>
             <TopNavLink to="/admin/past-events">
               <span className="flex items-center gap-1.5">
                 <Archive className="w-4 h-4" />
-                Eventos Pasados
+                Past Events
               </span>
             </TopNavLink>
           </nav>
@@ -89,19 +89,19 @@ export function AdminTopNav() {
                 </span>
               </div>
               <span className="hidden sm:inline text-sm">
-                {profile?.organization_name || profile?.email || "Usuario"}
+                {profile?.organization_name || profile?.email || "User"}
               </span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuItem className="gap-2">
               <User className="w-4 h-4" />
-              Perfil
+              Profile
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSignOut} className="gap-2 text-destructive">
               <LogOut className="w-4 h-4" />
-              Cerrar sesión
+              Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

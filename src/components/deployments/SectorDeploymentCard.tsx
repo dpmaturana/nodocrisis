@@ -129,8 +129,8 @@ export function SectorDeploymentCard({ group, actorId, onRefresh }: SectorDeploy
     try {
       await deploymentService.markSectorAsOperating(sector.id, actorId);
       toast({
-        title: "¡Operación iniciada!",
-        description: "Tus capacidades ahora están marcadas como operando.",
+        title: "Operation started!",
+        description: "Your capabilities are now marked as operating.",
       });
       onRefresh();
     } catch (error: any) {
@@ -153,8 +153,8 @@ export function SectorDeploymentCard({ group, actorId, onRefresh }: SectorDeploy
         }
       }
       toast({
-        title: "Operación finalizada",
-        description: "Tus despliegues han sido marcados como finalizados.",
+        title: "Operation finished",
+        description: "Your deployments have been marked as finished.",
       });
       onRefresh();
     } catch (error: any) {
@@ -200,8 +200,8 @@ export function SectorDeploymentCard({ group, actorId, onRefresh }: SectorDeploy
             </>
           ) : operatingPhase === "stabilizing" ? (
             <>
-              <StatusBadge status="gap-active" label="Sector contenido" size="sm" />
-              <span className="text-xs text-muted-foreground">En monitoreo</span>
+              <StatusBadge status="gap-active" label="Sector contained" size="sm" />
+              <span className="text-xs text-muted-foreground">Under monitoring</span>
             </>
           ) : (
             <StatusBadge status={phase.status} label={phase.label} size="sm" />
@@ -339,7 +339,7 @@ function PreparingPhaseContent({
 
       {/* My Capabilities */}
       <div className="space-y-2">
-        <h4 className="text-sm font-medium text-muted-foreground">Tus capacidades</h4>
+        <h4 className="text-sm font-medium text-muted-foreground">Your capabilities</h4>
         <div className="flex flex-wrap gap-2">
           {deployments.map((dep) => (
             <div key={dep.id} className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-lg text-sm">
@@ -449,13 +449,13 @@ function StabilizingPhaseContent({ deployments, onFinish, isFinishing, onAddCapa
 
       {/* Capabilities summary */}
       <div className="space-y-2">
-        <h4 className="text-sm font-medium text-muted-foreground">Tus capacidades</h4>
+        <h4 className="text-sm font-medium text-muted-foreground">Your capabilities</h4>
         <div className="flex flex-wrap gap-2">
           {deployments.map((dep) => (
             <div key={dep.id} className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-lg text-sm">
               <CapacityIcon name={dep.capacity_type?.name || ""} icon={dep.capacity_type?.icon} size="sm" />
               <span>{dep.capacity_type?.name}</span>
-              <StatusBadge status="deploy-operating" label="Operando" size="sm" />
+              <StatusBadge status="deploy-operating" label="Operating" size="sm" />
             </div>
           ))}
         </div>

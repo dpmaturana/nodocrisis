@@ -70,7 +70,7 @@ export function ActorDetailDrawer({
   const handleRemoveCapability = async (capabilityId: string) => {
     try {
       await actorNetworkService.removeCapability(capabilityId);
-      toast({ title: "Capacidad eliminada" });
+      toast({ title: "Capability removed" });
       onClose();
     } catch (error) {
       toast({ title: "Error al eliminar", variant: "destructive" });
@@ -80,7 +80,7 @@ export function ActorDetailDrawer({
   const handleRemoveZone = async (zoneId: string) => {
     try {
       await actorNetworkService.removeZone(zoneId);
-      toast({ title: "Zona eliminada" });
+      toast({ title: "Zone removed" });
       onClose();
     } catch (error) {
       toast({ title: "Error al eliminar", variant: "destructive" });
