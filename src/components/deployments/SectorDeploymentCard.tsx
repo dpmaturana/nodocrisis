@@ -194,15 +194,9 @@ export function SectorDeploymentCard({ group, actorId, onRefresh }: SectorDeploy
         {/* Phase/State indicator */}
         <div className="flex items-center gap-2 mt-2">
           {operatingPhase === "operating" ? (
-            <>
-              <StatusBadge status={stateConfig.status} label={stateConfig.label} size="sm" />
-              <span className="text-xs text-muted-foreground">{stateConfig.microcopy}</span>
-            </>
+            <StatusBadge status={stateConfig.status} label={stateConfig.label} size="sm" />
           ) : operatingPhase === "stabilizing" ? (
-            <>
-              <StatusBadge status="gap-active" label="Sector contained" size="sm" />
-              <span className="text-xs text-muted-foreground">Under monitoring</span>
-            </>
+            <StatusBadge status="gap-active" label="Sector contained" size="sm" />
           ) : (
             <StatusBadge status={phase.status} label={phase.label} size="sm" />
           )}

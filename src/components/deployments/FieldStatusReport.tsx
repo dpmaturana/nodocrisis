@@ -3,8 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Mic, Square, Play, X, CheckCircle, AlertTriangle, Pause, Loader2, Send, RotateCcw } from "@/lib/icons";
+import { Mic, Square, Play, X, CheckCircle, AlertTriangle, Pause, Loader2, Send, RotateCcw, ChevronDown } from "@/lib/icons";
 import { CompletedReportView } from "./CompletedReportView";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { fieldReportService } from "@/services/fieldReportService";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +25,7 @@ const MAX_RECORDING_SECONDS = 180;
 
 export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusReportProps) {
   const { toast } = useToast();
+  const [isOpen, setIsOpen] = useState(false);
   
   // Form state
   const [statusOption, setStatusOption] = useState<StatusOption>(null);
@@ -98,8 +100,8 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
       }, 1000);
     } catch (error) {
       toast({
-        title: "Error de micrófono",
-        description: "No se pudo acceder al micrófono.",
+        title: "Microphone error",
+        description: "Could not access the microphone.",
         variant: "destructive",
       });
     }
@@ -152,24 +154,22 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
     setStatusOption(null);
     setTextNote("");
     clearAudio();
-    onReportSent(); // Notify parent to refresh data
+    onReportSent();
   };
 
   const handleSubmit = async () => {
     setProcessingState("sending");
     
-    // Build full note from statusOption + textNote
     const statusLabels: Record<NonNullable<StatusOption>, string> = {
-      working: "Funciona por ahora",
-      insufficient: "No alcanza",
-      suspended: "Tuvimos que suspender",
+      working: "Working for now",
+      insufficient: "Insufficient",
+      suspended: "Had to suspend",
     };
     let fullNote = textNote;
     if (statusOption) {
       const statusText = statusLabels[statusOption];
       fullNote = statusText + (textNote ? "\n\n" + textNote : "");
     }
-    // Helper to check if string is valid UUID
     const isValidUUID = (str: string) => 
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
     
@@ -179,10 +179,8 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
       const sectorId = group.sector.id;
       const hasValidIds = isValidUUID(eventId) && isValidUUID(sectorId);
       
-      // 1. Process field report (audio or text-only)
       if (hasValidIds) {
         if (audioBlob) {
-          // Audio flow: upload + transcribe + extract
           const report = await fieldReportService.createReport({
             event_id: eventId,
             sector_id: sectorId,
@@ -192,10 +190,8 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
         
           setProcessingState("transcribing");
           
-          // Trigger transcription and wait for results
           await fieldReportService.triggerTranscription(report.id);
           
-          // Poll for status until completed, updating UI with intermediate status
           reportWithResults = await fieldReportService.pollStatus(
             report.id,
             (updatedReport) => {
@@ -203,7 +199,6 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
             }
           );
         } else if (fullNote.trim()) {
-          // Text-only flow: extract directly from text
           setProcessingState("transcribing");
           setProcessingStatus("extracting");
           
@@ -214,14 +209,12 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
           }, actorId);
         }
       } else if (fullNote.trim()) {
-        // Mock IDs but has text - use dry_run mode to still process with AI
         console.warn("Using dry-run mode for AI extraction", { eventId, sectorId });
         
         setProcessingState("transcribing");
         setProcessingStatus("extracting");
         
         try {
-          // Call edge function in dry-run mode (no DB persistence)
           const { data, error } = await supabase.functions.invoke('extract-text-report', {
             body: { 
               event_id: eventId,
@@ -255,7 +248,6 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
           }
         } catch (e) {
           console.error('Dry-run failed, using fallback mock:', e);
-          // Fallback to empty mock if dry-run fails
           reportWithResults = {
             id: `mock-${Date.now()}`,
             event_id: eventId,
@@ -281,37 +273,33 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
         }
         
         toast({
-          title: "Modo prueba",
-          description: "Procesado con IA pero sin persistir en base de datos.",
+          title: "Test mode",
+          description: "Processed with AI but not persisted to database.",
         });
       } else if (audioBlob) {
-        // Mock IDs with audio - can't process without real storage
         console.warn("Audio requires real IDs for storage", { eventId, sectorId });
         toast({
-          title: "Modo prueba",
-          description: "El audio requiere IDs reales para almacenamiento.",
+          title: "Test mode",
+          description: "Audio requires real IDs for storage.",
           variant: "default",
         });
       }
       
-      // Set completed state with results
       setProcessingState("completed");
       setCompletedReport(reportWithResults);
       
       toast({
-        title: "Reporte enviado",
+        title: "Report sent",
         description: statusOption === "suspended" 
-          ? "Tu operación ha sido suspendida." 
-          : "Tu actualización ha sido registrada.",
+          ? "Your operation has been suspended." 
+          : "Your update has been registered.",
       });
       
-      // Don't call onReportSent() here - let user review results first
-      // It will be called when they click "Enviar otro reporte"
     } catch (error: any) {
       setProcessingState("error");
       toast({
         title: "Error",
-        description: error.message || "No se pudo enviar el reporte.",
+        description: error.message || "Could not send the report.",
         variant: "destructive",
       });
     }
@@ -321,204 +309,208 @@ export function FieldStatusReport({ group, actorId, onReportSent }: FieldStatusR
   const canSubmit = !isProcessing && (!!audioBlob || textNote.trim() !== "" || statusOption !== null);
 
   return (
-    <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
-      <div>
+    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-0 p-4 bg-muted/30 rounded-lg border">
+      <CollapsibleTrigger className="flex items-center justify-between w-full">
         <h4 className="font-medium text-sm flex items-center gap-2">
           <Mic className="w-4 h-4 text-primary" />
-          Actualizar estado de terreno
+          Update field status
         </h4>
-        <p className="text-xs text-muted-foreground mt-1">
-          Tu reporte ayuda a ajustar la coordinación en tiempo real.
+        <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", isOpen && "rotate-180")} />
+      </CollapsibleTrigger>
+
+      <CollapsibleContent className="space-y-4 pt-3">
+        <p className="text-xs text-muted-foreground">
+          Your report helps adjust coordination in real time.
         </p>
-      </div>
 
-      {/* Solo mostrar controles de edición en estado idle */}
-      {processingState === "idle" && (
-        <>
-          {/* Status Options - Optional */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">
-              ¿Cómo va tu operación? <span className="text-muted-foreground text-xs">(opcional)</span>
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              <StatusButton
-                selected={statusOption === "working"}
-                onClick={() => setStatusOption("working")}
-                icon={<CheckCircle className="w-5 h-5" />}
-                label="Funciona"
-                sublabel="por ahora"
-                variant="success"
-              />
-              <StatusButton
-                selected={statusOption === "insufficient"}
-                onClick={() => setStatusOption("insufficient")}
-                icon={<AlertTriangle className="w-5 h-5" />}
-                label="No alcanza"
-                sublabel=""
-                variant="warning"
-              />
-              <StatusButton
-                selected={statusOption === "suspended"}
-                onClick={() => setStatusOption("suspended")}
-                icon={<Pause className="w-5 h-5" />}
-                label="Tuvimos que"
-                sublabel="suspender"
-                variant="muted"
-              />
+        {/* Show editing controls only in idle state */}
+        {processingState === "idle" && (
+          <>
+            {/* Status Options - Optional */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                How is your operation going? <span className="text-muted-foreground text-xs">(optional)</span>
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <StatusButton
+                  selected={statusOption === "working"}
+                  onClick={() => setStatusOption("working")}
+                  icon={<CheckCircle className="w-5 h-5" />}
+                  label="Working"
+                  sublabel=""
+                  variant="success"
+                />
+                <StatusButton
+                  selected={statusOption === "insufficient"}
+                  onClick={() => setStatusOption("insufficient")}
+                  icon={<AlertTriangle className="w-5 h-5" />}
+                  label="Insufficient"
+                  sublabel=""
+                  variant="warning"
+                />
+                <StatusButton
+                  selected={statusOption === "suspended"}
+                  onClick={() => setStatusOption("suspended")}
+                  icon={<Pause className="w-5 h-5" />}
+                  label="Had to"
+                  sublabel="suspend"
+                  variant="muted"
+                />
+              </div>
             </div>
-          </div>
 
-          {/* Audio Recording - Optional */}
-          <div className="space-y-2">
-            <label className="text-sm text-muted-foreground">
-              🎙️ Agregar audio (opcional)
-            </label>
-            <div className="flex items-center gap-2">
-              {!audioBlob && !isRecording && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={startRecording}
-                  className="gap-2"
-                >
-                  <Mic className="w-4 h-4 text-destructive" />
-                  Grabar
-                </Button>
-              )}
-              
-              {isRecording && (
-                <>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={stopRecording}
-                    className="gap-2"
-                  >
-                    <Square className="w-4 h-4" />
-                    {formatTime(recordingSeconds)}
-                  </Button>
-                  <span className="text-xs text-muted-foreground animate-pulse">
-                    Grabando...
-                  </span>
-                </>
-              )}
-              
-              {audioBlob && !isRecording && (
-                <>
+            {/* Audio Recording - Optional */}
+            <div className="space-y-2">
+              <label className="text-sm text-muted-foreground">
+                🎙️ Add audio (optional)
+              </label>
+              <div className="flex items-center gap-2">
+                {!audioBlob && !isRecording && (
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={isPlaying ? stopPlaying : playAudio}
+                    onClick={startRecording}
                     className="gap-2"
                   >
-                    {isPlaying ? (
+                    <Mic className="w-4 h-4 text-destructive" />
+                    Record
+                  </Button>
+                )}
+                
+                {isRecording && (
+                  <>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={stopRecording}
+                      className="gap-2"
+                    >
                       <Square className="w-4 h-4" />
-                    ) : (
-                      <Play className="w-4 h-4" />
-                    )}
-                    {formatTime(recordingSeconds)}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={clearAudio}
-                    className="h-8 w-8 p-0"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </>
-              )}
+                      {formatTime(recordingSeconds)}
+                    </Button>
+                    <span className="text-xs text-muted-foreground animate-pulse">
+                      Recording...
+                    </span>
+                  </>
+                )}
+                
+                {audioBlob && !isRecording && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={isPlaying ? stopPlaying : playAudio}
+                      className="gap-2"
+                    >
+                      {isPlaying ? (
+                        <Square className="w-4 h-4" />
+                      ) : (
+                        <Play className="w-4 h-4" />
+                      )}
+                      {formatTime(recordingSeconds)}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearAudio}
+                      className="h-8 w-8 p-0"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Text Note - Optional */}
+            <div className="space-y-2">
+              <label className="text-sm text-muted-foreground">
+                💬 Add note (optional)
+              </label>
+              <Textarea
+                placeholder="E.g.: Arrived 1 hour ago, water is lacking..."
+                value={textNote}
+                onChange={(e) => setTextNote(e.target.value)}
+                rows={2}
+                className="resize-none"
+              />
+            </div>
+          </>
+        )}
+
+        {/* Processing State: Transcribing with detailed status */}
+        {processingState === "transcribing" && (
+          <div className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg border">
+            <Loader2 className="w-5 h-5 animate-spin text-primary" />
+            <div>
+              <p className="text-sm font-medium">
+                {processingStatus === 'transcribing' && 'Transcribing audio...'}
+                {processingStatus === 'extracting' && 'Extracting information...'}
+                {(!processingStatus || processingStatus === 'pending') && 'Uploading audio...'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {processingStatus === 'transcribing' && 'Converting speech to text'}
+                {processingStatus === 'extracting' && 'Analyzing content with AI'}
+                {(!processingStatus || processingStatus === 'pending') && 'Preparing transcription'}
+              </p>
             </div>
           </div>
+        )}
 
-          {/* Text Note - Optional */}
-          <div className="space-y-2">
-            <label className="text-sm text-muted-foreground">
-              💬 Agregar nota (opcional)
-            </label>
-            <Textarea
-              placeholder="Ej: Llegamos hace 1 hora, falta agua..."
-              value={textNote}
-              onChange={(e) => setTextNote(e.target.value)}
-              rows={2}
-              className="resize-none"
-            />
+        {/* Completed State: Show Results */}
+        {processingState === "completed" && completedReport && (
+          <CompletedReportView 
+            completedReport={completedReport}
+            textNote={textNote}
+            sectorName={group.sector.canonical_name}
+            onReset={resetForm}
+          />
+        )}
+
+        {/* Completed without audio - simple success */}
+        {processingState === "completed" && !completedReport && (
+          <div className="space-y-3 p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-900">
+            <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+              <CheckCircle className="w-5 h-5" />
+              <span className="font-medium">Report sent successfully</span>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={resetForm}
+              className="w-full gap-2"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Send another report
+            </Button>
           </div>
-        </>
-      )}
+        )}
 
-      {/* Processing State: Transcribing with detailed status */}
-      {processingState === "transcribing" && (
-        <div className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg border">
-          <Loader2 className="w-5 h-5 animate-spin text-primary" />
-          <div>
-            <p className="text-sm font-medium">
-              {processingStatus === 'transcribing' && 'Transcribiendo audio...'}
-              {processingStatus === 'extracting' && 'Extrayendo información...'}
-              {(!processingStatus || processingStatus === 'pending') && 'Subiendo audio...'}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {processingStatus === 'transcribing' && 'Convirtiendo voz a texto'}
-              {processingStatus === 'extracting' && 'Analizando contenido con IA'}
-              {(!processingStatus || processingStatus === 'pending') && 'Preparando transcripción'}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Completed State: Show Results */}
-      {processingState === "completed" && completedReport && (
-        <CompletedReportView 
-          completedReport={completedReport}
-          textNote={textNote}
-          sectorName={group.sector.canonical_name}
-          onReset={resetForm}
-        />
-      )}
-
-      {/* Completed without audio - simple success */}
-      {processingState === "completed" && !completedReport && (
-        <div className="space-y-3 p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-900">
-          <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-            <CheckCircle className="w-5 h-5" />
-            <span className="font-medium">Reporte enviado correctamente</span>
-          </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={resetForm}
+        {/* Submit Button - Only show in idle state */}
+        {processingState === "idle" && (
+          <Button
+            onClick={handleSubmit}
+            disabled={!canSubmit}
             className="w-full gap-2"
           >
-            <RotateCcw className="w-4 h-4" />
-            Enviar otro reporte
+            {isProcessing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+            Send report
           </Button>
-        </div>
-      )}
+        )}
 
-      {/* Submit Button - Only show in idle state */}
-      {processingState === "idle" && (
-        <Button
-          onClick={handleSubmit}
-          disabled={!canSubmit}
-          className="w-full gap-2"
-        >
-          {isProcessing ? (
+        {/* Sending State */}
+        {processingState === "sending" && (
+          <Button disabled className="w-full gap-2">
             <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Send className="w-4 h-4" />
-          )}
-          Enviar reporte
-        </Button>
-      )}
-
-      {/* Sending State */}
-      {processingState === "sending" && (
-        <Button disabled className="w-full gap-2">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          Enviando...
-        </Button>
-      )}
-    </div>
+            Sending...
+          </Button>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
