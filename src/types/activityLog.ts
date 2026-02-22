@@ -8,9 +8,9 @@ export type ActivityEventType =
 export const SOURCE_TYPE_LABELS: Record<ActivitySourceType, string> = {
   twitter: "Twitter",
   institutional: "Admin",
-  ngo: "ONG",
-  original_context: "Contexto Original",
-  system: "Sistema",
+  ngo: "NGO",
+  original_context: "Original Context",
+  system: "System",
 };
 
 export const SOURCE_TYPE_WEIGHTS: Record<ActivitySourceType, number> = {

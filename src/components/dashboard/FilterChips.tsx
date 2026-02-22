@@ -79,7 +79,7 @@ export function FilterChips({
       {/* Sectors with gaps - static text, NOT a button */}
       <span className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-muted-foreground">
         <MapPin className="w-4 h-4 mr-1.5" />
-        {counts.sectorsWithGaps} sectores con brechas
+        {counts.sectorsWithGaps} sectors with gaps
       </span>
 
       {/* NeedStatus filter chips */}
@@ -118,7 +118,7 @@ export function FilterChips({
                 activeCapacityFilters.length > 0 && "border-primary text-primary",
               )}
             >
-              Capacidad
+              Capability
               {activeCapacityFilters.length > 0 && ` (${activeCapacityFilters.length})`}
               <ChevronDown className="w-3 h-3 ml-1" />
             </Badge>
@@ -146,7 +146,7 @@ export function FilterChips({
           className="text-muted-foreground hover:text-foreground"
         >
           <X className="w-4 h-4 mr-1" />
-          Limpiar
+          Clear
         </Button>
       )}
 
@@ -161,7 +161,7 @@ export function FilterChips({
         className="text-muted-foreground"
       >
         <Activity className="w-4 h-4 mr-1.5" />
-        {counts.operatingActors} organizaciones operando
+        {counts.operatingActors} organizations operating
       </Button>
     </div>
   );

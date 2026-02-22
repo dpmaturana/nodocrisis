@@ -26,8 +26,8 @@ export interface NeedStatusPresentation {
 
 export const NEED_STATUS_PRESENTATION: Record<NeedStatus, NeedStatusPresentation> = {
   WHITE: {
-    label: "Monitoreo",
-    shortLabel: "Blanco",
+    label: "Monitoring",
+    shortLabel: "Monitoring",
     bg: "bg-muted/40",
     text: "text-muted-foreground",
     border: "border-muted",
@@ -36,8 +36,8 @@ export const NEED_STATUS_PRESENTATION: Record<NeedStatus, NeedStatusPresentation
     icon: Clock3,
   },
   RED: {
-    label: "Crítico sin cobertura",
-    shortLabel: "Rojo",
+    label: "Critical",
+    shortLabel: "Critical",
     bg: "bg-gap-critical/20",
     text: "text-gap-critical",
     border: "border-gap-critical/50",
@@ -46,8 +46,8 @@ export const NEED_STATUS_PRESENTATION: Record<NeedStatus, NeedStatusPresentation
     icon: AlertCircle,
   },
   ORANGE: {
-    label: "Cobertura insuficiente",
-    shortLabel: "Naranja",
+    label: "Insufficient",
+    shortLabel: "Insufficient",
     bg: "bg-orange-500/20",
     text: "text-orange-400",
     border: "border-orange-500/50",
@@ -56,8 +56,8 @@ export const NEED_STATUS_PRESENTATION: Record<NeedStatus, NeedStatusPresentation
     icon: ShieldAlert,
   },
   YELLOW: {
-    label: "Cobertura en validación",
-    shortLabel: "Amarillo",
+    label: "Under review",
+    shortLabel: "Under review",
     bg: "bg-warning/20",
     text: "text-warning",
     border: "border-warning/50",
@@ -66,8 +66,8 @@ export const NEED_STATUS_PRESENTATION: Record<NeedStatus, NeedStatusPresentation
     icon: AlertTriangle,
   },
   GREEN: {
-    label: "Estabilizado",
-    shortLabel: "Verde",
+    label: "Stabilized",
+    shortLabel: "Stabilized",
     bg: "bg-coverage/20",
     text: "text-coverage",
     border: "border-coverage/50",
