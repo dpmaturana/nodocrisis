@@ -16,10 +16,12 @@ export type Database = {
     Tables: {
       actor_capabilities: {
         Row: {
+          actor_id: string | null
           availability: Database["public"]["Enums"]["availability_status"]
           capacity_type_id: string
           created_at: string
           id: string
+          level: Database["public"]["Enums"]["capability_level"]
           notes: string | null
           quantity: number | null
           unit: string | null
@@ -27,10 +29,12 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          actor_id?: string | null
           availability?: Database["public"]["Enums"]["availability_status"]
           capacity_type_id: string
           created_at?: string
           id?: string
+          level?: Database["public"]["Enums"]["capability_level"]
           notes?: string | null
           quantity?: number | null
           unit?: string | null
@@ -38,10 +42,12 @@ export type Database = {
           user_id: string
         }
         Update: {
+          actor_id?: string | null
           availability?: Database["public"]["Enums"]["availability_status"]
           capacity_type_id?: string
           created_at?: string
           id?: string
+          level?: Database["public"]["Enums"]["capability_level"]
           notes?: string | null
           quantity?: number | null
           unit?: string | null
@@ -50,6 +56,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "actor_capabilities_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "actors"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "actor_capabilities_capacity_type_id_fkey"
             columns: ["capacity_type_id"]
             isOneToOne: false
@@ -57,6 +70,150 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      actor_contacts: {
+        Row: {
+          actor_id: string
+          created_at: string
+          email: string | null
+          id: string
+          is_primary: boolean
+          name: string
+          phone: string | null
+          role: string | null
+          updated_at: string
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_primary?: boolean
+          name: string
+          phone?: string | null
+          role?: string | null
+          updated_at?: string
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_primary?: boolean
+          name?: string
+          phone?: string | null
+          role?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "actor_contacts_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "actors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      actor_habitual_zones: {
+        Row: {
+          actor_id: string
+          commune: string | null
+          created_at: string
+          id: string
+          presence_type: Database["public"]["Enums"]["presence_type"]
+          region: string
+        }
+        Insert: {
+          actor_id: string
+          commune?: string | null
+          created_at?: string
+          id?: string
+          presence_type?: Database["public"]["Enums"]["presence_type"]
+          region: string
+        }
+        Update: {
+          actor_id?: string
+          commune?: string | null
+          created_at?: string
+          id?: string
+          presence_type?: Database["public"]["Enums"]["presence_type"]
+          region?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "actor_habitual_zones_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "actors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      actor_members: {
+        Row: {
+          actor_id: string
+          created_at: string
+          id: string
+          role_in_org: Database["public"]["Enums"]["actor_org_role"]
+          user_id: string
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          id?: string
+          role_in_org?: Database["public"]["Enums"]["actor_org_role"]
+          user_id: string
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          id?: string
+          role_in_org?: Database["public"]["Enums"]["actor_org_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "actor_members_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "actors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      actors: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          organization_name: string
+          organization_type: Database["public"]["Enums"]["actor_type"]
+          structural_status: Database["public"]["Enums"]["actor_structural_status"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          organization_name: string
+          organization_type?: Database["public"]["Enums"]["actor_type"]
+          structural_status?: Database["public"]["Enums"]["actor_structural_status"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          organization_name?: string
+          organization_type?: Database["public"]["Enums"]["actor_type"]
+          structural_status?: Database["public"]["Enums"]["actor_structural_status"]
+          updated_at?: string
+        }
+        Relationships: []
       }
       capacity_types: {
         Row: {
@@ -837,8 +994,12 @@ export type Database = {
       }
     }
     Enums: {
+      actor_org_role: "admin" | "member"
+      actor_structural_status: "active" | "inactive"
+      actor_type: "ong" | "state" | "private" | "volunteer"
       app_role: "admin" | "actor"
       availability_status: "ready" | "limited" | "unavailable"
+      capability_level: "basic" | "operational" | "specialized"
       deployment_status:
         | "interested"
         | "confirmed"
@@ -847,6 +1008,7 @@ export type Database = {
         | "finished"
       event_priority: "low" | "medium" | "high" | "critical"
       need_level: "low" | "medium" | "high" | "critical"
+      presence_type: "habitual" | "occasional"
       report_status: "draft" | "confirmed" | "discarded"
       sector_status: "unresolved" | "tentative" | "resolved"
     }
@@ -976,8 +1138,12 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      actor_org_role: ["admin", "member"],
+      actor_structural_status: ["active", "inactive"],
+      actor_type: ["ong", "state", "private", "volunteer"],
       app_role: ["admin", "actor"],
       availability_status: ["ready", "limited", "unavailable"],
+      capability_level: ["basic", "operational", "specialized"],
       deployment_status: [
         "interested",
         "confirmed",
@@ -987,6 +1153,7 @@ export const Constants = {
       ],
       event_priority: ["low", "medium", "high", "critical"],
       need_level: ["low", "medium", "high", "critical"],
+      presence_type: ["habitual", "occasional"],
       report_status: ["draft", "confirmed", "discarded"],
       sector_status: ["unresolved", "tentative", "resolved"],
     },
