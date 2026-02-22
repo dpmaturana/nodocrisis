@@ -1,5 +1,6 @@
 import { CapacityIcon } from "@/components/ui/CapacityIcon";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { NEED_STATUS_PRESENTATION, type NeedStatus } from "@/lib/needStatus";
 import type { DeploymentWithDetails } from "@/services/deploymentService";
 import type { DeploymentStatus } from "@/types/database";
 
@@ -37,11 +38,22 @@ export function CapabilityRow({ deployment }: CapabilityRowProps) {
             {deployment.capacity_type?.name || "Capability"}
           </span>
         </div>
-        <StatusBadge
-          status={statusToVariant[deployment.status]}
-          label={statusLabels[deployment.status]}
-          size="sm"
-        />
+        <div className="flex items-center gap-2">
+          {deployment.need_status && NEED_STATUS_PRESENTATION[deployment.need_status as NeedStatus] && (() => {
+            const pres = NEED_STATUS_PRESENTATION[deployment.need_status as NeedStatus];
+            return (
+              <span className={`flex items-center gap-1 text-xs ${pres.text}`}>
+                <span className={`w-2 h-2 rounded-full ${pres.dot}`} />
+                {pres.shortLabel}
+              </span>
+            );
+          })()}
+          <StatusBadge
+            status={statusToVariant[deployment.status]}
+            label={statusLabels[deployment.status]}
+            size="sm"
+          />
+        </div>
       </div>
 
       {/* Requirement pills */}
@@ -52,7 +64,7 @@ export function CapabilityRow({ deployment }: CapabilityRowProps) {
               key={i}
               className="px-2 py-0.5 text-xs rounded-full border border-border bg-card text-muted-foreground"
             >
-              {req}
+              {req.replace(/\s*\((?:high|critical|medium|low)\)\s*$/i, "").trim()}
             </span>
           ))}
         </div>
