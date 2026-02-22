@@ -268,11 +268,6 @@ export default function SituationReport() {
           <span className="text-sm text-muted-foreground">
             Generado: {format(new Date(report.created_at), "d MMM yyyy, HH:mm", { locale: es })}
           </span>
-          {report.overall_confidence && (
-            <Badge variant="secondary" className="font-mono">
-              Confianza: {confidencePercent}%
-            </Badge>
-          )}
         </div>
         <h1 className="text-2xl font-bold">Reporte de Situación Inicial</h1>
       </div>
