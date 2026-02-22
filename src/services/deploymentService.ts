@@ -6,6 +6,9 @@ export interface DeploymentWithDetails extends Deployment {
   event?: Event;
   sector?: Sector;
   capacity_type?: CapacityType;
+  need_status?: string;
+  operational_requirements?: string[];
+  reasoning_summary?: string;
 }
 
 export type OperatingPhase = "preparing" | "operating" | "stabilizing";
@@ -126,6 +129,64 @@ export const deploymentService = {
         operationalSummary: `Sector ${sector.canonical_name} - ${event.name}`,
       };
 
+      // Fetch need context for enriching capabilities
+      const { data: needsContext } = await supabase
+        .from("sector_needs_context")
+        .select("capacity_type_id, level, notes")
+        .eq("sector_id", sectorId);
+
+      // Fetch latest need_audits for reasoning fallback
+      const { data: audits } = await supabase
+        .from("need_audits")
+        .select("capability_id, reasoning_summary")
+        .eq("sector_id", sectorId)
+        .order("timestamp", { ascending: false });
+
+      // Build lookup maps
+      const needMap = new Map<string, { level: string; notes: string | null }>();
+      (needsContext || []).forEach((n: any) => needMap.set(n.capacity_type_id, { level: n.level, notes: n.notes }));
+
+      const auditMap = new Map<string, string>();
+      (audits || []).forEach((a: any) => {
+        if (!auditMap.has(a.capability_id) && a.reasoning_summary) {
+          auditMap.set(a.capability_id, a.reasoning_summary);
+        }
+      });
+
+      // Enrich each deployment with need data
+      const enrichedDeployments = sectorDeployments.map((dep) => {
+        const needInfo = needMap.get(dep.capacity_type_id);
+        let operational_requirements: string[] = [];
+        let reasoning_summary: string | undefined;
+        let need_status: string | undefined;
+
+        if (needInfo) {
+          need_status = mapNeedLevelToNeedStatus(needInfo.level as any);
+
+          if (needInfo.notes) {
+            try {
+              const parsed = JSON.parse(needInfo.notes);
+              if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                operational_requirements = Array.isArray(parsed.requirements) ? parsed.requirements : [];
+                if (typeof parsed.description === "string") {
+                  reasoning_summary = parsed.description;
+                }
+              } else if (Array.isArray(parsed)) {
+                operational_requirements = parsed;
+              }
+            } catch {
+              reasoning_summary = needInfo.notes;
+            }
+          }
+
+          if (!reasoning_summary) {
+            reasoning_summary = auditMap.get(dep.capacity_type_id);
+          }
+        }
+
+        return { ...dep, need_status, operational_requirements, reasoning_summary };
+      });
+
       // Fetch other actors in this sector
       const { data: otherDeps } = await supabase
         .from("deployments")
@@ -137,7 +198,7 @@ export const deploymentService = {
         id: d.actor_id,
         name: d.profiles?.full_name || d.profiles?.organization_name || "Actor",
         role: "actor",
-        capacity: d.capacity_types?.name || "Sin especificar",
+        capacity: d.capacity_types?.name || "Unspecified",
         status: d.status,
       }));
 
@@ -146,7 +207,7 @@ export const deploymentService = {
         event,
         sectorState,
         sectorContext,
-        deployments: sectorDeployments,
+        deployments: enrichedDeployments,
         operatingPhase,
         otherActors,
       });

@@ -25,29 +25,45 @@ const statusLabels: Record<DeploymentStatus, string> = {
 
 export function CapabilityRow({ deployment }: CapabilityRowProps) {
   return (
-    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-      <div className="flex items-center gap-3">
-        <CapacityIcon
-          name={deployment.capacity_type?.name || ""}
-          icon={deployment.capacity_type?.icon}
-          size="sm"
-        />
-        <div>
+    <div className="p-3 bg-muted/50 rounded-lg space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <CapacityIcon
+            name={deployment.capacity_type?.name || ""}
+            icon={deployment.capacity_type?.icon}
+            size="sm"
+          />
           <span className="font-medium text-sm">
             {deployment.capacity_type?.name || "Capability"}
           </span>
-          {deployment.notes && (
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {deployment.notes}
-            </p>
-          )}
         </div>
+        <StatusBadge
+          status={statusToVariant[deployment.status]}
+          label={statusLabels[deployment.status]}
+          size="sm"
+        />
       </div>
-      <StatusBadge
-        status={statusToVariant[deployment.status]}
-        label={statusLabels[deployment.status]}
-        size="sm"
-      />
+
+      {/* Requirement pills */}
+      {deployment.operational_requirements && deployment.operational_requirements.length > 0 && (
+        <div className="flex flex-wrap gap-1 pl-9">
+          {deployment.operational_requirements.map((req, i) => (
+            <span
+              key={i}
+              className="px-2 py-0.5 text-xs rounded-full border border-border bg-card text-muted-foreground"
+            >
+              {req}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Reasoning summary */}
+      {deployment.reasoning_summary && (
+        <p className="text-xs text-muted-foreground italic pl-9">
+          {deployment.reasoning_summary}
+        </p>
+      )}
     </div>
   );
 }

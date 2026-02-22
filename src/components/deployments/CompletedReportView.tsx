@@ -43,35 +43,35 @@ export function CompletedReportView({
     <div className="space-y-3 p-4 bg-coverage/10 rounded-lg border border-coverage/30">
       <div className="flex items-center gap-2 text-coverage">
         <CheckCircle className="w-5 h-5" />
-        <span className="font-medium">Reporte enviado y procesado</span>
+        <span className="font-medium">Report sent and processed</span>
       </div>
       
-      {/* Text Note - Exact */}
+      {/* Text Note */}
       {textNote && (
         <div className="bg-card rounded-lg p-3 border border-border">
           <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
             <MessageSquare className="w-3 h-3" />
-            Tu nota:
+            Your note:
           </p>
           <p className="text-sm text-foreground">{textNote}</p>
         </div>
       )}
       
-      {/* Transcription - Exact */}
+      {/* Transcription */}
       {completedReport.transcript && (
         <div className="bg-card rounded-lg p-3 border border-border">
           <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
             <Mic className="w-3 h-3" />
-            Transcripción:
+            Transcription:
           </p>
           <p className="text-sm text-foreground">{completedReport.transcript}</p>
         </div>
       )}
       
-      {/* Signals Registered with Gap Status - colored dots */}
+      {/* Signals Registered */}
       {completedReport.extracted_data?.capability_types?.length > 0 && (
         <div className="space-y-2 pt-2 border-t border-border">
-          <p className="text-xs text-muted-foreground">Señales registradas:</p>
+          <p className="text-xs text-muted-foreground">Signals registered:</p>
           <div className="space-y-1.5">
             {completedReport.extracted_data.capability_types.map((capType, i) => {
               const gapStatus = getGapStatus(capType);
@@ -94,12 +94,12 @@ export function CompletedReportView({
         </div>
       )}
       
-      {/* Public Summary - What others will see */}
+      {/* Public Summary */}
       {completedReport.extracted_data?.observations && (
         <div className="bg-demand-sms/10 rounded-lg p-3 border border-demand-sms/30">
           <p className="text-xs text-demand-sms mb-1 flex items-center gap-1">
             <Users className="w-3 h-3" />
-            Lo que verán otros actores:
+            What other actors will see:
           </p>
           <p className="text-sm text-foreground">{completedReport.extracted_data.observations}</p>
         </div>
@@ -113,7 +113,7 @@ export function CompletedReportView({
         className="w-full gap-2"
       >
         <RotateCcw className="w-4 h-4" />
-        Enviar otro reporte
+        Send another report
       </Button>
     </div>
   );
