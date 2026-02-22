@@ -68,7 +68,9 @@ function flattenResults(rawResults: any[]): any[] {
           snippet: s.snippet ?? r.snippet ?? "",
           link: s.link ?? r.link ?? null,
           date: s.date ?? r.date ?? null,
+          iso_date: s.iso_date ?? r.iso_date ?? null,
           source: s.source ?? r.source,
+          thumbnail: s.thumbnail ?? r.thumbnail ?? null,
         });
       }
     } else {
@@ -99,8 +101,6 @@ async function fetchFromSerpApi(
     q: query,
     gl,
     hl,
-    tbs: "qdr:w",
-    num: String(Math.min(max_results * 2, 20)),
     api_key: apiKey,
   });
 
@@ -114,12 +114,12 @@ async function fetchFromSerpApi(
 
   const items: NewsItem[] = flatResults.map((r: any) => {
     const title = r.title ?? "";
-    const snippet = extractSnippet(r);
+    const snippet = extractSnippet(r) || title;
     return {
       source_name: r.source?.name ?? "Google News",
       title,
       url: r.link ?? null,
-      published_at: r.date ?? null,
+      published_at: r.iso_date ?? r.date ?? null,
       snippet: snippet.slice(0, 320),
       score: scoreItem(title, snippet, keywords),
     };
