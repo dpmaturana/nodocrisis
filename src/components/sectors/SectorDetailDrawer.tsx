@@ -204,6 +204,20 @@ export function SectorDetailDrawer({
                             <Icon className={`w-4 h-4 ${presentation.text}`} />
                           </div>
                         </div>
+                        {/* Requirement pills */}
+                        {gap.operational_requirements && gap.operational_requirements.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {gap.operational_requirements.map((req, i) => (
+                              <span key={i} className="px-2 py-0.5 rounded-full border border-border bg-background/60 text-xs text-muted-foreground">
+                                {req}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {/* Reasoning summary */}
+                        {gap.reasoning_summary && (
+                          <p className="text-xs text-muted-foreground italic mt-1">{gap.reasoning_summary}</p>
+                        )}
                         {gap.coveringActors && gap.coveringActors.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-2">
                             {gap.coveringActors.map((actor, i) => (
@@ -250,6 +264,18 @@ export function SectorDetailDrawer({
                             </div>
                             <Icon className={`w-4 h-4 ${presentation.text}`} />
                           </div>
+                          {gap.operational_requirements && gap.operational_requirements.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {gap.operational_requirements.map((req, i) => (
+                                <span key={i} className="px-2 py-0.5 rounded-full border border-border bg-background/60 text-xs text-muted-foreground">
+                                  {req}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {gap.reasoning_summary && (
+                            <p className="text-xs text-muted-foreground italic mt-1">{gap.reasoning_summary}</p>
+                          )}
                           {gap.coveringActors && gap.coveringActors.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-2">
                               {gap.coveringActors.map((actor, i) => (

@@ -223,6 +223,8 @@ export interface SectorGap {
   isCritical: boolean;
   maxLevel: NeedLevel;
   coveringActors?: Array<{ name: string; status: string }>;
+  operational_requirements?: string[];
+  reasoning_summary?: string;
 }
 
 export interface DashboardStats {
