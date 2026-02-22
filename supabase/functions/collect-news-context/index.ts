@@ -48,11 +48,42 @@ function scoreItem(title: string, snippet: string, keywords: string[]) {
   return score;
 }
 
+function extractSnippet(r: any): string {
+  if (r.snippet) return r.snippet;
+  if (Array.isArray(r.stories) && r.stories.length > 0) {
+    for (const s of r.stories) {
+      if (s.snippet) return s.snippet;
+    }
+  }
+  return r.highlight ?? r.description ?? "";
+}
+
+function flattenResults(rawResults: any[]): any[] {
+  const flat: any[] = [];
+  for (const r of rawResults) {
+    if (Array.isArray(r.stories) && r.stories.length > 0) {
+      for (const s of r.stories) {
+        flat.push({
+          title: s.title ?? r.title ?? "",
+          snippet: s.snippet ?? r.snippet ?? "",
+          link: s.link ?? r.link ?? null,
+          date: s.date ?? r.date ?? null,
+          source: s.source ?? r.source,
+        });
+      }
+    } else {
+      flat.push(r);
+    }
+  }
+  return flat;
+}
+
 // ---- NEW: fetch from SerpAPI Google News ----
 async function fetchFromSerpApi(
   query: string,
   country_code: string,
   max_results: number,
+  lang?: string,
 ): Promise<NewsItem[]> {
   const apiKey = Deno.env.get("SERPAPI_KEY");
   if (!apiKey) throw new Error("SERPAPI_KEY env var is not set");
@@ -61,12 +92,13 @@ async function fetchFromSerpApi(
 
   // Map country_code to SerpAPI gl param (ISO 3166-1 alpha-2 lowercase)
   const gl = country_code.toLowerCase(); // e.g. "es", "cl", "us"
+  const hl = (lang ?? (gl === "us" ? "en" : "es")).toLowerCase();
 
   const params = new URLSearchParams({
     engine: "google_news",
     q: query,
     gl,
-    hl: gl === "us" ? "en" : "es",
+    hl,
     num: String(Math.min(max_results * 2, 20)),
     api_key: apiKey,
   });
@@ -77,9 +109,11 @@ async function fetchFromSerpApi(
   const json = await res.json();
   const rawResults: any[] = json?.news_results ?? [];
 
-  const items: NewsItem[] = rawResults.map((r: any) => {
+  const flatResults = flattenResults(rawResults);
+
+  const items: NewsItem[] = flatResults.map((r: any) => {
     const title = r.title ?? "";
-    const snippet = r.snippet ?? "";
+    const snippet = extractSnippet(r);
     return {
       source_name: r.source?.name ?? "Google News",
       title,
@@ -95,26 +129,29 @@ async function fetchFromSerpApi(
   return items.slice(0, max_results);
 }
 
-async function storeIngestedItems(country_code: string, items: NewsItem[]) {
+async function storeIngestedItems(country_code: string, items: NewsItem[]): Promise<void> {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!supabaseUrl || !supabaseServiceKey) return;
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.warn("[storeIngestedItems] Supabase env vars not set — skipping persistence");
+    return;
+  }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
-  try {
-    await supabase.from("ingested_news_items").insert(
-      items.map((it) => ({
-        country_code,
-        source_name: it.source_name,
-        title: it.title,
-        url: it.url,
-        published_at: it.published_at,
-        snippet: it.snippet,
-        raw: it,
-      })),
-    );
-  } catch {
-    // no-op: table may not exist yet
+  const { error } = await supabase.from("ingested_news_items").insert(
+    items.map((it) => ({
+      country_code,
+      source_name: it.source_name,
+      title: it.title,
+      url: it.url,
+      published_at: it.published_at,
+      snippet: it.snippet,
+      raw: it,
+    })),
+  );
+
+  if (error) {
+    console.error("[storeIngestedItems] Insert failed:", error.message, error.code);
   }
 }
 
@@ -207,7 +244,7 @@ serve(async (req) => {
     const country_code =
       typeof body.country_code === "string" ? body.country_code.toUpperCase()
       : typeof body.country === "string" ? body.country.toUpperCase()
-      : "ES";
+      : null;
 
     const summarize = body.summarize === true;
 
@@ -218,8 +255,17 @@ serve(async (req) => {
       });
     }
 
+    if (!country_code) {
+      return new Response(JSON.stringify({ error: "Missing country_code (e.g. 'CL', 'US', 'PE')" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const lang = typeof body.lang === "string" ? body.lang : undefined;
+
     // ---- Single SerpAPI call replaces multi-feed RSS fetching ----
-    const top = await fetchFromSerpApi(query, country_code, max_results);
+    const top = await fetchFromSerpApi(query, country_code, max_results, lang);
 
     await storeIngestedItems(country_code, top);
 
