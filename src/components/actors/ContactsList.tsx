@@ -31,16 +31,20 @@ export function ContactsList({ contacts }: ContactsListProps) {
               </Badge>
             )}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">{contact.role}</p>
+          {contact.role && (
+            <p className="text-xs text-muted-foreground mt-1">{contact.role}</p>
+          )}
           <div className="flex flex-col gap-1 mt-2">
-            <div className="flex items-center gap-2 text-sm">
-              <Phone className="h-3 w-3 text-muted-foreground" />
-              <span>{contact.primary_channel}</span>
-            </div>
-            {contact.secondary_channel && (
+            {contact.phone && (
+              <div className="flex items-center gap-2 text-sm">
+                <Phone className="h-3 w-3 text-muted-foreground" />
+                <span>{contact.phone}</span>
+              </div>
+            )}
+            {contact.email && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Mail className="h-3 w-3" />
-                <span>{contact.secondary_channel}</span>
+                <span>{contact.email}</span>
               </div>
             )}
           </div>

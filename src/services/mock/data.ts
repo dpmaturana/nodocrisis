@@ -796,7 +796,7 @@ export function getOperatingActorsForEvent(eventId: string): OperatingActorInfo[
 export const MOCK_ACTORS_NETWORK: Actor[] = [
   {
     id: "actor-net-1",
-    user_id: "mock-actor-1",
+    created_by: "mock-actor-1",
     organization_name: "Cruz Roja Chile",
     organization_type: "ong",
     description: "Organización humanitaria con presencia nacional, especializada en respuesta a emergencias y desastres.",
@@ -806,7 +806,7 @@ export const MOCK_ACTORS_NETWORK: Actor[] = [
   },
   {
     id: "actor-net-2",
-    user_id: "mock-admin-1",
+    created_by: "mock-admin-1",
     organization_name: "Bomberos Voluntarios Chillán",
     organization_type: "volunteer",
     description: "Cuerpo de bomberos con capacidad de rescate y combate de incendios forestales.",
@@ -816,7 +816,7 @@ export const MOCK_ACTORS_NETWORK: Actor[] = [
   },
   {
     id: "actor-net-3",
-    user_id: "mock-state-1",
+    created_by: "mock-state-1",
     organization_name: "ONEMI Regional Ñuble",
     organization_type: "state",
     description: "Oficina Nacional de Emergencias - Región de Ñuble. Coordinación interinstitucional.",
@@ -826,7 +826,7 @@ export const MOCK_ACTORS_NETWORK: Actor[] = [
   },
   {
     id: "actor-net-4",
-    user_id: "mock-private-1",
+    created_by: "mock-private-1",
     organization_name: "Transporte Andes SpA",
     organization_type: "private",
     description: "Empresa de transporte con flota de camiones disponible para emergencias.",
@@ -836,7 +836,7 @@ export const MOCK_ACTORS_NETWORK: Actor[] = [
   },
   {
     id: "actor-net-5",
-    user_id: "mock-vol-1",
+    created_by: "mock-vol-1",
     organization_name: "Voluntarios por Chile",
     organization_type: "volunteer",
     description: "Red de voluntarios para apoyo logístico en emergencias.",
@@ -883,14 +883,14 @@ export const MOCK_ACTOR_ZONES: ActorHabitualZone[] = [
 
 export const MOCK_ACTOR_CONTACTS: ActorContact[] = [
   // Cruz Roja
-  { id: "contact-1", actor_id: "actor-net-1", name: "María González", role: "Coordinadora Emergencias", primary_channel: "+56 9 1234 5678", secondary_channel: "mgonzalez@cruzroja.cl", is_primary: true, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
-  { id: "contact-2", actor_id: "actor-net-1", name: "Carlos Muñoz", role: "Jefe Logística", primary_channel: "+56 9 2345 6789", secondary_channel: null, is_primary: false, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  { id: "contact-1", actor_id: "actor-net-1", name: "María González", role: "Coordinadora Emergencias", phone: "+56 9 1234 5678", email: "mgonzalez@cruzroja.cl", is_primary: true, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  { id: "contact-2", actor_id: "actor-net-1", name: "Carlos Muñoz", role: "Jefe Logística", phone: "+56 9 2345 6789", email: null, is_primary: false, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
   // Bomberos
-  { id: "contact-3", actor_id: "actor-net-2", name: "Pedro Fernández", role: "Comandante", primary_channel: "+56 9 8765 4321", secondary_channel: "comandancia@bomberos.cl", is_primary: true, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
+  { id: "contact-3", actor_id: "actor-net-2", name: "Pedro Fernández", role: "Comandante", phone: "+56 9 8765 4321", email: "comandancia@bomberos.cl", is_primary: true, created_at: "2025-01-01T00:00:00Z", updated_at: "2025-01-01T00:00:00Z" },
   // ONEMI
-  { id: "contact-4", actor_id: "actor-net-3", name: "Ana Sepúlveda", role: "Directora Regional", primary_channel: "+56 9 5555 1234", secondary_channel: "asepulveda@onemi.gov.cl", is_primary: true, created_at: "2024-12-01T00:00:00Z", updated_at: "2024-12-01T00:00:00Z" },
+  { id: "contact-4", actor_id: "actor-net-3", name: "Ana Sepúlveda", role: "Directora Regional", phone: "+56 9 5555 1234", email: "asepulveda@onemi.gov.cl", is_primary: true, created_at: "2024-12-01T00:00:00Z", updated_at: "2024-12-01T00:00:00Z" },
   // Transporte Andes
-  { id: "contact-5", actor_id: "actor-net-4", name: "Roberto Silva", role: "Gerente Operaciones", primary_channel: "+56 9 7777 8888", secondary_channel: "rsilva@transporteandes.cl", is_primary: true, created_at: "2024-11-15T00:00:00Z", updated_at: "2024-11-15T00:00:00Z" },
+  { id: "contact-5", actor_id: "actor-net-4", name: "Roberto Silva", role: "Gerente Operaciones", phone: "+56 9 7777 8888", email: "rsilva@transporteandes.cl", is_primary: true, created_at: "2024-11-15T00:00:00Z", updated_at: "2024-11-15T00:00:00Z" },
 ];
 
 export const MOCK_ACTOR_PARTICIPATION_HISTORY: ActorParticipationHistory[] = [

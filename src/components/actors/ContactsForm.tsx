@@ -9,7 +9,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { actorNetworkService, type ContactInput } from "@/services/actorNetworkService";
 import type { ActorContact } from "@/types/database";
@@ -26,16 +25,16 @@ interface ContactsFormProps {
 interface ContactFormData {
   name: string;
   role: string;
-  primary_channel: string;
-  secondary_channel: string;
+  email: string;
+  phone: string;
   is_primary: boolean;
 }
 
 const emptyContact: ContactFormData = {
   name: "",
   role: "",
-  primary_channel: "",
-  secondary_channel: "",
+  email: "",
+  phone: "",
   is_primary: false,
 };
 
@@ -58,18 +57,18 @@ export function ContactsForm({
 
       setContact1({
         name: primary.name,
-        role: primary.role,
-        primary_channel: primary.primary_channel,
-        secondary_channel: primary.secondary_channel || "",
+        role: primary.role || "",
+        email: primary.email || "",
+        phone: primary.phone || "",
         is_primary: true,
       });
 
       if (secondary) {
         setContact2({
           name: secondary.name,
-          role: secondary.role,
-          primary_channel: secondary.primary_channel,
-          secondary_channel: secondary.secondary_channel || "",
+          role: secondary.role || "",
+          email: secondary.email || "",
+          phone: secondary.phone || "",
           is_primary: false,
         });
       } else {
@@ -84,9 +83,8 @@ export function ContactsForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate at least primary contact
-    if (!contact1.name.trim() || !contact1.role.trim() || !contact1.primary_channel.trim()) {
-      toast({ title: "El contacto principal es requerido", variant: "destructive" });
+    if (!contact1.name.trim()) {
+      toast({ title: "El nombre del contacto principal es requerido", variant: "destructive" });
       return;
     }
 
@@ -96,18 +94,18 @@ export function ContactsForm({
 
       contacts.push({
         name: contact1.name.trim(),
-        role: contact1.role.trim(),
-        primary_channel: contact1.primary_channel.trim(),
-        secondary_channel: contact1.secondary_channel.trim() || undefined,
+        role: contact1.role.trim() || undefined,
+        email: contact1.email.trim() || undefined,
+        phone: contact1.phone.trim() || undefined,
         is_primary: true,
       });
 
-      if (contact2.name.trim() && contact2.primary_channel.trim()) {
+      if (contact2.name.trim()) {
         contacts.push({
           name: contact2.name.trim(),
-          role: contact2.role.trim(),
-          primary_channel: contact2.primary_channel.trim(),
-          secondary_channel: contact2.secondary_channel.trim() || undefined,
+          role: contact2.role.trim() || undefined,
+          email: contact2.email.trim() || undefined,
+          phone: contact2.phone.trim() || undefined,
           is_primary: false,
         });
       }
@@ -132,9 +130,7 @@ export function ContactsForm({
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Contact 1 - Primary */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label className="text-base font-medium">Contacto Principal *</Label>
-            </div>
+            <Label className="text-base font-medium">Contacto Principal *</Label>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Nombre</Label>
@@ -155,18 +151,18 @@ export function ContactsForm({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">Canal principal (teléfono/WhatsApp)</Label>
+                <Label className="text-xs">Teléfono</Label>
                 <Input
-                  value={contact1.primary_channel}
-                  onChange={(e) => setContact1({ ...contact1, primary_channel: e.target.value })}
+                  value={contact1.phone}
+                  onChange={(e) => setContact1({ ...contact1, phone: e.target.value })}
                   placeholder="+56 9 1234 5678"
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Canal secundario (opcional)</Label>
+                <Label className="text-xs">Email</Label>
                 <Input
-                  value={contact1.secondary_channel}
-                  onChange={(e) => setContact1({ ...contact1, secondary_channel: e.target.value })}
+                  value={contact1.email}
+                  onChange={(e) => setContact1({ ...contact1, email: e.target.value })}
                   placeholder="email@org.cl"
                 />
               </div>
@@ -198,18 +194,18 @@ export function ContactsForm({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">Canal principal</Label>
+                <Label className="text-xs">Teléfono</Label>
                 <Input
-                  value={contact2.primary_channel}
-                  onChange={(e) => setContact2({ ...contact2, primary_channel: e.target.value })}
+                  value={contact2.phone}
+                  onChange={(e) => setContact2({ ...contact2, phone: e.target.value })}
                   placeholder="+56 9 8765 4321"
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Canal secundario</Label>
+                <Label className="text-xs">Email</Label>
                 <Input
-                  value={contact2.secondary_channel}
-                  onChange={(e) => setContact2({ ...contact2, secondary_channel: e.target.value })}
+                  value={contact2.email}
+                  onChange={(e) => setContact2({ ...contact2, email: e.target.value })}
                   placeholder="email@org.cl"
                 />
               </div>
