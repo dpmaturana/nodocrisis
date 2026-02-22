@@ -1,20 +1,23 @@
 
 
-## Hide the "Confianza" Badge
+# Remove Language Fallback in collect-news-context
 
-Remove the confidence badge that displays "Confianza: XX%" in the situation report header.
+## Problem
+The line in `collect-news-context/index.ts`:
+```
+const hl = (lang ?? (gl === "us" ? "en" : "es")).toLowerCase();
+```
+has a hardcoded US-centric fallback that defaults non-US countries to Spanish. This is unnecessary because the upstream `create-initial-situation-report` function already uses the LLM to detect the correct language and passes it as the `lang` parameter.
 
-### Technical Details
+## Fix
+Replace that line with a simple pass-through that uses `lang` directly, falling back to `gl` (the country code itself) if `lang` is somehow missing -- since Google will interpret `hl=gr` reasonably:
 
-In `src/pages/admin/SituationReport.tsx`, remove lines 271-275 which render:
-
-```tsx
-{report.overall_confidence && (
-  <Badge variant="secondary" className="font-mono">
-    Confianza: {confidencePercent}%
-  </Badge>
-)}
+```typescript
+const hl = (lang ?? gl).toLowerCase();
 ```
 
-The `confidencePercent` variable computation can also be removed for cleanup, but since it has no side effects, removing just the JSX block is sufficient.
+## File to modify
+- `supabase/functions/collect-news-context/index.ts` -- line ~89, replace the hardcoded US/ES fallback with `lang ?? gl`
+
+This is a one-line change. The LLM is already doing the language detection upstream, so this function should just trust whatever it receives.
 
