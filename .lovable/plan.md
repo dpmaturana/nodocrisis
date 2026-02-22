@@ -1,75 +1,26 @@
 
 
-## Translate All Remaining Spanish UI Text to English
+## Add "Back to Deployments" Navigation in Actor Header
 
-### Files and Changes
+### Problem
+When an actor navigates to `/my-capabilities`, there's no visible way to return to `/my-deployments` or `/sectors`. The header only contains the logo and a dropdown menu.
 
-**1. `src/lib/needStatus.ts` -- Status labels to English criticality terms**
+### Solution
+Add a "My Deployments" link to the ActorHeader dropdown menu, so the actor can always navigate between their key pages.
 
-| Status | Current label | New label | Current shortLabel | New shortLabel |
-|--------|--------------|-----------|-------------------|---------------|
-| WHITE | Monitoreo | Monitoring | Blanco | Monitoring |
-| RED | Critico sin cobertura | Critical | Rojo | Critical |
-| ORANGE | Cobertura insuficiente | Insufficient | Naranja | Insufficient |
-| YELLOW | Cobertura en validacion | Under review | Amarillo | Under review |
-| GREEN | Estabilizado | Stabilized | Verde | Stabilized |
+### Changes
 
-**2. `src/types/activityLog.ts` -- Source type labels**
+**`src/components/layout/ActorHeader.tsx`**
+- Add a new `DropdownMenuItem` for "My Deployments" (with a `MapPin` icon) above the existing "My Capabilities" item
+- This gives actors a consistent way to navigate between their two main pages from anywhere
 
-| Key | Current | New |
-|-----|---------|-----|
-| ngo | ONG | NGO |
-| original_context | Contexto Original | Original Context |
-| system | Sistema | System |
+The dropdown will show:
+1. My Deployments
+2. My Capabilities
+3. --- (separator)
+4. Sign out
 
-**3. `src/components/layout/AdminTopNav.tsx` -- Nav and dropdown**
-
-| Current | New |
-|---------|-----|
-| Red de Actores | Actor Network |
-| Eventos Pasados | Past Events |
-| Usuario (fallback) | User |
-| Perfil | Profile |
-| Cerrar sesion | Sign out |
-
-**4. `src/components/layout/AppSidebar.tsx` -- Sidebar nav labels**
-
-| Current | New |
-|---------|-----|
-| Red de Actores | Actor Network |
-| Eventos Pasados | Past Events |
-| Configuracion | Settings |
-| Eventos | Events |
-| Sectores | Sectors |
-| Mis Capacidades | My Capabilities |
-| Mis Despliegues | My Deployments |
-| Usuario (fallback) | User |
-| Administrador | Admin |
-
-**5. `src/components/dashboard/FilterChips.tsx` -- Dashboard filter bar**
-
-| Current | New |
-|---------|-----|
-| sectores con brechas | sectors with gaps |
-| Capacidad | Capability |
-| organizaciones operando | organizations operating |
-| Limpiar | Clear |
-
-**6. `src/components/deployments/SectorDeploymentCard.tsx` -- Actor deployment view**
-
-| Current | New |
-|---------|-----|
-| Tus capacidades | Your capabilities |
-| Operacion iniciada! | Operation started! |
-| Tus capacidades ahora estan marcadas como operando | Your capabilities are now marked as operating |
-
-**7. `src/components/actors/ActorDetailDrawer.tsx` -- Actor detail**
-
-| Current | New |
-|---------|-----|
-| Capacidad eliminada | Capability removed |
-
-### Summary
-
-All user-facing Spanish text across navigation, dashboard filters, status labels, activity log sources, and deployment toasts will be translated to English, consistent with the project's established English-only UI language policy.
-
+### Technical Details
+- Import `MapPin` from lucide-react (already used elsewhere in the project)
+- Add `DropdownMenuItem` with `onClick={() => navigate("/my-deployments")}`
+- No routing or layout changes needed since `/my-deployments` is already a valid actor route
