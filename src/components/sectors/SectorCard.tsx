@@ -1,4 +1,4 @@
-import { MapPin, ArrowRight, Users, AlertCircle, AlertTriangle } from "lucide-react";
+import { MapPin, ArrowRight, Users, CheckCircle2, Clock3 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +6,9 @@ import { CapacityIcon } from "@/components/ui/CapacityIcon";
 import { cn } from "@/lib/utils";
 import type { EnrichedSector } from "@/services/sectorService";
 import { SECTOR_STATE_CONFIG } from "@/lib/sectorStateConfig";
+import { NEED_STATUS_PRESENTATION } from "@/lib/needStatus";
+import type { NeedLevel } from "@/types/database";
+import type { NeedStatus } from "@/lib/needStatus";
 
 interface SectorCardProps {
   sector: EnrichedSector;
@@ -14,27 +17,12 @@ interface SectorCardProps {
   isHighlighted?: boolean;
 }
 
-function getCoverageLabel(gap: EnrichedSector["gaps"][0]): string {
-  if (gap.coverage === 0) return "None";
-  if (gap.coverage < gap.totalDemand / 2) return "Insufficient";
-  return "Partial";
+function needLevelToStatus(level: NeedLevel): NeedStatus {
+  if (level === "critical") return "RED";
+  if (level === "high") return "ORANGE";
+  if (level === "medium") return "YELLOW";
+  return "WHITE";
 }
-
-const gapStateConfig = {
-  critical: {
-    label: "Critical",
-    bgClass: "bg-gap-critical/20",
-    textClass: "text-gap-critical",
-    Icon: AlertCircle,
-  },
-  partial: {
-    label: "Partial",
-    bgClass: "bg-warning/20",
-    textClass: "text-warning",
-    Icon: AlertTriangle,
-  },
-};
-
 export function SectorCard({ sector, onViewDetails, onEnroll, isHighlighted }: SectorCardProps) {
   const { sector: sectorData, event, state, context, bestMatchGaps } = sector;
 
@@ -91,32 +79,58 @@ export function SectorCard({ sector, onViewDetails, onEnroll, isHighlighted }: S
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {bestMatchGaps.slice(0, 2).map((gap) => {
-                const gapState = gap.isCritical ? "critical" : "partial";
-                const gapConfig = gapStateConfig[gapState];
-                const IconComponent = gapConfig.Icon;
+                const needStatus = needLevelToStatus(gap.maxLevel);
+                const presentation = NEED_STATUS_PRESENTATION[needStatus];
+                const StatusIcon = presentation.icon;
                 return (
                   <div
                     key={gap.capacityType.id}
                     className={cn(
                       "p-3 rounded-lg border",
-                      gap.isCritical ? "border-gap-critical/50 bg-gap-critical/5" : "border-warning/50 bg-warning/5"
+                      presentation.bg,
+                      presentation.border
                     )}
                   >
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-1">
                       <CapacityIcon name={gap.capacityType.name} icon={gap.capacityType.icon} size="sm" />
                       <span className="font-medium text-sm">{gap.capacityType.name}</span>
                       <span className={cn(
                         "ml-auto flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium",
-                        gapConfig.bgClass,
-                        gapConfig.textClass
+                        presentation.bg,
+                        presentation.text
                       )}>
-                        <IconComponent className="w-3 h-3" />
-                        {gapConfig.label}
+                        <StatusIcon className="w-3 h-3" />
+                        {presentation.shortLabel}
                       </span>
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      <span className="text-foreground">Coverage:</span> {getCoverageLabel(gap)}
-                    </div>
+                    {/* Requirement pills */}
+                    {gap.operational_requirements && gap.operational_requirements.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-1">
+                        {gap.operational_requirements.map((req, i) => (
+                          <span key={i} className="px-2 py-0.5 rounded-full border border-border bg-background/60 text-xs text-muted-foreground">
+                            {req}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {/* Reasoning summary */}
+                    {gap.reasoning_summary && (
+                      <p className="text-xs text-muted-foreground italic line-clamp-2">{gap.reasoning_summary}</p>
+                    )}
+                    {/* Covering actors */}
+                    {gap.coveringActors && gap.coveringActors.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {gap.coveringActors.map((actor, i) => {
+                          const isOp = actor.status === "operating";
+                          const ActorIcon = isOp ? CheckCircle2 : Clock3;
+                          return (
+                            <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-background/60 border border-border text-muted-foreground">
+                              <ActorIcon className="w-3 h-3" /> {actor.name}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}

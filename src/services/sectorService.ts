@@ -134,6 +134,7 @@ export const sectorService = {
       sector_id: string;
       capacity_type_id: string;
       level: string;
+      notes: string | null;
       capacity_types: CapacityType | null;
     };
     const needs = (dbNeeds ?? []) as NeedRow[];
@@ -146,6 +147,34 @@ export const sectorService = {
       .in("status", ["operating", "confirmed"]);
 
     const deployments = dbDeployments ?? [];
+
+    // Fetch profiles for deployed actors to resolve names
+    const deployedActorIds = [...new Set(deployments.map(d => d.actor_id))];
+    const profileMap = new Map<string, string>();
+    if (deployedActorIds.length > 0) {
+      const { data: dbProfiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, organization_name")
+        .in("user_id", deployedActorIds);
+      (dbProfiles ?? []).forEach((p: any) => {
+        profileMap.set(p.user_id, p.organization_name || p.full_name || p.user_id);
+      });
+    }
+
+    // Fetch latest need_audits for reasoning summaries
+    const { data: dbAudits } = await supabase
+      .from("need_audits")
+      .select("sector_id, capability_id, reasoning_summary, timestamp")
+      .in("sector_id", sectorIds)
+      .order("timestamp", { ascending: false });
+
+    const auditMap = new Map<string, string>();
+    (dbAudits ?? []).forEach((a: any) => {
+      const key = `${a.sector_id}:${a.capability_id}`;
+      if (!auditMap.has(key) && a.reasoning_summary) {
+        auditMap.set(key, a.reasoning_summary);
+      }
+    });
 
     // Fetch actor's own active deployments to exclude already-subscribed sectors
     const { data: dbActorDeployments } = await supabase
@@ -205,6 +234,33 @@ export const sectorService = {
         const gap = Math.max(0, demand - coverage);
 
         if (gap > 0) {
+          // Parse notes JSON for requirements and description
+          let operational_requirements: string[] = [];
+          let reasoning_summary: string | undefined;
+          if (need.notes) {
+            try {
+              const parsed = JSON.parse(need.notes);
+              if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                operational_requirements = Array.isArray(parsed.requirements) ? parsed.requirements : [];
+                if (typeof parsed.description === "string") reasoning_summary = parsed.description;
+              } else if (Array.isArray(parsed)) {
+                operational_requirements = parsed;
+              }
+            } catch {
+              reasoning_summary = need.notes; // legacy plain text
+            }
+          }
+          // Fallback to need_audits reasoning
+          if (!reasoning_summary) {
+            reasoning_summary = auditMap.get(`${sector.id}:${need.capacity_type_id}`);
+          }
+
+          // Resolve covering actors with names
+          const coveringActors = sectorDeployments.map(d => ({
+            name: profileMap.get(d.actor_id) || d.actor_id,
+            status: d.status as string,
+          }));
+
           gaps.push({
             sector,
             capacityType: capType,
@@ -216,6 +272,9 @@ export const sectorService = {
             isUncovered: coverage === 0,
             isCritical: level === "critical" || level === "high",
             maxLevel: level,
+            operational_requirements,
+            reasoning_summary,
+            coveringActors,
           });
         }
       }
@@ -237,7 +296,7 @@ export const sectorService = {
         .filter(d => d.sector_id === sector.id)
         .map((d: any) => ({
           id: d.actor_id as string,
-          name: d.actor_id as string,
+          name: profileMap.get(d.actor_id) || (d.actor_id as string),
           role: "actor",
           capacity: d.capacity_type_id as string,
           status: d.status as "operating" | "confirmed",
