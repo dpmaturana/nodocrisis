@@ -98,6 +98,46 @@ function safeArray<T>(v: any): T[] {
 }
 
 /**
+ * Uses the LLM to extract concise search keywords from the admin's input.
+ */
+async function generateSearchQuery(
+  inputText: string,
+  countryCode: string,
+  lovableKey: string,
+): Promise<string | null> {
+  const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${lovableKey}`,
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash-lite",
+      messages: [
+        {
+          role: "system",
+          content: `Extract 2-3 concise Google News search keywords from the incident description.
+Return ONLY the keywords as a short search query string. No quotes, no explanation.
+Focus on: incident type + location name(s).
+Examples:
+- "there is massive flooding in the greek islands" -> "greece islands flooding"
+- "terremoto de magnitud 7 en Valparaíso Chile" -> "earthquake Valparaiso Chile"
+- "wildfire spreading across northern California near Sacramento" -> "California wildfire Sacramento"`,
+        },
+        { role: "user", content: inputText },
+      ],
+      temperature: 0,
+      max_tokens: 30,
+    }),
+  });
+
+  if (!resp.ok) return null;
+  const json = await resp.json();
+  const content = json?.choices?.[0]?.message?.content?.trim() ?? "";
+  return content.length > 0 && content.length < 100 ? content : null;
+}
+
+/**
  * Uses the LLM to detect the country and language from an incident description.
  * Returns { country_code: string, lang: string } or null on failure.
  */
@@ -252,6 +292,16 @@ serve(async (req) => {
       detected_lang = detected.lang;
     }
 
+    // ---- Step 0.5: Optimize search query ----
+    const lovableKeyForSearch = Deno.env.get("LOVABLE_API_KEY");
+    let searchQuery = input_text; // fallback to raw input
+    if (lovableKeyForSearch) {
+      const optimized = await generateSearchQuery(input_text, country_code, lovableKeyForSearch);
+      if (optimized) {
+        searchQuery = optimized;
+      }
+    }
+
     // ---- Step 1: Collect news context ----
     // Call the existing Edge Function collect-news-context
     const collectUrl = `${supabaseUrl}/functions/v1/collect-news-context`;
@@ -260,12 +310,11 @@ serve(async (req) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // Use service role for internal call (no user friction)
         Authorization: `Bearer ${serviceKey}`,
       },
       body: JSON.stringify({
         country_code,
-        query: input_text,
+        query: searchQuery,
         max_results,
         summarize: true,
         ...(detected_lang ? { lang: detected_lang } : {}),
