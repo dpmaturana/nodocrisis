@@ -1,66 +1,91 @@
 
 
-# Fix SerpAPI Google News Integration
+# Add Search Query Optimization Step
 
-## Problems Found
+## Problem
+The admin's raw input text (e.g., "flooding in greece islands") is passed directly as the search query to `collect-news-context`. Natural language descriptions often produce narrower, less relevant Google News results compared to concise keyword queries (e.g., "greece flooding").
 
-1. **`tbs: "qdr:w"` parameter is unsupported** -- The Google News engine on SerpAPI does not support the `tbs` (time-based search) parameter. This likely causes unexpected filtering or is silently ignored. The user's direct API call (which returned 13 rich results) did not include this parameter.
-
-2. **No `snippet` field exists in Google News results** -- Google News results contain `title`, `source`, `link`, `date`, and `thumbnail` -- but never `snippet`, `highlight`, or `description`. The current `extractSnippet` function finds nothing and returns an empty string for every item. This means:
-   - Keyword scoring against snippet text always scores 0 (only title matching works)
-   - The LLM summarizer receives empty snippet text, degrading summary quality
-
-3. **`num` parameter may be unsupported** -- Google News engine may not respect the `num` parameter. Removing it could yield more results naturally.
+## Solution
+Add a lightweight LLM call between the location detection step and the news collection step. This call extracts 2-3 concise search keywords from the admin's input, which are then used as the `query` parameter for `collect-news-context`.
 
 ## Changes
 
-### File: `supabase/functions/collect-news-context/index.ts`
+### File: `supabase/functions/create-initial-situation-report/index.ts`
 
-**A. Remove unsupported parameters (`tbs`, `num`)**
+**A. Add a new helper function `generateSearchQuery`**
 
-Remove `tbs: "qdr:w"` and `num` from the SerpAPI request parameters. Google News results are already sorted by recency by default.
-
-```typescript
-// Before
-const params = new URLSearchParams({
-  engine: "google_news",
-  q: query,
-  gl,
-  hl,
-  tbs: "qdr:w",
-  num: String(Math.min(max_results * 2, 20)),
-  api_key: apiKey,
-});
-
-// After
-const params = new URLSearchParams({
-  engine: "google_news",
-  q: query,
-  gl,
-  hl,
-  api_key: apiKey,
-});
-```
-
-**B. Use `title` as the snippet content**
-
-Since Google News results have no snippet/description field, use the `title` as the primary text content. This is what the LLM summarizer and keyword scorer will work with. The title is the only meaningful text Google News provides.
-
-Update the mapping to set `snippet` equal to `title` when no actual snippet exists:
+This function calls the Lovable AI Gateway with a focused prompt to extract concise search keywords from the admin's natural language input. It returns a short keyword string optimized for Google News search.
 
 ```typescript
-const snippet = extractSnippet(r) || title;
+async function generateSearchQuery(
+  inputText: string,
+  countryCode: string,
+  lovableKey: string,
+): Promise<string | null> {
+  const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${lovableKey}`,
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash-lite",
+      messages: [
+        {
+          role: "system",
+          content: `Extract 2-3 concise Google News search keywords from the incident description.
+Return ONLY the keywords as a short search query string. No quotes, no explanation.
+Focus on: incident type + location name(s).
+Examples:
+- "there is massive flooding in the greek islands" -> "greece islands flooding"
+- "terremoto de magnitud 7 en Valparaíso Chile" -> "earthquake Valparaiso Chile"
+- "wildfire spreading across northern California near Sacramento" -> "California wildfire Sacramento"`,
+        },
+        { role: "user", content: inputText },
+      ],
+      temperature: 0,
+      max_tokens: 30,
+    }),
+  });
+
+  if (!resp.ok) return null;
+  const json = await resp.json();
+  const content = json?.choices?.[0]?.message?.content?.trim() ?? "";
+  return content.length > 0 && content.length < 100 ? content : null;
+}
 ```
 
-This way keyword scoring works against the title in both the title and snippet slots (boosting relevant matches), and the LLM gets actual text to summarize.
+Key design choices:
+- Uses `gemini-2.5-flash-lite` (cheapest/fastest model) since this is a trivial extraction task
+- Strict max_tokens (30) to prevent verbose output
+- Falls back to original `input_text` if the call fails
 
-**C. Update `flattenResults` to preserve all fields**
+**B. Call `generateSearchQuery` before `collect-news-context`**
 
-Ensure `thumbnail`, `iso_date`, and `source` object are carried through the flattening process, so the LLM and downstream consumers have richer data to work with.
+Insert the call between the country detection block (line ~253) and the news collection step (line ~255). The LOVABLE_API_KEY is already available at this point (either from the detection step or fetched later).
 
-### Summary of impact
+```typescript
+// ---- Step 0.5: Optimize search query ----
+const lovableKeyForSearch = Deno.env.get("LOVABLE_API_KEY");
+let searchQuery = input_text; // fallback to raw input
+if (lovableKeyForSearch) {
+  const optimized = await generateSearchQuery(input_text, country_code, lovableKeyForSearch);
+  if (optimized) {
+    searchQuery = optimized;
+  }
+}
 
-- More results returned (no artificial `tbs`/`num` filtering)
-- Keyword scoring actually works (titles used as snippet fallback)
-- LLM summarizer receives meaningful text content
-- Results match what the direct API call returns
+// ---- Step 1: Collect news context ----
+// ... change `query: input_text` to `query: searchQuery`
+```
+
+**C. Pass `searchQuery` instead of `input_text` to collect-news-context**
+
+In the fetch call body (line ~266-272), replace `query: input_text` with `query: searchQuery`.
+
+The original `input_text` continues to be used everywhere else (LLM situation report prompt, database storage) -- only the news search query changes.
+
+## Impact
+- One additional lightweight LLM call (~30 tokens, flash-lite model, minimal cost/latency)
+- Broader, more recent Google News results
+- No changes to the rest of the pipeline -- the raw `input_text` is still stored and used for the main situation report generation
