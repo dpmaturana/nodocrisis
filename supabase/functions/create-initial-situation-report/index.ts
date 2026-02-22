@@ -97,6 +97,64 @@ function safeArray<T>(v: any): T[] {
   return Array.isArray(v) ? v : [];
 }
 
+/**
+ * Uses the LLM to detect the country and language from an incident description.
+ * Returns { country_code: string, lang: string } or null on failure.
+ */
+async function detectLocationFromText(
+  text: string,
+  lovableKey: string,
+): Promise<{ country_code: string; lang: string } | null> {
+  const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${lovableKey}`,
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        {
+          role: "system",
+          content: `You are a geographic location classifier for crisis coordination.
+Given an incident description, identify the country and language.
+Return ONLY valid JSON. No markdown. No explanations.
+Output schema: { "country_code": string, "lang": string }
+- country_code: ISO 3166-1 alpha-2 uppercase (e.g. "US", "CL", "GB", "AR", "PE", "MX")
+- lang: ISO 639-1 lowercase (e.g. "en", "es", "pt", "fr")
+- If no specific country is identifiable, default to "US" and "en".
+Examples:
+- "building collapse in Philadelphia" → { "country_code": "US", "lang": "en" }
+- "terremoto en Valparaíso" → { "country_code": "CL", "lang": "es" }
+- "flood in London" → { "country_code": "GB", "lang": "en" }
+- "inundaciones en Buenos Aires" → { "country_code": "AR", "lang": "es" }`,
+        },
+        { role: "user", content: text },
+      ],
+      temperature: 0,
+      max_tokens: 60,
+    }),
+  });
+
+  if (!resp.ok) return null;
+
+  const json = await resp.json();
+  const content = json?.choices?.[0]?.message?.content ?? "";
+  try {
+    const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    if (typeof parsed.country_code === "string" && typeof parsed.lang === "string") {
+      return {
+        country_code: parsed.country_code.toUpperCase().slice(0, 2),
+        lang: parsed.lang.toLowerCase().slice(0, 2),
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -147,9 +205,7 @@ serve(async (req) => {
 
     // ---- Input ----
     const body = await req.json();
-    const country_code = (typeof body.country_code === "string" ? body.country_code : "ES").toUpperCase();
 
-    // Accept multiple naming styles
     const input_text =
       typeof body.input_text === "string"
         ? body.input_text
@@ -168,6 +224,34 @@ serve(async (req) => {
 
     const max_results = typeof body.max_results === "number" ? Math.max(1, Math.min(20, body.max_results)) : 8;
 
+    // ---- Resolve country_code and lang ----
+    // If caller provides country_code, use it. Otherwise auto-detect from incident text.
+    let country_code: string;
+    let detected_lang: string | undefined;
+
+    if (typeof body.country_code === "string" && body.country_code.trim().length >= 2) {
+      country_code = body.country_code.toUpperCase();
+      detected_lang = typeof body.lang === "string" ? body.lang.toLowerCase() : undefined;
+    } else {
+      // Need lovableKey for detection — check it early
+      const lovableKeyForDetect = Deno.env.get("LOVABLE_API_KEY");
+      if (!lovableKeyForDetect) {
+        return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not configured" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const detected = await detectLocationFromText(input_text, lovableKeyForDetect);
+      if (!detected) {
+        return new Response(
+          JSON.stringify({ error: "Could not detect country from incident text. Please provide country_code explicitly." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      country_code = detected.country_code;
+      detected_lang = detected.lang;
+    }
+
     // ---- Step 1: Collect news context ----
     // Call the existing Edge Function collect-news-context
     const collectUrl = `${supabaseUrl}/functions/v1/collect-news-context`;
@@ -183,8 +267,8 @@ serve(async (req) => {
         country_code,
         query: input_text,
         max_results,
-        // If your collect function supports summarize, you can enable later:
         summarize: true,
+        ...(detected_lang ? { lang: detected_lang } : {}),
       }),
     });
 

@@ -1,14 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { InitialSituationReport } from "@/types/database";
 
-const COUNTRY_CODE = "ES";
-
 export const situationReportService = {
   /**
    * Generate a situation report by calling the create-initial-situation-report edge function.
    * Returns the persisted draft from the database.
    */
-  async generate(inputText: string): Promise<InitialSituationReport> {
+  async generate(inputText: string, options?: { country_code?: string; lang?: string }): Promise<InitialSituationReport> {
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData?.session?.access_token;
 
@@ -27,7 +25,8 @@ export const situationReportService = {
       },
       body: JSON.stringify({
         input_text: inputText,
-        country_code: COUNTRY_CODE,
+        ...(options?.country_code ? { country_code: options.country_code } : {}),
+        ...(options?.lang ? { lang: options.lang } : {}),
         max_results: 8,
       }),
     });
