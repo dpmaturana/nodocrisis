@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Activity, Building2, ChevronDown, LogOut } from "lucide-react";
+import { Activity, Building2, ChevronDown, LogOut, MapPin } from "lucide-react";
 
 export function ActorHeader() {
   const { profile, signOut } = useAuth();
@@ -48,6 +48,10 @@ export function ActorHeader() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56 bg-popover">
+            <DropdownMenuItem onClick={() => navigate("/my-deployments")}>
+              <MapPin className="w-4 h-4 mr-2" />
+              My Deployments
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/my-capabilities")}>
               <Building2 className="w-4 h-4 mr-2" />
               My Capabilities
