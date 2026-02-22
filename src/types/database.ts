@@ -257,15 +257,25 @@ export type ActorStructuralStatus = 'active' | 'inactive';
 export type CapabilityLevel = 'basic' | 'operational' | 'specialized';
 export type PresenceType = 'habitual' | 'occasional';
 
+export type ActorOrgRole = 'admin' | 'member';
+
 export interface Actor {
   id: string;
-  user_id: string;
   organization_name: string;
   organization_type: ActorType;
   description: string | null;
   structural_status: ActorStructuralStatus;
+  created_by: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ActorMember {
+  id: string;
+  actor_id: string;
+  user_id: string;
+  role_in_org: ActorOrgRole;
+  created_at: string;
 }
 
 export interface ActorCapabilityDeclared {
@@ -291,9 +301,9 @@ export interface ActorContact {
   id: string;
   actor_id: string;
   name: string;
-  role: string;
-  primary_channel: string;
-  secondary_channel: string | null;
+  role: string | null;
+  email: string | null;
+  phone: string | null;
   is_primary: boolean;
   created_at: string;
   updated_at: string;

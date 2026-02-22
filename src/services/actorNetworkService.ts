@@ -74,9 +74,9 @@ export interface CreateZoneInput {
 
 export interface ContactInput {
   name: string;
-  role: string;
-  primary_channel: string;
-  secondary_channel?: string;
+  role?: string;
+  email?: string;
+  phone?: string;
   is_primary: boolean;
 }
 
@@ -215,16 +215,24 @@ export const actorNetworkService = {
     const { data, error } = await db
       .from("actors")
       .insert({
-        user_id: input.user_id,
         organization_name: input.organization_name,
         organization_type: input.organization_type,
         description: input.description || null,
         structural_status: input.structural_status || "active",
+        created_by: input.user_id,
       })
       .select()
       .single();
 
     if (error) throw error;
+
+    // Add creator as admin member
+    await db.from("actor_members").insert({
+      actor_id: (data as any).id,
+      user_id: input.user_id,
+      role_in_org: "admin",
+    });
+
     return data as any;
   },
 
@@ -325,9 +333,9 @@ export const actorNetworkService = {
     const toInsert = newContacts.slice(0, 2).map((input) => ({
       actor_id: actorId,
       name: input.name,
-      role: input.role,
-      primary_channel: input.primary_channel,
-      secondary_channel: input.secondary_channel || null,
+      role: input.role || null,
+      email: input.email || null,
+      phone: input.phone || null,
       is_primary: input.is_primary,
     }));
 
