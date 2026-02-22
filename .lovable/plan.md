@@ -1,52 +1,29 @@
 
 
-## Fix: Deploy the evaluate-need Edge Function + Add Transition Clamping
+## Fix: Restore "Improving / Worsening" Trend Tags
 
 ### Root Cause
 
-The `evaluate-need` edge function was **never deployed**. It exists in code but:
-- Is missing from `supabase/config.toml`
-- Returns HTTP 404 when called (confirmed by live test)
-- Every frontend call to this function silently fails
+The trend tags ("Improving", "Worsening") rely on audit records stored in the `need_audits` table. Every time a need is evaluated, the system tries to insert an audit row containing the previous and new status. However, **all inserts are failing** because the code references a column (`llm_error`) that doesn't exist in the database.
 
-For `process-field-report-signals` (which calls `evaluateNeedStatusWithLLM` directly), the LLM call may also fail silently, but at least that function is deployed.
+With no audit records being saved, the system has no history to compare statuses, so it can never determine if a need is improving or worsening.
 
-### Changes
+### Fix
 
-#### 1. Add `evaluate-need` to `supabase/config.toml`
+Add the missing `llm_error` column to the `need_audits` table:
 
-Add the missing entry so the function gets deployed:
-
-```toml
-[functions.evaluate-need]
-verify_jwt = false
+```sql
+ALTER TABLE need_audits ADD COLUMN llm_error text;
 ```
 
-#### 2. Deploy the `evaluate-need` edge function
+### What This Restores
 
-Trigger deployment so the function becomes available at the expected endpoint.
+- Audit rows will be persisted on every need evaluation
+- The trend derivation logic (which compares `previous_status` vs `final_status` from the latest audit) will have data to work with
+- "Improving" and "Worsening" tags will reappear on the dashboard sector cards
+- Full audit trail (reasoning, scores, guardrails) will be available for debugging
 
-#### 3. Transition clamping is already implemented
+### Important Note
 
-Looking at the current code (lines 296-304 of `evaluateNeedStatusWithLLM.ts`), the rule-based fallback path already has transition clamping:
-
-```
-if (!legalTransition && previousStatus !== undefined) {
-  proposal = prevStatus;
-  guardrailsApplied.push("transition_clamping");
-}
-```
-
-And the LLM path (lines 279-283) also blocks illegal transitions. So the RED-to-WHITE bug should already be fixed in the current code -- it just was never deployed.
-
-#### 4. Test the deployed function
-
-After deployment, send a test request to verify:
-- The function responds (no more 404)
-- The LLM is called successfully (check for `llm_used: true` in response)
-- Transition clamping works (send a stabilization signal with `previousStatus: "RED"` and verify it stays RED)
-
-### Expected Outcome
-
-Once deployed, the `evaluate-need` function will be live, the frontend will get real LLM-based evaluations, and illegal transitions like RED-to-WHITE will be blocked by the existing clamping logic.
+Existing evaluations that already ran will NOT retroactively get audit rows. Trend tags will start appearing after the **next** evaluation for each capability (e.g., after the next field report or deployment status change).
 
