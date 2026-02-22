@@ -13,7 +13,7 @@ import { deploymentService, type SectorDeploymentGroup } from "@/services/deploy
 import { sectorService, type EnrichedSector } from "@/services/sectorService";
 import { capabilityService } from "@/services";
 import type { Signal, ActorCapability } from "@/types/database";
-import { MapPin, Activity, ChevronRight, Users, CheckCircle, Plus } from "@/lib/icons";
+import { MapPin, ChevronRight, Users, CheckCircle, Plus } from "@/lib/icons";
 
 interface SectorDeploymentCardProps {
   group: SectorDeploymentGroup;
@@ -174,32 +174,18 @@ export function SectorDeploymentCard({ group, actorId, onRefresh }: SectorDeploy
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <MapPin className="w-5 h-5 text-primary" />
               <h3 className="font-semibold text-lg">{sector.canonical_name}</h3>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Activity className="w-4 h-4" />
-              <span>{event.name}</span>
-              {event.location && (
-                <>
-                  <span>·</span>
-                  <span>{event.location}</span>
-                </>
+              {operatingPhase === "operating" ? (
+                <StatusBadge status={stateConfig.status} label={stateConfig.label} size="sm" />
+              ) : operatingPhase === "stabilizing" ? (
+                <StatusBadge status="gap-active" label="Sector contained" size="sm" />
+              ) : (
+                <StatusBadge status={phase.status} label={phase.label} size="sm" />
               )}
             </div>
           </div>
-        </div>
-
-        {/* Phase/State indicator */}
-        <div className="flex items-center gap-2 mt-2">
-          {operatingPhase === "operating" ? (
-            <StatusBadge status={stateConfig.status} label={stateConfig.label} size="sm" />
-          ) : operatingPhase === "stabilizing" ? (
-            <StatusBadge status="gap-active" label="Sector contained" size="sm" />
-          ) : (
-            <StatusBadge status={phase.status} label={phase.label} size="sm" />
-          )}
         </div>
       </CardHeader>
 

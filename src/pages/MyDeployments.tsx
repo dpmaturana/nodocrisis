@@ -77,7 +77,7 @@ export default function MyDeployments() {
         )}
       </div>
 
-      {/* Active Deployments grouped by Sector */}
+      {/* Active Deployments grouped by Event */}
       {activeGroups.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
@@ -92,14 +92,26 @@ export default function MyDeployments() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {activeGroups.map((group) => (
-            <SectorDeploymentCard
-              key={`${group.sector.id}-${group.event.id}`}
-              group={group}
-              actorId={user?.id || ""}
-              onRefresh={handleRefresh}
-            />
+        <div className="space-y-6">
+          {Array.from(
+            activeGroups.reduce((map, group) => {
+              const key = group.event.id;
+              if (!map.has(key)) map.set(key, { eventName: group.event.name, groups: [] });
+              map.get(key)!.groups.push(group);
+              return map;
+            }, new Map<string, { eventName: string; groups: SectorDeploymentGroup[] }>())
+          ).map(([eventId, { eventName, groups }]) => (
+            <div key={eventId} className="space-y-4">
+              <h2 className="text-xl font-semibold">{eventName}</h2>
+              {groups.map((group) => (
+                <SectorDeploymentCard
+                  key={`${group.sector.id}-${group.event.id}`}
+                  group={group}
+                  actorId={user?.id || ""}
+                  onRefresh={handleRefresh}
+                />
+              ))}
+            </div>
           ))}
         </div>
       )}
@@ -119,9 +131,21 @@ export default function MyDeployments() {
               <ChevronDown className="w-4 h-4" />
             </Button>
           </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-4 mt-4">
-            {historyGroups.map((group) => (
-              <HistorySectorCard key={`history-${group.sector.id}-${group.event.id}`} group={group} />
+          <CollapsibleContent className="space-y-6 mt-4">
+            {Array.from(
+              historyGroups.reduce((map, group) => {
+                const key = group.event.id;
+                if (!map.has(key)) map.set(key, { eventName: group.event.name, groups: [] });
+                map.get(key)!.groups.push(group);
+                return map;
+              }, new Map<string, { eventName: string; groups: SectorDeploymentGroup[] }>())
+            ).map(([eventId, { eventName, groups }]) => (
+              <div key={eventId} className="space-y-4">
+                <h2 className="text-lg font-semibold text-muted-foreground">{eventName}</h2>
+                {groups.map((group) => (
+                  <HistorySectorCard key={`history-${group.sector.id}-${group.event.id}`} group={group} />
+                ))}
+              </div>
             ))}
           </CollapsibleContent>
         </Collapsible>
