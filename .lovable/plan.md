@@ -1,29 +1,75 @@
 
 
-## Fix: Restore "Improving / Worsening" Trend Tags
+## Translate All Remaining Spanish UI Text to English
 
-### Root Cause
+### Files and Changes
 
-The trend tags ("Improving", "Worsening") rely on audit records stored in the `need_audits` table. Every time a need is evaluated, the system tries to insert an audit row containing the previous and new status. However, **all inserts are failing** because the code references a column (`llm_error`) that doesn't exist in the database.
+**1. `src/lib/needStatus.ts` -- Status labels to English criticality terms**
 
-With no audit records being saved, the system has no history to compare statuses, so it can never determine if a need is improving or worsening.
+| Status | Current label | New label | Current shortLabel | New shortLabel |
+|--------|--------------|-----------|-------------------|---------------|
+| WHITE | Monitoreo | Monitoring | Blanco | Monitoring |
+| RED | Critico sin cobertura | Critical | Rojo | Critical |
+| ORANGE | Cobertura insuficiente | Insufficient | Naranja | Insufficient |
+| YELLOW | Cobertura en validacion | Under review | Amarillo | Under review |
+| GREEN | Estabilizado | Stabilized | Verde | Stabilized |
 
-### Fix
+**2. `src/types/activityLog.ts` -- Source type labels**
 
-Add the missing `llm_error` column to the `need_audits` table:
+| Key | Current | New |
+|-----|---------|-----|
+| ngo | ONG | NGO |
+| original_context | Contexto Original | Original Context |
+| system | Sistema | System |
 
-```sql
-ALTER TABLE need_audits ADD COLUMN llm_error text;
-```
+**3. `src/components/layout/AdminTopNav.tsx` -- Nav and dropdown**
 
-### What This Restores
+| Current | New |
+|---------|-----|
+| Red de Actores | Actor Network |
+| Eventos Pasados | Past Events |
+| Usuario (fallback) | User |
+| Perfil | Profile |
+| Cerrar sesion | Sign out |
 
-- Audit rows will be persisted on every need evaluation
-- The trend derivation logic (which compares `previous_status` vs `final_status` from the latest audit) will have data to work with
-- "Improving" and "Worsening" tags will reappear on the dashboard sector cards
-- Full audit trail (reasoning, scores, guardrails) will be available for debugging
+**4. `src/components/layout/AppSidebar.tsx` -- Sidebar nav labels**
 
-### Important Note
+| Current | New |
+|---------|-----|
+| Red de Actores | Actor Network |
+| Eventos Pasados | Past Events |
+| Configuracion | Settings |
+| Eventos | Events |
+| Sectores | Sectors |
+| Mis Capacidades | My Capabilities |
+| Mis Despliegues | My Deployments |
+| Usuario (fallback) | User |
+| Administrador | Admin |
 
-Existing evaluations that already ran will NOT retroactively get audit rows. Trend tags will start appearing after the **next** evaluation for each capability (e.g., after the next field report or deployment status change).
+**5. `src/components/dashboard/FilterChips.tsx` -- Dashboard filter bar**
+
+| Current | New |
+|---------|-----|
+| sectores con brechas | sectors with gaps |
+| Capacidad | Capability |
+| organizaciones operando | organizations operating |
+| Limpiar | Clear |
+
+**6. `src/components/deployments/SectorDeploymentCard.tsx` -- Actor deployment view**
+
+| Current | New |
+|---------|-----|
+| Tus capacidades | Your capabilities |
+| Operacion iniciada! | Operation started! |
+| Tus capacidades ahora estan marcadas como operando | Your capabilities are now marked as operating |
+
+**7. `src/components/actors/ActorDetailDrawer.tsx` -- Actor detail**
+
+| Current | New |
+|---------|-----|
+| Capacidad eliminada | Capability removed |
+
+### Summary
+
+All user-facing Spanish text across navigation, dashboard filters, status labels, activity log sources, and deployment toasts will be translated to English, consistent with the project's established English-only UI language policy.
 
