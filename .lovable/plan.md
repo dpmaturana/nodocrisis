@@ -1,109 +1,49 @@
 
 
-# Translate Visible Spanish UI Strings to English
+# Fix Misleading Activity Log When Status Doesn't Change
 
-## Scope
-Only frontend-visible strings in the event creation/situation report flow. No edge functions, no mock data, no unused code.
+## Problem
+When the system re-evaluates a need status and guardrails block the LLM's proposed transition, the activity log shows confusing results like "Critical -> Critical" while the reasoning says "leading to an ORANGE status." The reasoning text reflects what the LLM *wanted* to do, not what actually happened.
 
-## Files and Changes
+## Root Cause
+The backend already appends a guardrail override note (e.g., `[Transition overridden by: Guardrail A. Final status: RED.]`) to the reasoning -- but older audit records were written before this fix existed, so they lack the clarification. On the frontend, there's no visual distinction between an actual status change and a "re-evaluated but unchanged" entry.
 
-### 1. `src/pages/admin/SituationReport.tsx`
+## Solution
 
-| Spanish | English |
-|---------|---------|
-| `import { es } from "date-fns/locale"` | Remove import (use default English locale) |
-| `"Reporte no encontrado."` | `"Report not found."` |
-| `"Confirmado" / "Descartado"` | `"Confirmed" / "Discarded"` |
-| `"Este reporte ya no puede ser editado."` | `"This report can no longer be edited."` |
-| `"Ver dashboard del evento"` | `"View event dashboard"` |
-| `"Borrador guardado"` | `"Draft saved"` |
-| `"Error al guardar"` | `"Error saving"` |
-| `"Reporte descartado"` | `"Report discarded"` |
-| `"¡Coordinación activada!"` | `"Coordination activated!"` |
-| `"...creado exitosamente."` | `"...created successfully."` |
-| `"Error al confirmar"` | `"Error confirming"` |
-| `"${sector.name} (copia)"` | `"${sector.name} (copy)"` |
-| `"Nuevo sector"` | `"New sector"` |
-| `"Borrador"` | `"Draft"` |
-| `{ locale: es }` | Remove locale option (default English) |
-| `"Reporte de Situacion Inicial"` | `"Initial Situation Report"` |
-| `"Evento Sugerido"` | `"Suggested Event"` |
-| `"Nombre del evento"` | `"Event name"` |
-| `"Ingresa el nombre del evento..."` | `"Enter event name..."` |
-| `"Tipo de emergencia"` | `"Emergency type"` |
-| `"Seleccionar tipo..."` | `"Select type..."` |
-| `"Resumen de la situacion"` | `"Situation summary"` |
-| `"Describe la situacion..."` | `"Describe the situation..."` |
-| `"Sectores Operativos Sugeridos"` | `"Suggested Operational Sectors"` |
-| `"X incluidos"` | `"X included"` |
-| `"Agregar"` | `"Add"` |
-| `"No hay sectores sugeridos..."` | `"No suggested sectors. Add one manually."` |
-| `"Capacidades Criticas (Nivel Evento)"` | `"Critical Capabilities (Event Level)"` |
-| `"X incluidas"` | `"X included"` |
-| `"Estas capacidades se requieren..."` | `"These capabilities are required for the entire event. You can assign sector-level priorities later."` |
-| `"Esta es una propuesta generada por IA"` | `"This is an AI-generated proposal"` |
-| `"Revisa la informacion..."` | `"Review the information before confirming. Activating coordination will create the event, sectors, and needs in the system."` |
-| `"Creando evento..."` | `"Creating event..."` |
-| `"Confirmar y Activar Coordinacion"` | `"Confirm and Activate Coordination"` |
-| `"Guardar Borrador"` | `"Save Draft"` |
-| `"Descartar"` | `"Discard"` |
-| `"¿Descartar reporte?"` | `"Discard report?"` |
-| `"Esta accion no se puede deshacer..."` | `"This action cannot be undone. The report will be marked as discarded."` |
-| `"Cancelar"` | `"Cancel"` |
+### 1. Frontend -- Annotate no-op status changes (ActivityLogModal.tsx)
 
-### 2. `src/components/reports/SuggestedSectorCard.tsx`
+When `previous_status === final_status`:
+- Still show the status dot and label (single, not an arrow transition)
+- Add a "(re-evaluated, no change)" annotation in muted text
+- The reasoning block continues to display as-is, which now provides context
 
-| Spanish | English |
-|---------|---------|
-| `"Agregar descripcion..."` | `"Add description..."` |
-| `"Duplicar sector"` | `"Duplicate sector"` |
-| `"Eliminar sector"` | `"Remove sector"` |
+When `previous_status !== final_status`:
+- Keep the existing arrow transition display unchanged
 
-### 3. `src/components/reports/CapabilityToggleList.tsx`
+### 2. Backend -- Improve reasoning for no-op results (evaluateNeedStatusWithLLM.ts)
 
-| Spanish | English |
-|---------|---------|
-| `"Agregar capacidad"` | `"Add capability"` |
+After guardrails produce a `finalStatus` that equals `prevStatus`, and the LLM had proposed something different, replace the reasoning suffix with a clearer explanation:
 
-### 4. `src/services/situationReportService.ts`
+Instead of: `[Transition overridden by: Guardrail A. Final status: RED.]`
+Use: `However, safety rules prevented this change (Guardrail A: demand is strong with no coverage). Status remains RED.`
 
-| Spanish | English |
-|---------|---------|
-| `"Debes iniciar sesion..."` | `"You must sign in to create a report."` |
-| `"Respuesta inesperada del servidor."` | `"Unexpected server response."` |
-| `"Nuevo Evento"` | `"New Event"` |
+This reuses the same `GUARDRAIL_EXPLANATIONS` map from `evaluateNeedStatus.ts` to produce human-readable text.
 
-### 5. `src/types/database.ts` -- EVENT_TYPES labels only
+## Technical Details
 
-Display labels change; DB enum values stay unchanged:
+### File: `src/components/dashboard/ActivityLogModal.tsx`
 
-| value | Current label | New label |
-|-------|--------------|-----------|
-| incendio_forestal | Incendio Forestal | Wildfire |
-| inundacion | Inundacion | Flood |
-| terremoto | Terremoto | Earthquake |
-| tsunami | Tsunami | Tsunami |
-| aluvion | Aluvion | Mudslide |
-| sequia | Sequia | Drought |
-| temporal | Temporal | Storm |
-| accidente_masivo | Accidente Masivo | Mass Accident |
-| emergencia_sanitaria | Emergencia Sanitaria | Health Emergency |
-| otro | Otro | Other |
+In the `ActivityLogItem` component (around line 169-188):
 
-### 6. `src/pages/admin/CreateEventAI.tsx`
+- Add detection: `const isNoOp = entry.previous_status === entry.final_status;`
+- When `showStatusTransition && isNoOp`: render a single status dot + label + "(re-evaluated, no change)" instead of `StatusTransition`
+- When `showStatusTransition && !isNoOp`: keep existing `StatusTransition` arrow
 
-| Spanish | English |
-|---------|---------|
-| `"Texto requerido"` | `"Text required"` |
-| `"Describe la emergencia antes..."` | `"Describe the emergency before generating the proposal."` |
-| `"Error al generar propuesta"` | `"Error generating proposal"` |
-| `"Intenta de nuevo mas tarde."` | `"Please try again later."` |
-| Spanish placeholder example | English equivalent |
-| `"o"` divider | `"or"` |
+### File: `supabase/functions/_shared/evaluateNeedStatusWithLLM.ts`
 
-## What stays unchanged
-- Database enum values (e.g., `incendio_forestal`)
-- Edge function prompts
-- Mock data files (unused/not visible)
-- Other pages outside this flow
+In the reasoning construction (around line 388-392):
+
+- When `finalStatus === prevStatus` and the LLM proposed something different, build a more descriptive override message using human-readable guardrail explanations
+- Add a `GUARDRAIL_EXPLANATIONS` map (same content as in `evaluateNeedStatus.ts`) to translate guardrail codes into plain language
+- New format: `"<LLM reasoning>. However, safety rules prevented this change (<explanation>). Status remains <STATUS>."`
 
