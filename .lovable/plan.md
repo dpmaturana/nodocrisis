@@ -1,49 +1,33 @@
 
 
-# Fix Misleading Activity Log When Status Doesn't Change
+# Fix Capability Filter and Operating Actors Count
 
-## Problem
-When the system re-evaluates a need status and guardrails block the LLM's proposed transition, the activity log shows confusing results like "Critical -> Critical" while the reasoning says "leading to an ORANGE status." The reasoning text reflects what the LLM *wanted* to do, not what actually happened.
+## Bug 1: Capability Filter Dropdown Doesn't Open
 
-## Root Cause
-The backend already appends a guardrail override note (e.g., `[Transition overridden by: Guardrail A. Final status: RED.]`) to the reasoning -- but older audit records were written before this fix existed, so they lack the clarification. On the frontend, there's no visual distinction between an actual status change and a "re-evaluated but unchanged" entry.
+**Root cause**: The `Badge` component is a plain `<div>` without `React.forwardRef`. When used as a child of `DropdownMenuTrigger asChild`, Radix UI's `Slot` component needs the child to forward refs. Without it, the dropdown trigger silently fails and never opens.
 
-## Solution
+**Fix**: In `FilterChips.tsx`, replace the `Badge` inside `DropdownMenuTrigger asChild` with a `<button>` element styled with `badgeVariants`, which natively supports refs. This avoids modifying the shared Badge component.
 
-### 1. Frontend -- Annotate no-op status changes (ActivityLogModal.tsx)
+### File: `src/components/dashboard/FilterChips.tsx`
 
-When `previous_status === final_status`:
-- Still show the status dot and label (single, not an arrow transition)
-- Add a "(re-evaluated, no change)" annotation in muted text
-- The reasoning block continues to display as-is, which now provides context
+- Replace the `<Badge>` inside `<DropdownMenuTrigger asChild>` with a `<button>` that uses the same badge styling classes
+- Import `badgeVariants` from the badge component for consistent styling
 
-When `previous_status !== final_status`:
-- Keep the existing arrow transition display unchanged
+---
 
-### 2. Backend -- Improve reasoning for no-op results (evaluateNeedStatusWithLLM.ts)
+## Bug 2: Operating Actors Count Shows Deployment Rows Instead of Unique Actors
 
-After guardrails produce a `finalStatus` that equals `prevStatus`, and the LLM had proposed something different, replace the reasoning suffix with a clearer explanation:
+**Root cause**: In `gapService.getDashboardMeta()`, the query uses `{ count: "exact", head: true }` on the `deployments` table filtered by status. This counts total deployment **rows**, not unique actors. One actor with 6 deployments across sectors shows as "6 organizations operating."
 
-Instead of: `[Transition overridden by: Guardrail A. Final status: RED.]`
-Use: `However, safety rules prevented this change (Guardrail A: demand is strong with no coverage). Status remains RED.`
+**Fix**: Change the counting approach to count distinct actor IDs.
 
-This reuses the same `GUARDRAIL_EXPLANATIONS` map from `evaluateNeedStatus.ts` to produce human-readable text.
+### File: `src/services/gapService.ts`
 
-## Technical Details
+In `getDashboardMeta()` (around line 346-349):
 
-### File: `src/components/dashboard/ActivityLogModal.tsx`
+- Instead of counting rows with `head: true`, fetch the `actor_id` column and count unique values:
+  - Query: `select("actor_id").eq("event_id", eventId).in("status", ["operating", "confirmed"])`
+  - Then: `new Set(data.map(d => d.actor_id)).size`
 
-In the `ActivityLogItem` component (around line 169-188):
-
-- Add detection: `const isNoOp = entry.previous_status === entry.final_status;`
-- When `showStatusTransition && isNoOp`: render a single status dot + label + "(re-evaluated, no change)" instead of `StatusTransition`
-- When `showStatusTransition && !isNoOp`: keep existing `StatusTransition` arrow
-
-### File: `supabase/functions/_shared/evaluateNeedStatusWithLLM.ts`
-
-In the reasoning construction (around line 388-392):
-
-- When `finalStatus === prevStatus` and the LLM proposed something different, build a more descriptive override message using human-readable guardrail explanations
-- Add a `GUARDRAIL_EXPLANATIONS` map (same content as in `evaluateNeedStatus.ts`) to translate guardrail codes into plain language
-- New format: `"<LLM reasoning>. However, safety rules prevented this change (<explanation>). Status remains <STATUS>."`
+This ensures the count matches the number of unique organizations shown in the modal.
 
