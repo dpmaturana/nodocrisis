@@ -27,13 +27,22 @@ interface ExtractedItem {
   name: string;
   quantity: number | null;
   unit: string;
-  /** English states as produced by the LLM extraction prompt */
   state: string;
-  /** English urgency levels as produced by the LLM extraction prompt */
   urgency: string;
 }
 
+interface CapabilityExtraction {
+  name: string;
+  sentiment: "improving" | "worsening" | "stable" | "unknown";
+  items: ExtractedItem[];
+  observation: string;
+  evidence_quotes: string[];
+}
+
 interface ExtractedData {
+  // New per-capability format
+  capabilities?: CapabilityExtraction[];
+  // Legacy flat format
   sector_mentioned: string | null;
   capability_types: string[];
   items: ExtractedItem[];
@@ -43,26 +52,6 @@ interface ExtractedData {
   confidence: number;
 }
 
-/**
- * Map an English item state to signal content for display/logging purposes
- * (used when creating signal records in the `signals` table).
- * This is NOT used for scoring — see classifyItemState() for the scoring path.
- */
-function itemToSignalContent(name: string, state: string): string {
-  switch (state) {
-    case "available":   return `${name}: recurso disponible, operando estable`;
-    case "needed":      return `${name}: recurso necesario, no alcanza, insuficiente`;
-    case "in_transit":  return `${name}: recurso en camino, despacho en ruta`;
-    case "depleted":    return `${name}: recurso agotado, sin stock, saturado`;
-    default:            return `${name}: estado reportado`;
-  }
-}
-
-/**
- * Map an English item urgency to a confidence value.
- * Mirrors fieldReportItemToConfidence from needSignalService.ts but for
- * the English urgency values that the edge-function LLM produces.
- */
 function itemToConfidence(state: string, urgency: string): number {
   if (state === "available") {
     switch (urgency) {
@@ -82,11 +71,6 @@ function itemToConfidence(state: string, urgency: string): number {
   }
 }
 
-/**
- * Quick keyword-based classification of observation text.
- * Returns a synthetic signal when stabilization or insufficiency keywords are detected.
- * This avoids an LLM call for obvious cases like "no injuries reported".
- */
 function classifyObservationText(text: string): { state: string; confidence: number } | null {
   const stabPatterns = /\b(stable|sufficient|resolved|available|okay|ok|covered|healthy|no\s*(injury|injuries|emergency|need|shortage|damage)|recovering|good|operational|functioning|normal|restored|safe)\b/i;
   const insuffPatterns = /\b(needed|insufficient|depleted|shortage|lacking|overwhelmed|critical|scarce|exhausted|saturated|collapsed|unavailable|emergency)\b/i;
@@ -113,11 +97,6 @@ interface ObservationScoreProposal {
   model: string;
 }
 
-/**
- * Call the LLM to propose engine scores from a free-text observation.
- * Returns null on any failure; callers should fall back to a conservative
- * "needed" signal at low confidence.
- */
 async function proposeScoresFromObservation(
   observations: string,
   lovableApiKey: string,
@@ -127,12 +106,12 @@ Given a field observation text, score the following dimensions from 0.0 to 1.0.
 Return ONLY valid JSON, no markdown.
 
 {
-  "demand": number,          // evidence of new unmet needs emerging
-  "insufficiency": number,   // evidence that resources are insufficient or depleted
-  "stabilization": number,   // evidence that situation is stable, improving, or resolved
-  "fragility": number,       // evidence of fragile or at-risk stability (could worsen)
-  "coverage": number,        // evidence of active resource deployment or NGO presence
-  "confidence": number       // your confidence in these scores (0.0-1.0)
+  "demand": number,
+  "insufficiency": number,
+  "stabilization": number,
+  "fragility": number,
+  "coverage": number,
+  "confidence": number
 }`;
 
   try {
@@ -187,6 +166,161 @@ Return ONLY valid JSON, no markdown.
 }
 
 // ---------------------------------------------------------------------------
+// Per-capability processing (new path)
+// ---------------------------------------------------------------------------
+
+async function processCapability(
+  cap: CapabilityExtraction,
+  capId: string,
+  event_id: string,
+  sector_id: string,
+  supabase: any,
+  lovableApiKey: string | undefined,
+): Promise<{ capabilityId: string; status: NeedStatus; needLevel: NeedLevel } | null> {
+  const signals: Array<{ state: string; confidence: number }> = [];
+  let scoreProposal: ObservationScoreProposal | null = null;
+
+  // Build signals from capability-specific items
+  for (const item of (cap.items || [])) {
+    signals.push({
+      state: item.state,
+      confidence: itemToConfidence(item.state, item.urgency),
+    });
+  }
+
+  // If no items, use capability-specific observation
+  if (signals.length === 0 && cap.observation) {
+    const quickClass = classifyObservationText(cap.observation);
+    if (quickClass) {
+      signals.push(quickClass);
+      console.log(`[NeedLevelEngine][per-cap] Quick-classified "${cap.name}": state=${quickClass.state}`);
+    }
+
+    if (signals.length === 0 && lovableApiKey) {
+      scoreProposal = await proposeScoresFromObservation(cap.observation, lovableApiKey);
+      if (scoreProposal) {
+        console.log(`[NeedLevelEngine][per-cap] LLM score proposal for "${cap.name}": ${JSON.stringify(scoreProposal)}`);
+        if (scoreProposal.proposed_scores.stabilization * scoreProposal.confidence > 0.01) {
+          signals.push({ state: "available", confidence: scoreProposal.proposed_scores.stabilization * scoreProposal.confidence });
+        }
+        if (scoreProposal.proposed_scores.insufficiency * scoreProposal.confidence > 0.01) {
+          signals.push({ state: "needed", confidence: scoreProposal.proposed_scores.insufficiency * scoreProposal.confidence });
+        }
+        if (scoreProposal.proposed_scores.demand * scoreProposal.confidence > 0.01) {
+          signals.push({ state: "needed", confidence: scoreProposal.proposed_scores.demand * scoreProposal.confidence });
+        }
+        if (scoreProposal.proposed_scores.coverage * scoreProposal.confidence > 0.01) {
+          signals.push({ state: "in_transit", confidence: scoreProposal.proposed_scores.coverage * scoreProposal.confidence });
+        }
+        if (scoreProposal.proposed_scores.fragility * scoreProposal.confidence > 0.01) {
+          signals.push({ state: "fragility", confidence: scoreProposal.proposed_scores.fragility * scoreProposal.confidence });
+        }
+      } else {
+        signals.push({ state: "needed", confidence: 0.3 });
+      }
+    }
+
+    if (signals.length === 0) {
+      signals.push({ state: "needed", confidence: 0.3 });
+    }
+  }
+
+  if (signals.length === 0) return null;
+
+  // Read existing need level
+  const { data: existingNeed } = await supabase
+    .from("sector_needs_context")
+    .select("level")
+    .eq("event_id", event_id)
+    .eq("sector_id", sector_id)
+    .eq("capacity_type_id", capId)
+    .maybeSingle();
+
+  const previousNeedLevel = existingNeed?.level ?? "medium";
+  const previousStatus = mapNeedLevelToAuditStatus(previousNeedLevel);
+
+  // Pass capability-specific observation and evidence to the LLM evaluator
+  const {
+    status,
+    scores,
+    booleans,
+    guardrailsApplied,
+    legalTransition,
+    llm_confidence,
+    reasoning_summary,
+    contradiction_detected,
+    key_evidence,
+    model,
+    llm_error,
+  } = await evaluateNeedStatusWithLLM(signals, previousStatus, {
+    lovableApiKey,
+    evidenceQuotes: cap.evidence_quotes || [],
+    observations: cap.observation || null,
+  });
+  const needLevel = mapStatusToNeedLevel(status);
+
+  console.log(`[NeedLevelEngine][per-cap] "${cap.name}" (${capId}) → status=${status} level=${needLevel}`);
+
+  // Collect operational requirements
+  const operationalRequirements = (cap.items || [])
+    .filter((item) => item.state === "needed" || item.state === "depleted")
+    .map((item) => `${item.name}${item.urgency !== "low" ? ` (${item.urgency})` : ""}`);
+
+  // Upsert sector_needs_context
+  const { error: upsertError } = await supabase
+    .from("sector_needs_context")
+    .upsert(
+      {
+        event_id,
+        sector_id,
+        capacity_type_id: capId,
+        level: needLevel,
+        source: "field_report",
+        notes: JSON.stringify({
+          requirements: operationalRequirements,
+          description: cap.observation || null,
+        }),
+        created_by: null,
+        expires_at: null,
+      },
+      { onConflict: "event_id,sector_id,capacity_type_id" },
+    );
+
+  if (upsertError) {
+    console.error(`[NeedLevelEngine][per-cap] upsert error for "${cap.name}":`, upsertError);
+  }
+
+  // Persist audit
+  const { error: auditError } = await supabase.from("need_audits").insert({
+    sector_id,
+    capability_id: capId,
+    event_id,
+    timestamp: new Date().toISOString(),
+    previous_status: mapNeedLevelToAuditStatus(previousNeedLevel),
+    proposed_status: status,
+    final_status: status,
+    llm_confidence,
+    reasoning_summary,
+    contradiction_detected,
+    key_evidence,
+    legal_transition: legalTransition,
+    guardrails_applied: guardrailsApplied,
+    scores_snapshot: scores,
+    booleans_snapshot: booleans,
+    model,
+    prompt_version: "v2-per-capability",
+    observation_score_proposal: scoreProposal ?? null,
+    llm_error: llm_error ?? null,
+  });
+
+  if (auditError) {
+    console.error(`[NeedLevelEngine][per-cap] audit error for "${cap.name}":`, auditError);
+  }
+
+  return { capabilityId: capId, status, needLevel };
+}
+
+// ---------------------------------------------------------------------------
 // Main handler
 // ---------------------------------------------------------------------------
 
@@ -228,13 +362,42 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
+    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+    const results: Array<{ capabilityId: string; status: NeedStatus; needLevel: NeedLevel }> = [];
+
+    // -----------------------------------------------------------------------
+    // NEW PATH: per-capability processing
+    // -----------------------------------------------------------------------
+    if (Array.isArray(extracted_data.capabilities) && extracted_data.capabilities.length > 0) {
+      console.log(`[NeedLevelEngine] Using per-capability path (${extracted_data.capabilities.length} capabilities)`);
+
+      for (const cap of extracted_data.capabilities) {
+        const capId = capacity_type_map[cap.name];
+        if (!capId) {
+          console.warn(`[NeedLevelEngine][per-cap] Unknown capability name: "${cap.name}", skipping`);
+          continue;
+        }
+
+        const result = await processCapability(cap, capId, event_id, sector_id, supabase, lovableApiKey);
+        if (result) results.push(result);
+      }
+
+      console.log(`[NeedLevelEngine] Done (per-cap) — ${results.length} capability(ies) processed`);
+
+      return new Response(
+        JSON.stringify({ success: true, results }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // -----------------------------------------------------------------------
+    // LEGACY PATH: flat extraction format (backward compatibility)
+    // -----------------------------------------------------------------------
+    console.log("[NeedLevelEngine] Using legacy flat path");
+
     const items: ExtractedItem[] = extracted_data.items ?? [];
     const capabilityNames: string[] = extracted_data.capability_types ?? [];
 
-    // Group items by capability type id using the same matching logic as
-    // needSignalService.onFieldReportCompleted (src/services/needSignalService.ts).
-    // The asymmetric substring check is intentional: it mirrors the existing
-    // service so that the edge function and the service agree on item attribution.
     const itemsByCapId = new Map<string, ExtractedItem[]>();
 
     for (const item of items) {
@@ -248,28 +411,18 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Ensure capability_types explicitly listed in extractedData are represented
-    // even when no items matched them. Assign ALL unmatched items to these
-    // capabilities so the engine can still evaluate need levels.
     for (const capName of capabilityNames) {
       const capId = capacity_type_map[capName];
       if (capId && !itemsByCapId.has(capId)) {
-        // Assign all items to this capability as a fallback — the LLM
-        // explicitly listed this capability, so the items likely relate to it
-        // even if substring matching failed.
         itemsByCapId.set(capId, items.length > 0 ? [...items] : []);
       }
     }
 
-    // Build set of capability IDs that were explicitly named in extracted_data.capability_types
-    // (used to determine whether to generate a synthetic signal for item-less capabilities)
     const explicitCapIds = new Set<string>();
     for (const capName of capabilityNames) {
       const capId = capacity_type_map[capName];
       if (capId) explicitCapIds.add(capId);
     }
-
-    const results: Array<{ capabilityId: string; status: NeedStatus; needLevel: NeedLevel }> = [];
 
     for (const [capId, capItems] of itemsByCapId) {
       const signals = capItems.map((item) => ({
@@ -277,15 +430,12 @@ Deno.serve(async (req) => {
         confidence: itemToConfidence(item.state, item.urgency),
       }));
 
-      // Collect operational requirements (bottleneck notes) for needed/depleted items
       const operationalRequirements: string[] = capItems
         .filter((item) => item.state === "needed" || item.state === "depleted")
         .map((item) =>
           `${item.name}${item.urgency !== "low" ? ` (${item.urgency})` : ""}`
         );
 
-      // When no items matched but the capability was explicitly named,
-      // call the LLM to propose engine scores from the observation text.
       let scoreProposal: ObservationScoreProposal | null = null;
 
       if (signals.length === 0) {
@@ -293,24 +443,18 @@ Deno.serve(async (req) => {
         const obs = extracted_data.observations;
         if (!obs) continue;
 
-        // First try quick keyword classification before calling the LLM
         const quickClass = classifyObservationText(obs);
         if (quickClass) {
           signals.push(quickClass);
-          console.log(`[NeedLevelEngine] Quick-classified observation for capability=${capId}: state=${quickClass.state} confidence=${quickClass.confidence}`);
         }
 
-        // If quick classification didn't produce a signal, try LLM
         if (signals.length === 0) {
-          const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
-
           if (lovableApiKey) {
             scoreProposal = await proposeScoresFromObservation(obs, lovableApiKey);
           }
         }
 
         if (scoreProposal) {
-          console.log(`[NeedLevelEngine] LLM score proposal for capability=${capId}: ${JSON.stringify(scoreProposal)}`);
           if (scoreProposal.proposed_scores.stabilization * scoreProposal.confidence > 0.01) {
             signals.push({ state: "available", confidence: scoreProposal.proposed_scores.stabilization * scoreProposal.confidence });
           }
@@ -327,13 +471,10 @@ Deno.serve(async (req) => {
             signals.push({ state: "fragility", confidence: scoreProposal.proposed_scores.fragility * scoreProposal.confidence });
           }
         } else {
-          console.warn(`[NeedLevelEngine] LLM score proposal failed for capability=${capId}, using fallback needed signal`);
-          // Fallback: conservative "needed" signal at low confidence
           signals.push({ state: "needed", confidence: 0.3 });
         }
       }
 
-      // Read existing need level BEFORE evaluating, so it can inform guardrails
       const { data: existingNeed } = await supabase
         .from("sector_needs_context")
         .select("level")
@@ -345,7 +486,6 @@ Deno.serve(async (req) => {
       const previousNeedLevel = existingNeed?.level ?? "medium";
       const previousStatus = mapNeedLevelToAuditStatus(previousNeedLevel);
 
-      const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
       const {
         status,
         scores,
@@ -365,11 +505,6 @@ Deno.serve(async (req) => {
       });
       const needLevel = mapStatusToNeedLevel(status);
 
-      console.log(
-        `[NeedLevelEngine] capability=${capId} engine_status=${status} need_level=${needLevel}`,
-      );
-
-      // Upsert sector_needs_context based on engine decision — NOT deriveNeedLevel
       const { error: upsertError } = await supabase
         .from("sector_needs_context")
         .upsert(
@@ -380,9 +515,7 @@ Deno.serve(async (req) => {
             level: needLevel,
             source: "field_report",
             notes: JSON.stringify({
-              requirements: operationalRequirements.length > 0
-                ? operationalRequirements
-                : [],
+              requirements: operationalRequirements.length > 0 ? operationalRequirements : [],
               description: extracted_data.observations ?? null,
             }),
             created_by: null,
@@ -392,17 +525,9 @@ Deno.serve(async (req) => {
         );
 
       if (upsertError) {
-        console.error(
-          `[NeedLevelEngine] sector_needs_context upsert error for capability=${capId}:`,
-          upsertError,
-        );
-      } else {
-        console.log(
-          `[NeedLevelEngine] sector_needs_context updated: capability=${capId} level=${needLevel}`,
-        );
+        console.error(`[NeedLevelEngine] upsert error for capability=${capId}:`, upsertError);
       }
 
-      // Persist engine reasoning to need_audits — non-blocking on error
       const { error: auditError } = await supabase.from("need_audits").insert({
         sector_id,
         capability_id: capId,
@@ -426,18 +551,13 @@ Deno.serve(async (req) => {
       });
 
       if (auditError) {
-        console.error(
-          `[NeedLevelEngine] need_audits insert error for capability=${capId}:`,
-          auditError,
-        );
+        console.error(`[NeedLevelEngine] audit error for capability=${capId}:`, auditError);
       }
 
       results.push({ capabilityId: capId, status, needLevel });
     }
 
-    console.log(
-      `[NeedLevelEngine] Done — ${results.length} capability(ies) processed via engine path`,
-    );
+    console.log(`[NeedLevelEngine] Done (legacy) — ${results.length} capability(ies) processed`);
 
     return new Response(
       JSON.stringify({ success: true, results }),

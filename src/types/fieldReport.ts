@@ -6,11 +6,22 @@ export interface ExtractedItem {
   name: string;
   quantity: number | null;
   unit: string;
-  state: 'disponible' | 'necesario' | 'en_camino' | 'agotado';
-  urgency: 'baja' | 'media' | 'alta' | 'crítica';
+  state: 'available' | 'needed' | 'in_transit' | 'depleted' | 'disponible' | 'necesario' | 'en_camino' | 'agotado';
+  urgency: 'low' | 'medium' | 'high' | 'critical' | 'baja' | 'media' | 'alta' | 'crítica';
+}
+
+export interface CapabilityExtraction {
+  name: string;
+  sentiment: 'improving' | 'worsening' | 'stable' | 'unknown';
+  items: ExtractedItem[];
+  observation: string;
+  evidence_quotes: string[];
 }
 
 export interface ExtractedData {
+  // New per-capability format
+  capabilities?: CapabilityExtraction[];
+  // Legacy flat fields (always present for backward compat)
   sector_mentioned: string | null;
   capability_types: string[];
   items: ExtractedItem[];
