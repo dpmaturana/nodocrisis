@@ -344,13 +344,13 @@ export const gapService = {
         .maybeSingle(),
       supabase
         .from("deployments")
-        .select("id", { count: "exact", head: true })
+        .select("actor_id")
         .eq("event_id", eventId)
         .in("status", ["operating", "confirmed"]),
     ]);
 
     const lastSignal = signalResult.data as Signal | null;
-    const operatingCount = deploymentResult.count ?? 0;
+    const operatingCount = new Set(deploymentResult.data?.map(d => d.actor_id)).size;
 
     // Derive confidence from recency of last signal
     let globalConfidence: "high" | "medium" | "low" = "medium";
