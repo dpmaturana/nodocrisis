@@ -153,7 +153,9 @@ export function SectorGapList({
           eventName={eventName}
           eventLocation={eventLocation}
           sectorNeedStatus={sectorData.sector_need_status ?? "WHITE"}
-          gaps={sectorData.gaps}
+          gaps={activeCapacityFilters.length > 0
+            ? sectorData.gaps.filter(g => activeCapacityFilters.includes(g.capacity_type_id))
+            : sectorData.gaps}
           trendVisibleGapIds={trendVisibleGapIds}
           onViewDetails={() => onViewSectorDetails(sectorData.sector.id)}
           isHighlighted={highlightedCardId === sectorData.sector.id}
