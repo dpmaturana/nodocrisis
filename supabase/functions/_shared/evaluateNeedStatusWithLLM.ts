@@ -20,6 +20,7 @@ import {
   SOURCE_WEIGHT,
   classifyItemState,
   isValidNeedTransition,
+  clampToNearestLegalStep,
   buildHumanReasoning,
 } from "./evaluateNeedStatus.ts";
 
@@ -277,9 +278,13 @@ export async function evaluateNeedStatusWithLLM(
   if (llmResult) {
     llmUsed = true;
     legalTransition = isValidNeedTransition(prevStatus, llmResult.proposed_status);
-    proposal = legalTransition ? llmResult.proposed_status : prevStatus;
-    if (!legalTransition) {
-      guardrailsApplied.push("transition_legality_block");
+    if (legalTransition) {
+      proposal = llmResult.proposed_status;
+    } else {
+      proposal = clampToNearestLegalStep(prevStatus, llmResult.proposed_status);
+      legalTransition = true;
+      console.log(`[NeedLevelEngine] LLM proposed illegal transition ${prevStatus}->${llmResult.proposed_status}, clamped to ${proposal}`);
+      guardrailsApplied.push(`transition_clamped_to_${proposal}`);
     }
   } else {
     // Rule-based fallback (same base logic as evaluateNeedStatus)
@@ -297,10 +302,11 @@ export async function evaluateNeedStatusWithLLM(
       ? true
       : isValidNeedTransition(prevStatus, proposal);
     if (!legalTransition && previousStatus !== undefined) {
-      console.log(`[NeedLevelEngine] Rule-based illegal transition ${prevStatus}->${proposal}, clamping to ${prevStatus}`);
-      proposal = prevStatus;
+      const clamped = clampToNearestLegalStep(prevStatus, proposal);
+      console.log(`[NeedLevelEngine] Rule-based illegal transition ${prevStatus}->${proposal}, clamped to ${clamped}`);
+      proposal = clamped;
       legalTransition = true;
-      guardrailsApplied.push("transition_clamping");
+      guardrailsApplied.push(`transition_clamped_to_${proposal}`);
     }
   }
 
@@ -385,34 +391,18 @@ export async function evaluateNeedStatusWithLLM(
   // Build reasoning: use LLM's own summary when available, otherwise rule-based text.
   // When guardrails override the LLM proposal, append a human-readable explanation
   // so the audit log clearly explains why the status was kept or changed.
-  const GUARDRAIL_EXPLANATIONS: Record<string, string> = {
-    "Guardrail A": "demand is strong with no coverage, floor set to Critical",
-    "Guardrail B": "insufficiency is strong with no coverage, escalated to Critical",
-    "Guardrail C": "GREEN eligibility conditions not fully met, demoted to Validating",
-    "Guardrail D": "fragility alert detected, GREEN transition blocked",
-    "Guardrail E": "LLM confidence too low, status kept unchanged",
-    "Guardrail F": "ORANGE→YELLOW requires stabilization evidence, reverted to Insufficient coverage",
-    "Guardrail G": "demand signals require at least Insufficient coverage status",
-    "transition_legality_block": "transition not allowed by state machine rules",
-    "transition_clamping": "transition not allowed by state machine rules",
+  const resolveGuardrailLabel = (g: string): string => {
+    if (g.startsWith("transition_clamped_to_")) {
+      return `transition not legal; stepped to nearest legal status: ${g.replace("transition_clamped_to_", "")}`;
+    }
+    return g;
   };
 
   let reasoningSummary: string;
   if (llmUsed && llmResult) {
     if (guardrailsApplied.length > 0) {
-      const explanations = guardrailsApplied
-        .map(g => GUARDRAIL_EXPLANATIONS[g] ?? g)
-        .join("; ");
-      const STATUS_LABELS: Record<string, string> = {
-        RED: "Critical", ORANGE: "Insufficient coverage", YELLOW: "Validating",
-        GREEN: "Stabilized", WHITE: "Monitoring",
-      };
-      const finalLabel = STATUS_LABELS[finalStatus] ?? finalStatus;
-      if (finalStatus === prevStatus && llmResult.proposed_status !== finalStatus) {
-        reasoningSummary = `${llmResult.reasoning_summary}. However, safety rules prevented this change (${explanations}). Status remains ${finalLabel}.`;
-      } else {
-        reasoningSummary = `${llmResult.reasoning_summary}. Safety rules applied: ${explanations}. Status set to ${finalLabel}.`;
-      }
+      const explanations = guardrailsApplied.map(resolveGuardrailLabel).join("; ");
+      reasoningSummary = `${llmResult.reasoning_summary}. Transition overridden by: ${explanations}. Final status: ${finalStatus}.`;
     } else {
       reasoningSummary = llmResult.reasoning_summary;
     }

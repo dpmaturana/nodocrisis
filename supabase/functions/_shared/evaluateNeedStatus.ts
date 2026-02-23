@@ -50,6 +50,41 @@ export function isValidNeedTransition(from: NeedStatus, to: NeedStatus): boolean
   return NEED_STATUS_TRANSITIONS[from].includes(to);
 }
 
+/** Severity ranking: higher number = more severe. */
+const STATUS_SEVERITY: Record<NeedStatus, number> = {
+  WHITE: 0, GREEN: 1, YELLOW: 2, ORANGE: 3, RED: 4,
+};
+
+const SEVERITY_ORDER: NeedStatus[] = ["WHITE", "GREEN", "YELLOW", "ORANGE", "RED"];
+
+/**
+ * When a proposed transition is illegal, walk the severity ladder one step at a
+ * time in the intended direction and return the first legal intermediate status.
+ * Falls back to `from` (no change) if no legal intermediate is found.
+ */
+export function clampToNearestLegalStep(from: NeedStatus, proposed: NeedStatus): NeedStatus {
+  if (isValidNeedTransition(from, proposed)) return proposed;
+
+  const fromSev = STATUS_SEVERITY[from];
+  const proposedSev = STATUS_SEVERITY[proposed];
+
+  if (proposedSev < fromSev) {
+    // Improvement: walk from proposed upward toward from
+    for (let i = proposedSev + 1; i < fromSev; i++) {
+      const candidate = SEVERITY_ORDER[i];
+      if (isValidNeedTransition(from, candidate)) return candidate;
+    }
+  } else {
+    // Worsening: walk from proposed downward toward from
+    for (let i = proposedSev - 1; i > fromSev; i--) {
+      const candidate = SEVERITY_ORDER[i];
+      if (isValidNeedTransition(from, candidate)) return candidate;
+    }
+  }
+
+  return from; // safe fallback
+}
+
 // Source weight for field-report signals (NGO tier, same as defaultNeedEngineConfig)
 export const SOURCE_WEIGHT = 1.0;
 
@@ -226,7 +261,10 @@ export function buildHumanReasoning(
     "Guardrail D": "fragility alert detected, GREEN transition blocked or forced down to Validating",
   };
   for (const g of guardrails) {
-    const explanation = GUARDRAIL_EXPLANATIONS[g];
+    const explanation = GUARDRAIL_EXPLANATIONS[g]
+      ?? (g.startsWith("transition_clamped_to_")
+        ? `transition not legal; stepped to nearest legal status: ${g.replace("transition_clamped_to_", "")}`
+        : undefined);
     if (explanation) sentence += ` Safety rule: ${explanation}.`;
   }
   return sentence;
