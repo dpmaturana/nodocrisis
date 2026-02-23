@@ -1,91 +1,109 @@
 
 
-# Add Search Query Optimization Step
+# Translate Visible Spanish UI Strings to English
 
-## Problem
-The admin's raw input text (e.g., "flooding in greece islands") is passed directly as the search query to `collect-news-context`. Natural language descriptions often produce narrower, less relevant Google News results compared to concise keyword queries (e.g., "greece flooding").
+## Scope
+Only frontend-visible strings in the event creation/situation report flow. No edge functions, no mock data, no unused code.
 
-## Solution
-Add a lightweight LLM call between the location detection step and the news collection step. This call extracts 2-3 concise search keywords from the admin's input, which are then used as the `query` parameter for `collect-news-context`.
+## Files and Changes
 
-## Changes
+### 1. `src/pages/admin/SituationReport.tsx`
 
-### File: `supabase/functions/create-initial-situation-report/index.ts`
+| Spanish | English |
+|---------|---------|
+| `import { es } from "date-fns/locale"` | Remove import (use default English locale) |
+| `"Reporte no encontrado."` | `"Report not found."` |
+| `"Confirmado" / "Descartado"` | `"Confirmed" / "Discarded"` |
+| `"Este reporte ya no puede ser editado."` | `"This report can no longer be edited."` |
+| `"Ver dashboard del evento"` | `"View event dashboard"` |
+| `"Borrador guardado"` | `"Draft saved"` |
+| `"Error al guardar"` | `"Error saving"` |
+| `"Reporte descartado"` | `"Report discarded"` |
+| `"¡Coordinación activada!"` | `"Coordination activated!"` |
+| `"...creado exitosamente."` | `"...created successfully."` |
+| `"Error al confirmar"` | `"Error confirming"` |
+| `"${sector.name} (copia)"` | `"${sector.name} (copy)"` |
+| `"Nuevo sector"` | `"New sector"` |
+| `"Borrador"` | `"Draft"` |
+| `{ locale: es }` | Remove locale option (default English) |
+| `"Reporte de Situacion Inicial"` | `"Initial Situation Report"` |
+| `"Evento Sugerido"` | `"Suggested Event"` |
+| `"Nombre del evento"` | `"Event name"` |
+| `"Ingresa el nombre del evento..."` | `"Enter event name..."` |
+| `"Tipo de emergencia"` | `"Emergency type"` |
+| `"Seleccionar tipo..."` | `"Select type..."` |
+| `"Resumen de la situacion"` | `"Situation summary"` |
+| `"Describe la situacion..."` | `"Describe the situation..."` |
+| `"Sectores Operativos Sugeridos"` | `"Suggested Operational Sectors"` |
+| `"X incluidos"` | `"X included"` |
+| `"Agregar"` | `"Add"` |
+| `"No hay sectores sugeridos..."` | `"No suggested sectors. Add one manually."` |
+| `"Capacidades Criticas (Nivel Evento)"` | `"Critical Capabilities (Event Level)"` |
+| `"X incluidas"` | `"X included"` |
+| `"Estas capacidades se requieren..."` | `"These capabilities are required for the entire event. You can assign sector-level priorities later."` |
+| `"Esta es una propuesta generada por IA"` | `"This is an AI-generated proposal"` |
+| `"Revisa la informacion..."` | `"Review the information before confirming. Activating coordination will create the event, sectors, and needs in the system."` |
+| `"Creando evento..."` | `"Creating event..."` |
+| `"Confirmar y Activar Coordinacion"` | `"Confirm and Activate Coordination"` |
+| `"Guardar Borrador"` | `"Save Draft"` |
+| `"Descartar"` | `"Discard"` |
+| `"¿Descartar reporte?"` | `"Discard report?"` |
+| `"Esta accion no se puede deshacer..."` | `"This action cannot be undone. The report will be marked as discarded."` |
+| `"Cancelar"` | `"Cancel"` |
 
-**A. Add a new helper function `generateSearchQuery`**
+### 2. `src/components/reports/SuggestedSectorCard.tsx`
 
-This function calls the Lovable AI Gateway with a focused prompt to extract concise search keywords from the admin's natural language input. It returns a short keyword string optimized for Google News search.
+| Spanish | English |
+|---------|---------|
+| `"Agregar descripcion..."` | `"Add description..."` |
+| `"Duplicar sector"` | `"Duplicate sector"` |
+| `"Eliminar sector"` | `"Remove sector"` |
 
-```typescript
-async function generateSearchQuery(
-  inputText: string,
-  countryCode: string,
-  lovableKey: string,
-): Promise<string | null> {
-  const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${lovableKey}`,
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash-lite",
-      messages: [
-        {
-          role: "system",
-          content: `Extract 2-3 concise Google News search keywords from the incident description.
-Return ONLY the keywords as a short search query string. No quotes, no explanation.
-Focus on: incident type + location name(s).
-Examples:
-- "there is massive flooding in the greek islands" -> "greece islands flooding"
-- "terremoto de magnitud 7 en Valparaíso Chile" -> "earthquake Valparaiso Chile"
-- "wildfire spreading across northern California near Sacramento" -> "California wildfire Sacramento"`,
-        },
-        { role: "user", content: inputText },
-      ],
-      temperature: 0,
-      max_tokens: 30,
-    }),
-  });
+### 3. `src/components/reports/CapabilityToggleList.tsx`
 
-  if (!resp.ok) return null;
-  const json = await resp.json();
-  const content = json?.choices?.[0]?.message?.content?.trim() ?? "";
-  return content.length > 0 && content.length < 100 ? content : null;
-}
-```
+| Spanish | English |
+|---------|---------|
+| `"Agregar capacidad"` | `"Add capability"` |
 
-Key design choices:
-- Uses `gemini-2.5-flash-lite` (cheapest/fastest model) since this is a trivial extraction task
-- Strict max_tokens (30) to prevent verbose output
-- Falls back to original `input_text` if the call fails
+### 4. `src/services/situationReportService.ts`
 
-**B. Call `generateSearchQuery` before `collect-news-context`**
+| Spanish | English |
+|---------|---------|
+| `"Debes iniciar sesion..."` | `"You must sign in to create a report."` |
+| `"Respuesta inesperada del servidor."` | `"Unexpected server response."` |
+| `"Nuevo Evento"` | `"New Event"` |
 
-Insert the call between the country detection block (line ~253) and the news collection step (line ~255). The LOVABLE_API_KEY is already available at this point (either from the detection step or fetched later).
+### 5. `src/types/database.ts` -- EVENT_TYPES labels only
 
-```typescript
-// ---- Step 0.5: Optimize search query ----
-const lovableKeyForSearch = Deno.env.get("LOVABLE_API_KEY");
-let searchQuery = input_text; // fallback to raw input
-if (lovableKeyForSearch) {
-  const optimized = await generateSearchQuery(input_text, country_code, lovableKeyForSearch);
-  if (optimized) {
-    searchQuery = optimized;
-  }
-}
+Display labels change; DB enum values stay unchanged:
 
-// ---- Step 1: Collect news context ----
-// ... change `query: input_text` to `query: searchQuery`
-```
+| value | Current label | New label |
+|-------|--------------|-----------|
+| incendio_forestal | Incendio Forestal | Wildfire |
+| inundacion | Inundacion | Flood |
+| terremoto | Terremoto | Earthquake |
+| tsunami | Tsunami | Tsunami |
+| aluvion | Aluvion | Mudslide |
+| sequia | Sequia | Drought |
+| temporal | Temporal | Storm |
+| accidente_masivo | Accidente Masivo | Mass Accident |
+| emergencia_sanitaria | Emergencia Sanitaria | Health Emergency |
+| otro | Otro | Other |
 
-**C. Pass `searchQuery` instead of `input_text` to collect-news-context**
+### 6. `src/pages/admin/CreateEventAI.tsx`
 
-In the fetch call body (line ~266-272), replace `query: input_text` with `query: searchQuery`.
+| Spanish | English |
+|---------|---------|
+| `"Texto requerido"` | `"Text required"` |
+| `"Describe la emergencia antes..."` | `"Describe the emergency before generating the proposal."` |
+| `"Error al generar propuesta"` | `"Error generating proposal"` |
+| `"Intenta de nuevo mas tarde."` | `"Please try again later."` |
+| Spanish placeholder example | English equivalent |
+| `"o"` divider | `"or"` |
 
-The original `input_text` continues to be used everywhere else (LLM situation report prompt, database storage) -- only the news search query changes.
+## What stays unchanged
+- Database enum values (e.g., `incendio_forestal`)
+- Edge function prompts
+- Mock data files (unused/not visible)
+- Other pages outside this flow
 
-## Impact
-- One additional lightweight LLM call (~30 tokens, flash-lite model, minimal cost/latency)
-- Broader, more recent Google News results
-- No changes to the rest of the pipeline -- the raw `input_text` is still stored and used for the main situation report generation
