@@ -118,10 +118,10 @@ function StatusTransition({ previous, final }: { previous: string; final: string
   return (
     <span className="inline-flex items-center gap-1.5">
       <StatusDot status={previous} />
-      <span className="text-xs font-medium">{prevPres.label}</span>
+      <span className={`text-xs font-medium ${prevPres.text}`}>{prevPres.label}</span>
       <ArrowRight className="w-3 h-3 text-muted-foreground" />
       <StatusDot status={final} />
-      <span className="text-xs font-medium">{finalPres.label}</span>
+      <span className={`text-xs font-medium ${finalPres.text}`}>{finalPres.label}</span>
     </span>
   );
 }
