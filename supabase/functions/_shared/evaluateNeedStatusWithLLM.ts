@@ -382,9 +382,13 @@ export async function evaluateNeedStatusWithLLM(
     ? true
     : isValidNeedTransition(prevStatus, finalStatus);
 
-  // Build reasoning: use LLM's own summary when available, otherwise rule-based text
+  // Build reasoning: use LLM's own summary when available, otherwise rule-based text.
+  // When guardrails override the LLM proposal, append a note with the fired guardrails
+  // and the actual final status so the audit log is consistent with the status change.
   const reasoningSummary = llmUsed && llmResult
-    ? llmResult.reasoning_summary
+    ? guardrailsApplied.length > 0
+      ? `${llmResult.reasoning_summary} [Transition overridden by: ${guardrailsApplied.join(", ")}. Final status: ${finalStatus}.]`
+      : llmResult.reasoning_summary
     : buildHumanReasoning(scores, booleans, finalStatus, guardrailsApplied);
 
   return {
