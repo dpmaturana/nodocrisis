@@ -1,5 +1,5 @@
 import { MapPin, Activity, X, ChevronDown } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Badge, badgeVariants } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -111,9 +111,9 @@ export function FilterChips({
       {capacityOptions.length > 0 && onCapacityFilterChange && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Badge
-              variant="outline"
+            <button
               className={cn(
+                badgeVariants({ variant: "outline" }),
                 "px-3 py-1.5 text-sm font-medium cursor-pointer transition-all",
                 activeCapacityFilters.length > 0 && "border-primary text-primary",
               )}
@@ -121,7 +121,7 @@ export function FilterChips({
               Capability
               {activeCapacityFilters.length > 0 && ` (${activeCapacityFilters.length})`}
               <ChevronDown className="w-3 h-3 ml-1" />
-            </Badge>
+            </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="bg-popover">
             {capacityOptions.map((cap) => (
