@@ -2,74 +2,38 @@
 
 ## Problem
 
-When a field report mentions multiple capabilities with different statuses (e.g., "Debris has been successfully removed. Temporary tents are now needed for shelter"), the system treats ALL capabilities the same because:
+The per-capability extraction was only applied to `extract-text-report` (text-only reports). The test report was submitted via **audio recording**, which goes through `transcribe-field-report` — and that function still uses the **old flat extraction prompt**. It produces a single `observations` string and flat `items[]` shared across all capabilities, so `process-field-report-signals` falls back to the legacy path.
 
-1. The extraction prompt produces a single flat `observations` summary and a flat `items[]` list shared across all capabilities
-2. The signal processor assigns the same observation text and mismatched items to every capability
-3. The need evaluator cannot distinguish which evidence applies to which capability
+## Fix
 
-This causes debris removal (which improved) to worsen, and shelter (which worsened) to get mixed signals.
+Update `supabase/functions/transcribe-field-report/index.ts` to use the same per-capability extraction prompt and normalization logic already working in `extract-text-report`.
 
-## Solution: Per-Capability Extraction
+### Changes to `transcribe-field-report/index.ts`
 
-Restructure the LLM extraction to produce **per-capability** signal data, so each capability gets its own items, observation, and evidence.
+1. **Replace the extraction prompt** (lines 9-28) with the per-capability version that asks the LLM to group items, observations, and evidence by capability — identical to what `extract-text-report` now uses.
 
-### Step 1: Update the extraction prompt (`extract-text-report/index.ts`)
+2. **Update the `ExtractedData` interface** (lines 30-44) to include the `capabilities` array and `CapabilityExtraction` type.
 
-Change the output schema from a flat structure to one that groups data by capability:
+3. **Update the JSON parsing block** (lines 249-257) to normalize the LLM response into the new format with backward-compatible flat fields derived from the `capabilities` array (same logic as `extract-text-report` lines 211-252).
 
-```text
-Current: { capability_types: ["debris removal", "shelter"], items: [...flat...], observations: "single summary" }
+4. **Update signal creation** (lines 272-350) to use per-capability signals when the `capabilities` array is present:
+   - Each capability gets its own signal with its specific `observation` as `content`
+   - Falls back to the existing flat signal creation when `capabilities` is absent
 
-New:     { capabilities: [
-            { name: "debris removal", sentiment: "improving", items: [...], observation: "...", evidence_quotes: [...] },
-            { name: "shelter", sentiment: "worsening", items: [...], observation: "...", evidence_quotes: [...] }
-          ],
-          observations: "overall summary",
-          confidence: 0.85
-        }
-```
+5. **Pass the full `extractedData` (with `capabilities`)** to `process-field-report-signals` (line 324) — this already happens, but now the data will contain the `capabilities` array so the processor will use the per-capability path instead of falling back to legacy.
 
-Each capability entry includes:
-- `name`: exact capability name from the system list
-- `sentiment`: "improving" | "worsening" | "stable" | "unknown"
-- `items`: only items relevant to THIS capability
-- `observation`: capability-specific summary
-- `evidence_quotes`: relevant quotes for THIS capability
+### No other files need changes
 
-The top-level `observations` remains as a general summary. `capability_types` is kept for backward compatibility (derived from the `capabilities` array).
+- `process-field-report-signals/index.ts` already has the per-capability processing path — it just never receives the data because the audio pipeline wasn't producing it.
+- `extract-text-report/index.ts` is already correct.
 
-### Step 2: Update signal creation in `extract-text-report/index.ts`
+### Expected Result
 
-When creating signals in the `signals` table, use each capability's specific `observation` as the signal `content` instead of the shared global one. This makes each signal record accurately describe what happened for that specific capability.
+After this fix, an audio report saying "Debris has been successfully removed. Temporary tents are now needed for shelter" will produce:
 
-### Step 3: Update `process-field-report-signals/index.ts`
+- **Debris removal**: `sentiment: "improving"`, stabilization signals, status improves
+- **Shelter / housing**: `sentiment: "worsening"`, demand/insufficiency signals, status worsens or stays RED
 
-- Accept the new `capabilities` array from `extracted_data`
-- When the new format is present, use each capability's own items, observation, and evidence for evaluation -- no more substring matching or fallback assignment
-- Pass the capability-specific `observation` and `evidence_quotes` to `evaluateNeedStatusWithLLM()` instead of the shared ones
-- Keep backward compatibility: if `capabilities` array is absent, fall back to the existing flat logic
+### Technical Details
 
-### Step 4: Pass per-capability context to the LLM evaluator
-
-In the `evaluateNeedStatusWithLLM` call inside the processing loop, use the capability-specific observation and evidence quotes rather than the global ones. This ensures the need evaluator only sees evidence relevant to the capability being evaluated.
-
-## Expected Outcome
-
-With the report "Debris has been successfully removed. Temporary tents are now needed to provide shelter for affected individuals":
-
-- **Debris removal**: Gets stabilization signals, observation = "Debris cleared successfully" -- status improves toward GREEN
-- **Shelter**: Gets demand/insufficiency signals, observation = "Temporary tents urgently needed" -- status worsens toward RED/ORANGE
-
-## Technical Details
-
-### Files Modified
-1. `supabase/functions/extract-text-report/index.ts` -- Updated extraction prompt and signal creation
-2. `supabase/functions/process-field-report-signals/index.ts` -- Per-capability processing path
-
-### Backward Compatibility
-The new `capabilities` field is additive. The flat `capability_types` and `items` arrays remain populated (derived from the per-capability data) so existing code paths continue working. The signal processor checks for the presence of `capabilities` array and uses the new path when available, falling back to the old logic otherwise.
-
-### No Database Changes Required
-No migrations needed -- the `extracted_data` column is already JSONB, and the `signals` table already supports per-capability entries.
-
+The extraction prompt and normalization code will be duplicated between the two edge functions. This is intentional — edge functions cannot share non-`_shared` code easily, and the prompt needs to stay co-located with its parsing logic. The `_shared` folder is reserved for the evaluation engine.
