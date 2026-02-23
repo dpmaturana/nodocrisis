@@ -1,33 +1,26 @@
 
 
-# Fix Capability Filter and Operating Actors Count
+# Filter Sector Card Gaps by Active Capability Filter
 
-## Bug 1: Capability Filter Dropdown Doesn't Open
+## Problem
+When a capability filter is selected, the sector list correctly hides sectors that don't have that capability. However, for sectors that DO match, the card still shows ALL capabilities instead of only the filtered one.
 
-**Root cause**: The `Badge` component is a plain `<div>` without `React.forwardRef`. When used as a child of `DropdownMenuTrigger asChild`, Radix UI's `Slot` component needs the child to forward refs. Without it, the dropdown trigger silently fails and never opens.
+## Fix
 
-**Fix**: In `FilterChips.tsx`, replace the `Badge` inside `DropdownMenuTrigger asChild` with a `<button>` element styled with `badgeVariants`, which natively supports refs. This avoids modifying the shared Badge component.
+### File: `src/components/dashboard/SectorGapList.tsx`
 
-### File: `src/components/dashboard/FilterChips.tsx`
+When passing gaps to `SectorStatusChip`, filter them by `activeCapacityFilters` if any are active:
 
-- Replace the `<Badge>` inside `<DropdownMenuTrigger asChild>` with a `<button>` that uses the same badge styling classes
-- Import `badgeVariants` from the badge component for consistent styling
+At line 156, change:
+```
+gaps={sectorData.gaps}
+```
+to:
+```
+gaps={activeCapacityFilters.length > 0
+  ? sectorData.gaps.filter(g => activeCapacityFilters.includes(g.capacity_type_id))
+  : sectorData.gaps}
+```
 
----
-
-## Bug 2: Operating Actors Count Shows Deployment Rows Instead of Unique Actors
-
-**Root cause**: In `gapService.getDashboardMeta()`, the query uses `{ count: "exact", head: true }` on the `deployments` table filtered by status. This counts total deployment **rows**, not unique actors. One actor with 6 deployments across sectors shows as "6 organizations operating."
-
-**Fix**: Change the counting approach to count distinct actor IDs.
-
-### File: `src/services/gapService.ts`
-
-In `getDashboardMeta()` (around line 346-349):
-
-- Instead of counting rows with `head: true`, fetch the `actor_id` column and count unique values:
-  - Query: `select("actor_id").eq("event_id", eventId).in("status", ["operating", "confirmed"])`
-  - Then: `new Set(data.map(d => d.actor_id)).size`
-
-This ensures the count matches the number of unique organizations shown in the modal.
+This ensures that when a capability filter is active, each sector card only displays the matching capability rows while keeping the full list when no filter is applied.
 
