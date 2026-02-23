@@ -95,7 +95,7 @@ export function CapabilityToggleList({
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="gap-2">
               <Plus className="h-4 w-4" />
-              Agregar capacidad
+              Add capability
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-64 p-2" align="start">

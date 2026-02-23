@@ -238,16 +238,16 @@ export interface DashboardStats {
 
 // Event types for dropdown
 export const EVENT_TYPES = [
-  { value: 'incendio_forestal', label: 'Incendio Forestal' },
-  { value: 'inundacion', label: 'Inundación' },
-  { value: 'terremoto', label: 'Terremoto' },
+  { value: 'incendio_forestal', label: 'Wildfire' },
+  { value: 'inundacion', label: 'Flood' },
+  { value: 'terremoto', label: 'Earthquake' },
   { value: 'tsunami', label: 'Tsunami' },
-  { value: 'aluvion', label: 'Aluvión' },
-  { value: 'sequia', label: 'Sequía' },
-  { value: 'temporal', label: 'Temporal' },
-  { value: 'accidente_masivo', label: 'Accidente Masivo' },
-  { value: 'emergencia_sanitaria', label: 'Emergencia Sanitaria' },
-  { value: 'otro', label: 'Otro' },
+  { value: 'aluvion', label: 'Mudslide' },
+  { value: 'sequia', label: 'Drought' },
+  { value: 'temporal', label: 'Storm' },
+  { value: 'accidente_masivo', label: 'Mass Accident' },
+  { value: 'emergencia_sanitaria', label: 'Health Emergency' },
+  { value: 'otro', label: 'Other' },
 ] as const;
 
 // ============== ACTOR NETWORK TYPES (Structural, non-operational) ==============

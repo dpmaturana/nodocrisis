@@ -35,8 +35,8 @@ export default function CreateEventAI() {
     if (!inputText.trim()) {
       toast({
         variant: "destructive",
-        title: "Texto requerido",
-        description: "Describe la emergencia antes de generar la propuesta.",
+        title: "Text required",
+        description: "Describe the emergency before generating the proposal.",
       });
       return;
     }
@@ -53,8 +53,8 @@ export default function CreateEventAI() {
       console.error("Error generating report:", error);
       toast({
         variant: "destructive",
-        title: "Error al generar propuesta",
-        description: error.message || "Intenta de nuevo más tarde.",
+        title: "Error generating proposal",
+        description: error.message || "Please try again later.",
       });
     } finally {
       setIsGenerating(false);
@@ -90,7 +90,7 @@ export default function CreateEventAI() {
               id="input-text"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder="Ej: Incendios forestales afectan comunas de Ñuble, especialmente sectores rurales de San Carlos y Chillán Viejo. Se reportan focos activos cerca de zonas pobladas..."
+              placeholder="E.g.: Wildfires affecting communes in Ñuble, especially rural areas of San Carlos and Chillán Viejo. Active hotspots reported near populated zones..."
               className="min-h-[140px] resize-none"
               disabled={isGenerating}
             />
@@ -124,7 +124,7 @@ export default function CreateEventAI() {
                 <span className="w-full border-t" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">o</span>
+                <span className="bg-card px-2 text-muted-foreground">or</span>
               </div>
             </div>
 

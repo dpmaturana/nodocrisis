@@ -11,7 +11,7 @@ export const situationReportService = {
     const token = sessionData?.session?.access_token;
 
     if (!token) {
-      throw new Error("Debes iniciar sesión para crear un reporte.");
+      throw new Error("You must sign in to create a report.");
     }
 
     const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-initial-situation-report`;
@@ -39,7 +39,7 @@ export const situationReportService = {
     const json = await resp.json();
 
     if (!json.success || !json.situation_report) {
-      throw new Error("Respuesta inesperada del servidor.");
+      throw new Error("Unexpected server response.");
     }
 
     // Normalize DB row to our frontend type
@@ -109,7 +109,7 @@ export const situationReportService = {
     const { data: event, error: eventError } = await supabase
       .from("events")
       .insert({
-        name: report.event_name_suggested || "Nuevo Evento",
+        name: report.event_name_suggested || "New Event",
         type: report.event_type,
         status: "active",
       })

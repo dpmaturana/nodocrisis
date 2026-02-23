@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { es } from "date-fns/locale";
 import {
   AlertTriangle,
   Check,
@@ -68,7 +67,6 @@ export default function SituationReport() {
     const loadReport = async () => {
       try {
         if (!reportId || reportId === "draft") {
-          // No valid ID, redirect to create
           navigate("/admin/create-event");
           return;
         }
@@ -87,7 +85,6 @@ export default function SituationReport() {
       }
     };
 
-    // Also fetch capacity types from DB
     const loadCapacityTypes = async () => {
       const { data } = await supabase.from("capacity_types").select("*");
       if (data) setCapacityTypes(data as CapacityType[]);
@@ -115,7 +112,7 @@ export default function SituationReport() {
   if (!report) {
     return (
       <div className="container max-w-4xl py-12 text-center">
-        <p className="text-muted-foreground">Reporte no encontrado.</p>
+        <p className="text-muted-foreground">Report not found.</p>
       </div>
     );
   }
@@ -124,14 +121,14 @@ export default function SituationReport() {
     return (
       <div className="container max-w-4xl py-12 text-center space-y-4">
         <Badge variant="secondary" className="text-base px-4 py-1">
-          {report.status === "confirmed" ? "Confirmado" : "Descartado"}
+          {report.status === "confirmed" ? "Confirmed" : "Discarded"}
         </Badge>
         <p className="text-muted-foreground">
-          Este reporte ya no puede ser editado.
+          This report can no longer be edited.
         </p>
         {report.linked_event_id && (
           <Button onClick={() => navigate(`/admin/event-dashboard/${report.linked_event_id}`)}>
-            Ver dashboard del evento
+            View event dashboard
           </Button>
         )}
       </div>
@@ -142,7 +139,6 @@ export default function SituationReport() {
     setReport((prev) => {
       if (!prev) return prev;
       const updated = { ...prev, ...updates };
-      // Persist to DB in background
       situationReportService.updateDraft(prev.id, updates);
       return updated;
     });
@@ -159,11 +155,11 @@ export default function SituationReport() {
         suggested_sectors: report.suggested_sectors,
         suggested_capabilities: report.suggested_capabilities,
       });
-      toast({ title: "Borrador guardado" });
+      toast({ title: "Draft saved" });
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Error al guardar",
+        title: "Error saving",
         description: error.message,
       });
     } finally {
@@ -175,7 +171,7 @@ export default function SituationReport() {
     if (!report) return;
     try {
       await situationReportService.discard(report.id);
-      toast({ title: "Reporte descartado" });
+      toast({ title: "Report discarded" });
       navigate("/admin/create-event");
     } catch (error: any) {
       toast({
@@ -194,17 +190,16 @@ export default function SituationReport() {
       const { eventId } = await situationReportService.confirm(report.id);
 
       toast({
-        title: "¡Coordinación activada!",
-        description: `Evento "${report.event_name_suggested}" creado exitosamente.`,
+        title: "Coordination activated!",
+        description: `Event "${report.event_name_suggested}" created successfully.`,
       });
 
-      // Navigate to the newly created event dashboard
       navigate(`/admin/event-dashboard/${eventId}`);
     } catch (error: any) {
       console.error("Error confirming report:", error);
       toast({
         variant: "destructive",
-        title: "Error al confirmar",
+        title: "Error confirming",
         description: error.message,
       });
     } finally {
@@ -212,7 +207,6 @@ export default function SituationReport() {
     }
   };
 
-  // Sector handlers
   const handleUpdateSector = (index: number, sector: SuggestedSector) => {
     const updated = [...report.suggested_sectors];
     updated[index] = sector;
@@ -228,7 +222,7 @@ export default function SituationReport() {
     updateReport({
       suggested_sectors: [
         ...report.suggested_sectors,
-        { ...sector, name: `${sector.name} (copia)`, latitude: null, longitude: null, confidence: 1 },
+        { ...sector, name: `${sector.name} (copy)`, latitude: null, longitude: null, confidence: 1 },
       ],
     });
   };
@@ -238,7 +232,7 @@ export default function SituationReport() {
       suggested_sectors: [
         ...report.suggested_sectors,
         {
-          name: "Nuevo sector",
+          name: "New sector",
           description: "",
           latitude: null,
           longitude: null,
@@ -263,43 +257,43 @@ export default function SituationReport() {
         <div className="flex items-center gap-3 mb-2">
           <Badge variant="outline" className="gap-1">
             <Clock className="h-3 w-3" />
-            Borrador
+            Draft
           </Badge>
           <span className="text-sm text-muted-foreground">
-            Generado: {format(new Date(report.created_at), "d MMM yyyy, HH:mm", { locale: es })}
+            Generated: {format(new Date(report.created_at), "d MMM yyyy, HH:mm")}
           </span>
         </div>
-        <h1 className="text-2xl font-bold">Reporte de Situación Inicial</h1>
+        <h1 className="text-2xl font-bold">Initial Situation Report</h1>
       </div>
 
       {/* Event Details */}
       <Card className="mb-6 glass">
         <CardHeader>
-          <CardTitle className="text-lg">Evento Sugerido</CardTitle>
+          <CardTitle className="text-lg">Suggested Event</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
             <label className="text-sm font-medium text-muted-foreground">
-              Nombre del evento
+              Event name
             </label>
             <InlineEditable
               value={report.event_name_suggested || ""}
               onChange={(v) => updateReport({ event_name_suggested: v })}
-              placeholder="Ingresa el nombre del evento..."
+              placeholder="Enter event name..."
               className="text-xl font-semibold mt-1"
             />
           </div>
 
           <div>
             <label className="text-sm font-medium text-muted-foreground">
-              Tipo de emergencia
+              Emergency type
             </label>
             <Select
               value={report.event_type || ""}
               onValueChange={(v) => updateReport({ event_type: v })}
             >
               <SelectTrigger className="mt-1 w-full max-w-xs">
-                <SelectValue placeholder="Seleccionar tipo..." />
+                <SelectValue placeholder="Select type..." />
               </SelectTrigger>
               <SelectContent>
                 {EVENT_TYPES.map((type) => (
@@ -313,12 +307,12 @@ export default function SituationReport() {
 
           <div>
             <label className="text-sm font-medium text-muted-foreground">
-              Resumen de la situación
+              Situation summary
             </label>
             <InlineEditable
               value={report.summary || ""}
               onChange={(v) => updateReport({ summary: v })}
-              placeholder="Describe la situación..."
+              placeholder="Describe the situation..."
               multiline
               className="text-foreground mt-1"
             />
@@ -332,19 +326,19 @@ export default function SituationReport() {
           <div className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-primary" />
             <CardTitle className="text-lg">
-              Sectores Operativos Sugeridos
+              Suggested Operational Sectors
             </CardTitle>
-            <Badge variant="secondary">{includedSectorsCount} incluidos</Badge>
+            <Badge variant="secondary">{includedSectorsCount} included</Badge>
           </div>
           <Button size="sm" variant="outline" onClick={handleAddSector}>
             <Plus className="h-4 w-4 mr-1" />
-            Agregar
+            Add
           </Button>
         </CardHeader>
         <CardContent className="space-y-3">
           {report.suggested_sectors.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
-              No hay sectores sugeridos. Agrega uno manualmente.
+              No suggested sectors. Add one manually.
             </p>
           ) : (
             report.suggested_sectors.map((sector, index) => (
@@ -367,12 +361,12 @@ export default function SituationReport() {
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
             <CardTitle className="text-lg">
-              Capacidades Críticas (Nivel Evento)
+              Critical Capabilities (Event Level)
             </CardTitle>
-            <Badge variant="secondary">{includedCapabilitiesCount} incluidas</Badge>
+            <Badge variant="secondary">{includedCapabilitiesCount} included</Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Estas capacidades se requieren para el evento completo. Después podrás asignar prioridades por sector.
+            These capabilities are required for the entire event. You can assign sector-level priorities later.
           </p>
         </CardHeader>
         <CardContent>
@@ -389,9 +383,9 @@ export default function SituationReport() {
         <CardContent className="flex items-start gap-3 pt-6">
           <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
           <div>
-            <p className="font-medium">Esta es una propuesta generada por IA</p>
+            <p className="font-medium">This is an AI-generated proposal</p>
             <p className="text-sm text-muted-foreground">
-              Revisa la información antes de confirmar. Al activar la coordinación se crearán el evento, los sectores y las necesidades en el sistema.
+              Review the information before confirming. Activating coordination will create the event, sectors, and needs in the system.
             </p>
           </div>
         </CardContent>
@@ -408,12 +402,12 @@ export default function SituationReport() {
           {isConfirming ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Creando evento...
+              Creating event...
             </>
           ) : (
             <>
               <Check className="h-4 w-4" />
-              Confirmar y Activar Coordinación
+              Confirm and Activate Coordination
             </>
           )}
         </Button>
@@ -430,7 +424,7 @@ export default function SituationReport() {
           ) : (
             <Save className="h-4 w-4" />
           )}
-          Guardar Borrador
+          Save Draft
         </Button>
 
         <AlertDialog>
@@ -442,23 +436,23 @@ export default function SituationReport() {
               disabled={isConfirming || isSaving}
             >
               <Trash2 className="h-4 w-4" />
-              Descartar
+              Discard
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>¿Descartar reporte?</AlertDialogTitle>
+              <AlertDialogTitle>Discard report?</AlertDialogTitle>
               <AlertDialogDescription>
-                Esta acción no se puede deshacer. El reporte será marcado como descartado.
+                This action cannot be undone. The report will be marked as discarded.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleDiscard}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                Descartar
+                Discard
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
