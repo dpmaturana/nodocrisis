@@ -6,29 +6,63 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const EXTRACTION_PROMPT = `You are an emergency analysis assistant that processes field reports (may include written notes and/or audio transcription).
+const EXTRACTION_PROMPT = `You are a humanitarian field report analysis assistant.
+Your task is to extract structured information from a field report that may include written notes and/or audio transcription.
 
-Extract the following structured information by combining ALL sources of information:
+Extract the following information and return ONLY a valid JSON object:
 
-1. sector_mentioned: Name of the sector or location mentioned (string or null)
-2. capability_types: Array of detected capability types. Use EXACTLY these system names: {{CAPABILITY_LIST}}
-3. items: Array of objects with:
-   - name: item/resource name
-   - quantity: mentioned quantity (number or null)
-   - unit: unit (e.g., "liters", "people", "units")
-   - state: current state ("available", "needed", "in_transit", "depleted")
-   - urgency: urgency level ("low", "medium", "high", "critical")
-4. location_detail: More specific location description within the sector
-5. observations: Brief summary (1-2 sentences) in English of the situation that will be visible to other actors. MUST capture the essence of the report clearly and actionably, combining information from written notes and transcription.
-6. evidence_quotes: Array of relevant verbatim quotes
-7. confidence: Confidence level in the extraction (0.0 to 1.0)
+{
+  "capabilities": [
+    {
+      "name": string,                  // Exact capability name from the system list: {{CAPABILITY_LIST}}
+      "sentiment": "improving" | "worsening" | "stable" | "unknown",
+      "items": [
+        {
+          "name": string,              // Item/resource name
+          "quantity": number | null,   // Quantity if mentioned
+          "unit": string,              // Unit (people, liters, kg, units, etc.)
+          "state": "available" | "needed" | "in_transit" | "depleted",
+          "urgency": "low" | "medium" | "high" | "critical"
+        }
+      ],
+      "observation": string,           // 1-2 sentence summary specific to THIS capability (max 200 chars) in English
+      "evidence_quotes": string[]      // Relevant verbatim quotes for THIS capability
+    }
+  ],
+  "sector_mentioned": string | null,   // Name of the sector/zone mentioned
+  "location_detail": string | null,    // Specific location details
+  "observations": string | null,       // Public 1-2 sentence OVERALL summary (max 200 chars) in English
+  "confidence": number                 // 0.0-1.0 how confident you are in the extraction
+}
 
-IMPORTANT: Analyze BOTH the written note and the audio transcription. Extract capability_types from BOTH sources. Use ONLY the exact names from the provided list. ALL output text must be in English, regardless of input language.
+IMPORTANT:
+- Group ALL extracted information BY CAPABILITY. Each capability gets its own items, observation, and evidence.
+- "sentiment" reflects the DIRECTION for that capability: "improving" if the situation is getting better, "worsening" if deteriorating, "stable" if unchanged, "unknown" if unclear.
+- Each capability's "observation" must describe ONLY what happened for THAT capability, not a general summary.
+- The top-level "observations" is a brief overall summary of the entire report.
+- Analyze BOTH the written note and the audio transcription. Extract capabilities from BOTH sources.
+- If something is not mentioned, use null or empty array
+- Be conservative with urgency: only "critical" if there is immediate danger to life
+- Use ONLY the exact names from the provided list for capability names
+- ALL output text must be in English, regardless of input language`;
 
-Respond ONLY with valid JSON, no markdown or explanations.`;
+interface CapabilityExtraction {
+  name: string;
+  sentiment: "improving" | "worsening" | "stable" | "unknown";
+  items: Array<{
+    name: string;
+    quantity: number | null;
+    unit: string;
+    state: string;
+    urgency: string;
+  }>;
+  observation: string;
+  evidence_quotes: string[];
+}
 
 interface ExtractedData {
-  sector_mentioned: string | null;
+  capabilities: CapabilityExtraction[];
+  // Backward compat fields (derived)
   capability_types: string[];
   items: Array<{
     name: string;
@@ -37,6 +71,7 @@ interface ExtractedData {
     state: string;
     urgency: string;
   }>;
+  sector_mentioned: string | null;
   location_detail: string | null;
   observations: string | null;
   evidence_quotes: string[];
@@ -250,8 +285,45 @@ serve(async (req) => {
       const content = extractResult.choices?.[0]?.message?.content || '';
       // Clean up potential markdown fences
       const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      extractedData = JSON.parse(cleanContent);
-      console.log('Extracted data:', extractedData);
+      const rawParsed = JSON.parse(cleanContent);
+
+      // Normalize to ExtractedData with backward-compat fields
+      if (rawParsed && Array.isArray(rawParsed.capabilities) && rawParsed.capabilities.length > 0) {
+        const capabilities: CapabilityExtraction[] = rawParsed.capabilities;
+        extractedData = {
+          capabilities,
+          capability_types: capabilities.map((c) => c.name),
+          items: capabilities.flatMap((c) => c.items || []),
+          sector_mentioned: rawParsed.sector_mentioned ?? null,
+          location_detail: rawParsed.location_detail ?? null,
+          observations: rawParsed.observations ?? null,
+          evidence_quotes: capabilities.flatMap((c) => c.evidence_quotes || []),
+          confidence: rawParsed.confidence ?? 0.5,
+        };
+      } else if (rawParsed) {
+        extractedData = {
+          capabilities: [],
+          capability_types: rawParsed.capability_types ?? [],
+          items: rawParsed.items ?? [],
+          sector_mentioned: rawParsed.sector_mentioned ?? null,
+          location_detail: rawParsed.location_detail ?? null,
+          observations: rawParsed.observations ?? transcript.substring(0, 200),
+          evidence_quotes: rawParsed.evidence_quotes ?? [],
+          confidence: rawParsed.confidence ?? 0.5,
+        };
+      } else {
+        extractedData = {
+          capabilities: [],
+          capability_types: [],
+          items: [],
+          sector_mentioned: null,
+          location_detail: null,
+          observations: transcript.substring(0, 200),
+          evidence_quotes: [transcript],
+          confidence: 0.3,
+        };
+      }
+      console.log('Extracted data:', JSON.stringify(extractedData));
     } catch (parseError) {
       console.error('Failed to parse extraction:', parseError);
     }
@@ -270,24 +342,48 @@ serve(async (req) => {
 
     // Create signal(s) if we have extracted data with content
     if (extractedData && transcript) {
-      const signalContent = extractedData.observations || transcript.substring(0, 500);
-
       // Build a map of capacity type name (lowercase) → id for fast lookup
       const capTypeMap = new Map(
         (capTypes ?? []).map((c: { id: string; name: string }) => [c.name.toLowerCase(), c.id])
       );
 
-      // Map extracted capability_types to capacity_type_ids
-      const linkedCapabilities = (extractedData.capability_types ?? [])
-        .map((name: string) => capTypeMap.get(name.toLowerCase()))
-        .filter((id): id is string => id != null);
+      if (extractedData.capabilities && extractedData.capabilities.length > 0) {
+        // New path: one signal per capability with capability-specific observation
+        const signalRows = extractedData.capabilities
+          .map((cap) => {
+            const capId = capTypeMap.get(cap.name.toLowerCase());
+            if (!capId || !cap.observation) return null;
+            return {
+              event_id: report.event_id,
+              sector_id: report.sector_id,
+              signal_type: 'field_report',
+              level: 'sector',
+              content: cap.observation,
+              source: 'audio_transcription',
+              confidence: extractedData!.confidence || 0.7,
+              field_report_id: report_id,
+              capacity_type_id: capId,
+            };
+          })
+          .filter(Boolean);
 
-      if (linkedCapabilities.length > 0) {
-        // Create one signal per detected capacity type so the gap engine can
-        // attribute evidence to the correct capability.
-        await supabase
-          .from('signals')
-          .insert(
+        if (signalRows.length > 0) {
+          const { error: signalError } = await supabase.from('signals').insert(signalRows);
+          if (signalError) {
+            console.error('Signal creation error:', signalError);
+          } else {
+            console.log(`${signalRows.length} per-capability signal(s) created for report:`, report_id);
+          }
+        }
+      } else {
+        // Fallback: old flat path
+        const signalContent = extractedData.observations || transcript.substring(0, 500);
+        const linkedCapabilities = (extractedData.capability_types ?? [])
+          .map((name: string) => capTypeMap.get(name.toLowerCase()))
+          .filter((id): id is string => id != null);
+
+        if (linkedCapabilities.length > 0) {
+          await supabase.from('signals').insert(
             linkedCapabilities.map((capTypeId: string) => ({
               event_id: report.event_id,
               sector_id: report.sector_id,
@@ -295,58 +391,53 @@ serve(async (req) => {
               level: 'sector',
               content: signalContent,
               source: 'audio_transcription',
-              confidence: extractedData.confidence || 0.7,
+              confidence: extractedData!.confidence || 0.7,
               field_report_id: report_id,
               capacity_type_id: capTypeId,
             }))
           );
-        console.log(`${linkedCapabilities.length} signal(s) created for report:`, report_id);
-
-        // Delegate need-level decision to the NeedLevelEngine (canonical path).
-        // sector_needs_context is updated inside process-field-report-signals.
-        // supabaseUrl is guaranteed set (Supabase built-in env var, already
-        // used above to create the client).
-        const processSignalsUrl = Deno.env.get('PROCESS_FIELD_REPORT_SIGNALS_URL')
-          || `${supabaseUrl}/functions/v1/process-field-report-signals`;
-        const capacityTypeMap: Record<string, string> = {};
-        for (const ct of (capTypes ?? [])) {
-          capacityTypeMap[(ct as { id: string; name: string }).name] = (ct as { id: string; name: string }).id;
-        }
-        const engineResponse = await fetch(processSignalsUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseServiceKey}`,
-          },
-          body: JSON.stringify({
-            event_id: report.event_id,
-            sector_id: report.sector_id,
-            extracted_data: extractedData,
-            capacity_type_map: capacityTypeMap,
-            report_id,
-          }),
-        });
-        if (!engineResponse.ok) {
-          console.error('[engine path] process-field-report-signals error:', await engineResponse.text());
+          console.log(`${linkedCapabilities.length} signal(s) created (flat fallback) for report:`, report_id);
         } else {
-          const engineResult = await engineResponse.json();
-          console.log('[engine path] NeedLevelEngine results:', JSON.stringify(engineResult));
-        }
-      } else {
-        // Fallback: create a generic signal without capacity_type_id
-        await supabase
-          .from('signals')
-          .insert({
+          await supabase.from('signals').insert({
             event_id: report.event_id,
             sector_id: report.sector_id,
             signal_type: 'field_report',
             level: 'sector',
             content: signalContent,
             source: 'audio_transcription',
-            confidence: extractedData.confidence || 0.7,
+            confidence: extractedData!.confidence || 0.7,
             field_report_id: report_id,
           });
-        console.log('Generic signal created for report (no capability types detected):', report_id);
+          console.log('Generic signal created for report (no capability types detected):', report_id);
+        }
+      }
+
+      // Delegate to NeedLevelEngine
+      const processSignalsUrl = Deno.env.get('PROCESS_FIELD_REPORT_SIGNALS_URL')
+        || `${supabaseUrl}/functions/v1/process-field-report-signals`;
+      const capacityTypeMap: Record<string, string> = {};
+      for (const ct of (capTypes ?? [])) {
+        capacityTypeMap[(ct as { id: string; name: string }).name] = (ct as { id: string; name: string }).id;
+      }
+      const engineResponse = await fetch(processSignalsUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({
+          event_id: report.event_id,
+          sector_id: report.sector_id,
+          extracted_data: extractedData,
+          capacity_type_map: capacityTypeMap,
+          report_id,
+        }),
+      });
+      if (!engineResponse.ok) {
+        console.error('[engine path] process-field-report-signals error:', await engineResponse.text());
+      } else {
+        const engineResult = await engineResponse.json();
+        console.log('[engine path] NeedLevelEngine results:', JSON.stringify(engineResult));
       }
     }
 
