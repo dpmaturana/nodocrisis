@@ -68,7 +68,7 @@ export function SuggestedSectorCard({
           <InlineEditable
             value={sector.description}
             onChange={(description) => onUpdate(index, { ...sector, description })}
-            placeholder="Agregar descripción..."
+            placeholder="Add description..."
             multiline
             className="text-sm text-muted-foreground"
             disabled={!sector.include}
@@ -81,7 +81,7 @@ export function SuggestedSectorCard({
             variant="ghost"
             className="h-8 w-8 text-muted-foreground hover:text-foreground"
             onClick={() => onDuplicate(sector)}
-            title="Duplicar sector"
+            title="Duplicate sector"
           >
             <Copy className="h-4 w-4" />
           </Button>
@@ -90,7 +90,7 @@ export function SuggestedSectorCard({
             variant="ghost"
             className="h-8 w-8 text-muted-foreground hover:text-destructive"
             onClick={() => onRemove(index)}
-            title="Eliminar sector"
+            title="Remove sector"
           >
             <Trash2 className="h-4 w-4" />
           </Button>
