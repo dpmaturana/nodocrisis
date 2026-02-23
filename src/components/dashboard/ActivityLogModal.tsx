@@ -171,6 +171,8 @@ function ActivityLogItem({ entry }: { entry: CapabilityActivityLogEntry }) {
     entry.previous_status &&
     entry.final_status;
 
+  const isNoOp = showStatusTransition && entry.previous_status === entry.final_status;
+
   return (
     <>
       {/* Header */}
@@ -181,7 +183,18 @@ function ActivityLogItem({ entry }: { entry: CapabilityActivityLogEntry }) {
       </div>
 
       {/* Body */}
-      {showStatusTransition ? (
+      {showStatusTransition && isNoOp ? (
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">{sourceLabel}:</span>
+          <span className="inline-flex items-center gap-1.5">
+            <StatusDot status={entry.final_status!} />
+            <span className={`text-xs font-medium ${NEED_STATUS_PRESENTATION[entry.final_status as NeedStatus]?.text ?? ""}`}>
+              {NEED_STATUS_PRESENTATION[entry.final_status as NeedStatus]?.label ?? entry.final_status}
+            </span>
+            <span className="text-[10px] text-muted-foreground italic">(re-evaluated, no change)</span>
+          </span>
+        </div>
+      ) : showStatusTransition ? (
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">{sourceLabel}:</span>
           <StatusTransition previous={entry.previous_status!} final={entry.final_status!} />

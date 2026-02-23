@@ -383,13 +383,42 @@ export async function evaluateNeedStatusWithLLM(
     : isValidNeedTransition(prevStatus, finalStatus);
 
   // Build reasoning: use LLM's own summary when available, otherwise rule-based text.
-  // When guardrails override the LLM proposal, append a note with the fired guardrails
-  // and the actual final status so the audit log is consistent with the status change.
-  const reasoningSummary = llmUsed && llmResult
-    ? guardrailsApplied.length > 0
-      ? `${llmResult.reasoning_summary} [Transition overridden by: ${guardrailsApplied.join(", ")}. Final status: ${finalStatus}.]`
-      : llmResult.reasoning_summary
-    : buildHumanReasoning(scores, booleans, finalStatus, guardrailsApplied);
+  // When guardrails override the LLM proposal, append a human-readable explanation
+  // so the audit log clearly explains why the status was kept or changed.
+  const GUARDRAIL_EXPLANATIONS: Record<string, string> = {
+    "Guardrail A": "demand is strong with no coverage, floor set to Critical",
+    "Guardrail B": "insufficiency is strong with no coverage, escalated to Critical",
+    "Guardrail C": "GREEN eligibility conditions not fully met, demoted to Validating",
+    "Guardrail D": "fragility alert detected, GREEN transition blocked",
+    "Guardrail E": "LLM confidence too low, status kept unchanged",
+    "Guardrail F": "ORANGE→YELLOW requires stabilization evidence, reverted to Insufficient coverage",
+    "Guardrail G": "demand signals require at least Insufficient coverage status",
+    "transition_legality_block": "transition not allowed by state machine rules",
+    "transition_clamping": "transition not allowed by state machine rules",
+  };
+
+  let reasoningSummary: string;
+  if (llmUsed && llmResult) {
+    if (guardrailsApplied.length > 0) {
+      const explanations = guardrailsApplied
+        .map(g => GUARDRAIL_EXPLANATIONS[g] ?? g)
+        .join("; ");
+      const STATUS_LABELS: Record<string, string> = {
+        RED: "Critical", ORANGE: "Insufficient coverage", YELLOW: "Validating",
+        GREEN: "Stabilized", WHITE: "Monitoring",
+      };
+      const finalLabel = STATUS_LABELS[finalStatus] ?? finalStatus;
+      if (finalStatus === prevStatus && llmResult.proposed_status !== finalStatus) {
+        reasoningSummary = `${llmResult.reasoning_summary}. However, safety rules prevented this change (${explanations}). Status remains ${finalLabel}.`;
+      } else {
+        reasoningSummary = `${llmResult.reasoning_summary}. Safety rules applied: ${explanations}. Status set to ${finalLabel}.`;
+      }
+    } else {
+      reasoningSummary = llmResult.reasoning_summary;
+    }
+  } else {
+    reasoningSummary = buildHumanReasoning(scores, booleans, finalStatus, guardrailsApplied);
+  }
 
   return {
     status: finalStatus,
