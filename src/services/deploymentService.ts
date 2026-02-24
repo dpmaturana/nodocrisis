@@ -64,6 +64,19 @@ async function determineSectorState(sectorId: string): Promise<SectorState> {
   return "contained";
 }
 
+function stripGuardrailSuffix(text: string): string {
+  const markers = [
+    ". Transition overridden by:",
+    ".. Transition overridden by:",
+    ". However, safety rules prevented this change",
+  ];
+  for (const marker of markers) {
+    const idx = text.indexOf(marker);
+    if (idx > 0) return text.substring(0, idx) + ".";
+  }
+  return text;
+}
+
 function determineOperatingPhase(
   deployments: DeploymentWithDetails[],
   sectorState: SectorState,
@@ -181,7 +194,7 @@ export const deploymentService = {
               if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
                 operational_requirements = Array.isArray(parsed.requirements) ? parsed.requirements : [];
                 if (typeof parsed.description === "string") {
-                  reasoning_summary = parsed.description;
+                  reasoning_summary = stripGuardrailSuffix(parsed.description);
                 }
               } else if (Array.isArray(parsed)) {
                 operational_requirements = parsed;
@@ -192,7 +205,7 @@ export const deploymentService = {
           }
 
           if (!reasoning_summary) {
-            reasoning_summary = auditMap.get(dep.capacity_type_id);
+            reasoning_summary = stripGuardrailSuffix(auditMap.get(dep.capacity_type_id)!);
           }
         }
 
