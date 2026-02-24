@@ -158,17 +158,30 @@ export const sectorService = {
 
     const deployments = dbDeployments ?? [];
 
-    // Fetch profiles for deployed actors to resolve names
+    // Fetch actor names for deployed users via actor_members → actors
     const deployedActorIds = [...new Set(deployments.map(d => d.actor_id))];
     const profileMap = new Map<string, string>();
     if (deployedActorIds.length > 0) {
-      const { data: dbProfiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, organization_name")
+      const { data: dbMembers } = await supabase
+        .from("actor_members")
+        .select("user_id, actor_id")
         .in("user_id", deployedActorIds);
-      (dbProfiles ?? []).forEach((p: any) => {
-        profileMap.set(p.user_id, p.organization_name || p.full_name || p.user_id);
-      });
+
+      const actorIds = [...new Set((dbMembers ?? []).map(m => m.actor_id))];
+      if (actorIds.length > 0) {
+        const { data: dbActors } = await supabase
+          .from("actors")
+          .select("id, organization_name")
+          .in("id", actorIds);
+
+        const actorNameMap = new Map<string, string>();
+        (dbActors ?? []).forEach((a: any) => actorNameMap.set(a.id, a.organization_name));
+
+        (dbMembers ?? []).forEach((m: any) => {
+          const name = actorNameMap.get(m.actor_id);
+          if (name) profileMap.set(m.user_id, name);
+        });
+      }
     }
 
     // Fetch latest need_audits for reasoning summaries
