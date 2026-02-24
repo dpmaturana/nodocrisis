@@ -58,19 +58,6 @@ export function SectorCard({ sector, onViewDetails, onEnroll, isHighlighted }: S
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Context Key Points */}
-        <div>
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Key Context</h4>
-          <ul className="space-y-1">
-            {context.keyPoints.slice(0, 3).map((point, idx) => (
-              <li key={idx} className="flex items-center gap-2 text-sm">
-                <span className="w-1.5 h-1.5 rounded-full bg-foreground/60" />
-                {point}
-              </li>
-            ))}
-          </ul>
-        </div>
-
         {/* Best Match Gaps */}
         {bestMatchGaps.length > 0 && (
           <div>
