@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
           source: "situation_report",
           notes: JSON.stringify({
             requirements: [],
-            description: report?.summary ?? null,
+            description: null,
           }),
         });
       }
