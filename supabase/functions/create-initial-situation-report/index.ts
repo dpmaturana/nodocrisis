@@ -60,6 +60,7 @@ SECTORS RULES (CRITICAL):
 - Bad examples: "England", "Rural areas", "Affected roads"
 - If the input text or news snippets mention specific places, USE THEM.
 - If no specific places are available, infer plausible municipalities/zones from the geographic context.
+- GEOGRAPHIC DECOMPOSITION RULE: If you identify a broad geographic feature (river basin, coastal region, mountain range, compass-direction zone like 'Western France'), you MUST decompose it into 3-5 specific municipalities, departments, or named areas along that feature. For example: instead of 'Loire River Basin', suggest 'Nantes – Loire-Atlantique', 'Angers – Maine-et-Loire', 'Tours – Indre-et-Loire'. Use your geographic knowledge to produce plausible granular locations even when news snippets only mention the broad feature.
 - Include approximate latitude and longitude for each sector if possible.
 
 CAPABILITIES — use ONLY these exact names (from the system's standardized taxonomy):

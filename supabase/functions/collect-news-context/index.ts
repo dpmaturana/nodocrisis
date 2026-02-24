@@ -58,6 +58,43 @@ function extractSnippet(r: any): string {
   return r.highlight ?? r.description ?? "";
 }
 
+async function fetchArticleText(url: string, timeoutMs = 3000): Promise<string | null> {
+  try {
+    const resp = await fetch(url, {
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; NodoCrisis/1.0)" },
+    });
+    if (!resp.ok) return null;
+    const html = await resp.text();
+    const paragraphs: string[] = [];
+    const pRegex = /<p[^>]*>([\s\S]*?)<\/p>/gi;
+    let match;
+    while ((match = pRegex.exec(html)) !== null) {
+      const text = match[1].replace(/<[^>]+>/g, "").trim();
+      if (text.length > 30) paragraphs.push(text);
+    }
+    const joined = paragraphs.join(" ").slice(0, 500);
+    return joined.length > 50 ? joined : null;
+  } catch {
+    return null;
+  }
+}
+
+async function enrichSnippetsWithArticleText(items: any[]): Promise<void> {
+  const toFetch = items
+    .filter((it) => it.link && typeof it.link === "string")
+    .slice(0, 5);
+
+  const results = await Promise.allSettled(
+    toFetch.map(async (it) => {
+      const text = await fetchArticleText(it.link);
+      if (text) {
+        it.snippet = (it.snippet || it.title || "") + " | " + text;
+      }
+    }),
+  );
+}
+
 function flattenResults(rawResults: any[]): any[] {
   const flat: any[] = [];
   for (const r of rawResults) {
@@ -111,6 +148,9 @@ async function fetchFromSerpApi(
   const rawResults: any[] = json?.news_results ?? [];
 
   const flatResults = flattenResults(rawResults);
+
+  // Enrich snippets with actual article text before scoring
+  await enrichSnippetsWithArticleText(flatResults);
 
   const items: NewsItem[] = flatResults.map((r: any) => {
     const title = r.title ?? "";
