@@ -48,13 +48,34 @@ const DEPLOYMENT_STATUS_LABELS: Record<string, string> = {
 
 async function fetchProfileMap(actorIds: string[]): Promise<Map<string, ProfileRow>> {
   if (actorIds.length === 0) return new Map();
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("user_id, organization_name, full_name")
+
+  // Resolve names via actor_members → actors (avoids profiles RLS restriction)
+  const { data: members, error: membersErr } = await supabase
+    .from("actor_members")
+    .select("user_id, actor_id")
     .in("user_id", actorIds);
-  if (error) console.error("activityLogService.fetchProfileMap:", error);
+  if (membersErr) console.error("activityLogService.fetchProfileMap (members):", membersErr);
+
+  const actorOrgIds = [...new Set((members ?? []).map(m => m.actor_id))];
+  const actorNameMap = new Map<string, string>();
+  if (actorOrgIds.length > 0) {
+    const { data: actors, error: actorsErr } = await supabase
+      .from("actors")
+      .select("id, organization_name")
+      .in("id", actorOrgIds);
+    if (actorsErr) console.error("activityLogService.fetchProfileMap (actors):", actorsErr);
+    (actors ?? []).forEach(a => actorNameMap.set(a.id, a.organization_name));
+  }
+
   return new Map<string, ProfileRow>(
-    (data ?? []).map((p) => [p.user_id, p as ProfileRow]),
+    (members ?? []).map(m => [
+      m.user_id,
+      {
+        user_id: m.user_id,
+        organization_name: actorNameMap.get(m.actor_id) ?? null,
+        full_name: null,
+      } as ProfileRow,
+    ]),
   );
 }
 
