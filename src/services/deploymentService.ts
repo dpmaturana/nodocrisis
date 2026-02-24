@@ -204,9 +204,6 @@ export const deploymentService = {
             }
           }
 
-          if (!reasoning_summary) {
-            reasoning_summary = stripGuardrailSuffix(auditMap.get(dep.capacity_type_id)!);
-          }
         }
 
         return { ...dep, need_status, operational_requirements, reasoning_summary };
