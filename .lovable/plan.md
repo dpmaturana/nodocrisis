@@ -1,24 +1,23 @@
 
 
-## Two Issues to Fix
+## Clean Up Existing Records
 
-### Issue 1: Hide "Key Context" section from the NGO Sector Cards
+There are **15 records** in `sector_needs_context` that have the generic event summary stored in their `notes.description` field. All contain the same blizzard summary text.
 
-The `SectorCard.tsx` component (lines 61-72) always renders a "Key Context" section with bullet points. This should be hidden for NGO/actor users since they don't need this administrative context.
+### Action
 
-**Change**: In `SectorCard.tsx`, remove the "Key Context" section entirely (lines 60-72). The NGO card should focus on actionable information: status badge, best-match gaps, and CTAs.
+Run a single SQL UPDATE to null out the `description` field in the `notes` JSON for all affected records:
 
-### Issue 2: Stop filling `reasoning_summary` with event creation context
+```sql
+UPDATE sector_needs_context
+SET notes = jsonb_set(notes::jsonb, '{description}', 'null'::jsonb)::text
+WHERE notes::jsonb->>'description' IS NOT NULL;
+```
 
-**Root cause**: In `supabase/functions/materialize-event-needs/index.ts` (line 115), the system stores the event's general situation report summary (`report?.summary`) as the `description` field in every need's `notes` JSON. This generic event text (e.g., "A major snowstorm, potentially the first blizzard since 2022...") then gets picked up as `reasoning_summary` through the fallback chain in `sectorService.ts`, `gapService.ts`, and `deploymentService.ts`.
-
-**Change**: In `materialize-event-needs/index.ts` line 115, set `description` to `null` instead of `report?.summary`. The reasoning summary should only be populated by actual need evaluation (from `need_audits`), not from the generic event creation context.
-
-### Files Modified
-1. `src/components/sectors/SectorCard.tsx` — Remove lines 60-72 (Key Context section)
-2. `supabase/functions/materialize-event-needs/index.ts` — Line 115: change `description: report?.summary ?? null` to `description: null`
+This sets `description` to `null` inside the existing JSON object while preserving the `requirements` array and any other fields. No migration needed — this is a data-only change using the insert/update tool.
 
 ### Impact
-- Existing needs that already have the event summary stored will still display it. To clean those up, we could also add a note about running a one-time SQL update, but the primary fix prevents new needs from getting the wrong text.
-- The `reasoning_summary` field will only show meaningful per-capability reasoning from the evaluation engine going forward.
+- 15 rows updated
+- Reasoning summaries for these needs will no longer display the generic event context
+- The `requirements` array and other JSON fields remain untouched
 
