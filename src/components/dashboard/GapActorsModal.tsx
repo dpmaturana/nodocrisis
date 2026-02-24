@@ -66,21 +66,32 @@ export function GapActorsModal({ gap, open, onOpenChange }: GapActorsModalProps)
         return;
       }
 
-      const actorIds = [...new Set(deps.map((d) => d.actor_id))];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, organization_name")
-        .in("user_id", actorIds);
+      const actorUserIds = [...new Set(deps.map((d) => d.actor_id))];
+      const { data: members } = await supabase
+        .from("actor_members")
+        .select("user_id, actor_id")
+        .in("user_id", actorUserIds);
 
-      const profileMap = new Map<string, { full_name: string | null; organization_name: string | null }>();
-      (profiles ?? []).forEach((p) => profileMap.set(p.user_id, p));
+      const actorOrgIds = [...new Set((members ?? []).map(m => m.actor_id))];
+      const actorNameMap = new Map<string, string>();
+      if (actorOrgIds.length > 0) {
+        const { data: actors } = await supabase
+          .from("actors")
+          .select("id, organization_name")
+          .in("id", actorOrgIds);
+        (actors ?? []).forEach(a => actorNameMap.set(a.id, a.organization_name));
+      }
+      const nameMap = new Map<string, string>();
+      (members ?? []).forEach(m => {
+        const name = actorNameMap.get(m.actor_id);
+        if (name) nameMap.set(m.user_id, name);
+      });
 
       setActors(
         deps.map((d) => {
-          const profile = profileMap.get(d.actor_id);
           return {
             id: d.actor_id,
-            name: profile?.organization_name ?? profile?.full_name ?? "Unknown actor",
+            name: nameMap.get(d.actor_id) ?? "Unknown actor",
             status: d.status,
             updatedAt: d.updated_at,
             notes: d.notes,
