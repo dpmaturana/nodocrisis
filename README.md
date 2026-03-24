@@ -6,7 +6,7 @@ NodoCrisis is a coordination platform I designed and built to solve a specific s
 
 The platform fuses multi-source signals into a live, explainable gap-priority map — and orchestrates actor deployments across it.
 
-→ **[Live demo](https://nodocrisis.lovable.app)** · **[Demo video](#)**
+→ **[Live demo](https://nodocrisis.lovable.app)** · **[Demo video](https://drive.google.com/file/d/1NHAoQqOwZtFz8dsLhQRHZ4h-YqvAEgEV/view?usp=drive_link)**
 
 ---
 
