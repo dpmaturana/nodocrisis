@@ -199,7 +199,7 @@ Requires: Supabase project + Claude API key configured as environment variables 
 
 Built as part of a Master in Computer Science and Business Technology at IE University (Madrid, 2025–2026). The system design was informed by post-event analyses of the 2024 Valparaíso wildfires and coordination failures documented in OCHA and IFRC field reports.
 
-The business plan, responsible AI framework, and pilot validation methodology are available in [`CODEBASE_OVERVIEW.md`](./CODEBASE_OVERVIEW.md).
+The business plan, responsible AI framework, and pilot validation methodology are available in [`Business Rules `](https://drive.google.com/file/d/1lpKRUKJYA0bhLNI493rJUZIE7YXPW6mM/view?usp=drive_link).
 
 ---
 
