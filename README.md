@@ -59,7 +59,7 @@ The engine runs two paths in parallel:
 
 **Rule-based path:** Deterministic evaluation using the 6 boolean flags. Always runs. Produces a proposed status without LLM dependency.
 
-**LLM path (Claude):** The flags, scores, and evidence quotes are passed to Claude with a structured prompt. Claude proposes a status and returns reasoning text. This path is optional — if unavailable or low-confidence, the system falls back to rule-based.
+**LLM path (Gemini):** The flags, scores, and evidence quotes are passed to Gemini with a structured prompt. Gemini proposes a status and returns reasoning text. This path is optional — if unavailable or low-confidence, the system falls back to rule-based.
 
 ### 7 Safety guardrails
 
@@ -115,7 +115,7 @@ A separate pipeline handles event initialization from unstructured input:
 
 1. Coordinator pastes free text (field note, news excerpt, situation description)
 2. System retrieves corroborating news context via external API
-3. Claude generates a structured draft: event name/type, summary, suggested sectors, suggested capabilities, confidence score
+3. Gemini generates a structured draft: event name/type, summary, suggested sectors, suggested capabilities, confidence score
 4. Coordinator edits and confirms — **nothing becomes live until explicit human confirmation**
 
 The AI never creates an event. It proposes a draft.
@@ -128,12 +128,12 @@ The AI never creates an event. It proposes a draft.
 |---|---|
 | Frontend | React 18 + TypeScript + Vite + TailwindCSS + shadcn/ui |
 | Backend | Supabase (PostgreSQL + Auth + Edge Functions + Realtime) |
-| AI | Anthropic Claude API (Haiku for extraction, Sonnet for reasoning) |
+| AI | Gemini 2.5 Flash vía Lovable AI Gateway |
 | Maps | Leaflet |
 | Testing | Vitest + Testing Library + Playwright (e2e) |
 | Database logic | PL/pgSQL (row-level security, audit immutability) |
 
-Edge Functions implement the evaluation engine and AI pipelines. The frontend never calls the Claude API directly — all AI calls are server-side with API keys stored as Edge Function secrets.
+Edge Functions implement the evaluation engine and AI pipelines. The frontend never calls the Gemini API directly — all AI calls are server-side with API keys stored as Edge Function secrets.
 
 ---
 
@@ -191,7 +191,7 @@ npm install
 npm run dev
 ```
 
-Requires: Supabase project + Claude API key configured as environment variables (see `.env.example`).
+Requires: Supabase project + Gemini API key configured as environment variables (see `.env.example`).
 
 ---
 
